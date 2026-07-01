@@ -2,6 +2,8 @@ const db = require('../config/db');
 const crypto = require('crypto');
 const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
+const { createClient } = require('@supabase/supabase-js');
+const path = require('path');
 
 // Sort and align segments of a MultiLineString to form a continuous line
 function sortAndAlignSegments(segments) {
@@ -666,9 +668,44 @@ exports.uploadPhoto = async (req, res) => {
     let imageUrl = `/uploads/${req.file.filename}`;
     let publicId = null;
 
-    // Check if Cloudinary is configured
+    // Check if Supabase is configured
+    const isSupabaseConfigured = process.env.SUPABASE_URL && process.env.SUPABASE_KEY && process.env.SUPABASE_BUCKET;
     const isCloudinaryConfigured = process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
-    if (isCloudinaryConfigured) {
+
+    if (isSupabaseConfigured) {
+      try {
+        console.log('Uploading image to Supabase Storage...');
+        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+        const fileBuffer = fs.readFileSync(req.file.path);
+        const ext = path.extname(req.file.path) || '.jpg';
+        const filename = `photo-${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
+
+        const { data, error } = await supabase.storage
+          .from(process.env.SUPABASE_BUCKET)
+          .upload(filename, fileBuffer, {
+            contentType: req.file.mimetype || 'image/jpeg',
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (error) throw error;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from(process.env.SUPABASE_BUCKET)
+          .getPublicUrl(filename);
+
+        imageUrl = publicUrl;
+        publicId = filename;
+        console.log('Supabase upload successful:', imageUrl, publicId);
+
+        // Delete the temporary local file asynchronously to clean up disk space
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error('Error deleting local temp file:', err);
+        });
+      } catch (uploadError) {
+        console.error('Supabase upload failed, falling back to local file:', uploadError);
+      }
+    } else if (isCloudinaryConfigured) {
       try {
         console.log('Uploading image to Cloudinary...');
         cloudinary.config({
