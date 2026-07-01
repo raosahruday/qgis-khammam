@@ -4,31 +4,21 @@ const { deletePhysicalPhoto } = require('./cleanupPhotos');
 
 const resetCompletedTasks = async () => {
   try {
-    console.log('[Cron Job] Starting daily task reset...');
+    console.log('[Cron Job] Starting daily task reset at 04:30 AM...');
     
-    // 1. Find photos associated with completed tasks
-    const photosToReset = await db.query(`
-      SELECT * FROM photos 
-      WHERE task_id IN (
-        SELECT id FROM tasks WHERE status = 'approved'
-      )
-    `);
+    // 1. Find ALL photos to reset
+    const photosToReset = await db.query('SELECT * FROM photos');
     
-    console.log(`[Cron Job] Found ${photosToReset.rows.length} photos associated with completed tasks to delete.`);
+    console.log(`[Cron Job] Found ${photosToReset.rows.length} total photos to delete for the daily reset.`);
     
-    // 2. Physically delete each photo
+    // 2. Physically delete each photo from Cloudinary/Disk
     for (const photo of photosToReset.rows) {
       await deletePhysicalPhoto(photo);
     }
     
-    // 3. Delete photos records from database
+    // 3. Clear photos table completely
     if (photosToReset.rows.length > 0) {
-      await db.query(`
-        DELETE FROM photos 
-        WHERE task_id IN (
-          SELECT id FROM tasks WHERE status = 'approved'
-        )
-      `);
+      await db.query('DELETE FROM photos');
     }
 
     // 4. Reset tasks with status = 'approved' to status = 'pending'
@@ -41,7 +31,7 @@ const resetCompletedTasks = async () => {
     `);
     console.log(`[Cron Job] Reset ${resetTasksRes.rowCount} completed tasks to pending.`);
     
-    console.log('[Cron Job] Daily task reset completed successfully.');
+    console.log('[Cron Job] Daily task and photo reset completed successfully.');
   } catch (error) {
     console.error('[Cron Job] Error resetting completed tasks:', error);
   }
