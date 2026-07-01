@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Alert } from 'react-native';
-import MapView, { Polyline, Marker } from 'react-native-maps';
+import MapView, { Polygon, Polyline, Marker } from '../../components/MapViewWrapper';
 import api from '../../api/axios';
 import { useIsFocused } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
@@ -11,6 +11,15 @@ export default function WorkerDashboard({ navigation }) {
   const [tasks, setTasks] = useState([]);
   const [machines, setMachines] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [wardBoundary, setWardBoundary] = useState(null);
+  const [infrastructure, setInfrastructure] = useState([]);
+  const [region, setRegion] = useState({
+    latitude: 17.2473,
+    longitude: 80.1514,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  });
+
   const isFocused = useIsFocused();
   const { logout, user, updateUserMachine } = useContext(AuthContext);
 
@@ -21,10 +30,76 @@ export default function WorkerDashboard({ navigation }) {
         api.get('/tasks'),
         api.get('/machines')
       ]);
-      setTasks(tasksRes.data);
-      setMachines(machinesRes.data);
+      
+      const tasksData = tasksRes.data || [];
+      setTasks(tasksData);
+      setMachines(machinesRes.data || []);
+
+      // Calculate task-based bounding box center as a fallback
+      let computedRegion = null;
+      if (tasksData.length > 0) {
+        let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+        let hasCoords = false;
+
+        tasksData.forEach(task => {
+          const coords = (typeof task.area_geojson === 'string' ? JSON.parse(task.area_geojson) : task.area_geojson) || [];
+          if (Array.isArray(coords)) {
+            coords.forEach(pt => {
+              if (pt && pt.latitude && pt.longitude) {
+                hasCoords = true;
+                if (pt.latitude < minLat) minLat = pt.latitude;
+                if (pt.latitude > maxLat) maxLat = pt.latitude;
+                if (pt.longitude < minLng) minLng = pt.longitude;
+                if (pt.longitude > maxLng) maxLng = pt.longitude;
+              }
+            });
+          }
+        });
+
+        if (hasCoords) {
+          computedRegion = {
+            latitude: (minLat + maxLat) / 2,
+            longitude: (minLng + maxLng) / 2,
+            latitudeDelta: Math.max(0.015, (maxLat - minLat) * 1.3),
+            longitudeDelta: Math.max(0.015, (maxLng - minLng) * 1.3),
+          };
+        }
+      }
+
+      // Fetch the ward boundary and infrastructure once on mount/refresh
+      try {
+        const [wardRes, infraRes] = await Promise.all([
+          api.get('/infrastructure/ward-boundary').catch(err => {
+            console.log('No ward boundary found (404/error):', err.response?.status || err.message);
+            return { data: null };
+          }),
+          api.get('/infrastructure?limit=1000').catch(err => {
+            console.log('Failed to fetch infrastructure:', err.message);
+            return { data: [] };
+          })
+        ]);
+
+        if (wardRes.data && wardRes.data.geom_json) {
+          setWardBoundary(wardRes.data);
+          const bbox = wardRes.data.bbox;
+          if (bbox) {
+            const newRegion = {
+              latitude: (bbox.minLat + bbox.maxLat) / 2,
+              longitude: (bbox.minLng + bbox.maxLng) / 2,
+              latitudeDelta: Math.max(0.015, (bbox.maxLat - bbox.minLat) * 1.2),
+              longitudeDelta: Math.max(0.015, (bbox.maxLng - bbox.minLng) * 1.2),
+            };
+            setRegion(newRegion);
+          }
+        } else if (computedRegion) {
+          setRegion(computedRegion);
+        }
+        setInfrastructure(infraRes.data || []);
+      } catch (wardErr) {
+        console.warn('Failed to fetch ward boundary or infrastructure', wardErr);
+      }
     } catch (error) {
-      console.error('Error fetching data', error);
+      console.warn('Error fetching data', error);
     } finally {
       setLoading(false);
     }
@@ -45,35 +120,181 @@ export default function WorkerDashboard({ navigation }) {
     }
   };
 
-  const renderTask = ({ item }) => (
-    <TouchableOpacity
-      style={styles.taskCard}
-      onPress={() => navigation.navigate('MapNavigation', { task: item })}
-    >
-      <View style={styles.cardHeader}>
-        <Text style={styles.taskTitle}>{item.title}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
-        </View>
-      </View>
-      <Text style={styles.taskDesc} numberOfLines={2}>{item.description}</Text>
-      <View style={styles.cardFooter}>
-        <Text style={styles.locationLabel}>📍 Tap to Navigate</Text>
-        <Text style={styles.viewDetails}>Open Task →</Text>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const getTaskColor = (status) => {
+  const getStatusColor = (status) => {
     switch (status) {
       case 'approved': return '#2E7D32';
+      case 'submitted':
       case 'in_progress':
-      case 'submitted': return '#FFD600';
+        return '#FFD600';
       default: return '#D32F2F';
     }
   };
 
-  const mapTasks = tasks.filter(t => t.geom_json);
+  const getRoadColor = (item) => {
+    if (item.type !== 'road') return 'rgba(211,47,47,0.5)';
+    const props = item.properties || {};
+    const lineId = props.Line_ID || props.line_id;
+    const rdName = props.Rd_Name || props.rd_name || item.name;
+
+    let task = null;
+    if (lineId) {
+      task = tasks.find(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase());
+    } else {
+      task = tasks.find(t => 
+        (rdName && t.rd_name === rdName) || 
+        (t.title === rdName)
+      );
+    }
+
+    if (task) {
+      if (task.status === 'approved') return '#2E7D32';
+      if (task.status === 'submitted' || task.status === 'in_progress') return '#FFD600';
+    }
+    return '#D32F2F'; // Roads default to red until completed
+  };
+
+  const isAssignedRoad = (item) => {
+    if (item.type !== 'road') return false;
+    const props = item.properties || {};
+    const lineId = props.Line_ID || props.line_id;
+    const rdName = props.Rd_Name || props.rd_name || item.name;
+
+    if (lineId) {
+      return tasks.some(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase());
+    } else {
+      return tasks.some(t => 
+        (rdName && t.rd_name === rdName) || 
+        (t.title === rdName)
+      );
+    }
+  };
+
+  const getDistanceToSegment = (x, y, x1, y1, x2, y2) => {
+    const A = x - x1;
+    const B = y - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    let param = -1;
+    if (lenSq !== 0) {
+      param = dot / lenSq;
+    }
+
+    let xx, yy;
+
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+
+    const dx = x - xx;
+    const dy = y - yy;
+    return Math.hypot(dx, dy);
+  };
+
+  const handleRoadPress = (item) => {
+    const props = item.properties || {};
+    const lineId = props.Line_ID || props.line_id;
+    const rdName = props.Rd_Name || props.rd_name || item.name;
+
+    let task = null;
+    if (lineId) {
+      task = tasks.find(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase());
+    } else {
+      task = tasks.find(t => 
+        (rdName && t.rd_name === rdName) || 
+        (t.title === rdName)
+      );
+    }
+
+    if (task) {
+      navigation.navigate('MapNavigation', { task });
+    } else {
+      Alert.alert("No Task", "This road is not currently assigned to you.");
+    }
+  };
+
+  const handleMapPress = (coord) => {
+    if (!coord) return;
+    const { latitude, longitude } = coord;
+
+    let closestRoad = null;
+    let minDistance = Infinity;
+
+    infrastructure.forEach(item => {
+      if (item.type !== 'road' || !item.geom_json) return;
+      
+      let geom;
+      try {
+        geom = JSON.parse(item.geom_json);
+      } catch (e) {
+        return;
+      }
+      
+      const coordsList = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+
+      coordsList.forEach(cList => {
+        for (let i = 0; i < cList.length - 1; i++) {
+          const dist = getDistanceToSegment(
+            longitude, latitude,
+            cList[i][0], cList[i][1],
+            cList[i+1][0], cList[i+1][1]
+          );
+          if (dist < minDistance) {
+            minDistance = dist;
+            closestRoad = item;
+          }
+        }
+      });
+    });
+
+    // 0.00045 degrees threshold is roughly 50 meters
+    if (closestRoad && minDistance < 0.00045) {
+      handleRoadPress(closestRoad);
+    }
+  };
+
+  const onRegionChangeComplete = (newRegion) => {
+    setRegion(newRegion);
+  };
+
+  const renderTask = ({ item }) => (
+    <View style={styles.taskCard}>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('MapNavigation', { task: item })}
+      >
+        <View style={styles.cardHeader}>
+          <Text style={styles.taskTitle}>{item.title}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+            <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+          </View>
+        </View>
+        <Text style={styles.taskDesc} numberOfLines={2}>{item.description}</Text>
+
+        {/* Render Ward, Line ID, and Road Name if they exist */}
+        {(item.line_id || item.rd_name || item.ward_name) ? (
+          <View style={styles.metaRow}>
+            {item.ward_name ? <Text style={styles.metaText}>📍 Ward: {item.ward_name}</Text> : null}
+            {item.line_id ? <Text style={styles.metaText}>🔗 Line ID: {item.line_id}</Text> : null}
+            {item.rd_name ? <Text style={styles.metaText}>🛣️ Road Name: {item.rd_name}</Text> : null}
+          </View>
+        ) : null}
+
+        <View style={styles.cardFooter}>
+          <Text style={styles.locationLabel}>📍 Tap to Navigate</Text>
+          <Text style={styles.viewDetails}>Open Task →</Text>
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -110,29 +331,88 @@ export default function WorkerDashboard({ navigation }) {
         <MapView
           style={styles.map}
           mapType="satellite"
-          initialRegion={{
-            latitude: 17.2473,
-            longitude: 80.1514,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          }}
+          region={region}
+          onRegionChangeComplete={onRegionChangeComplete}
+          onPress={(e) => handleMapPress(e.nativeEvent.coordinate)}
         >
-          {mapTasks.map(task => {
-            const geom = JSON.parse(task.geom_json);
-            const color = getTaskColor(task.status);
-            if (geom.type === 'LineString') {
-              return (
-                <Polyline
-                  key={`task-${task.id}`}
-                  coordinates={geom.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                  strokeColor={color}
-                  strokeWidth={5}
-                  tappable
-                  onPress={() => navigation.navigate('MapNavigation', { task })}
-                />
-              );
-            }
-            return null;
+          {/* Ward Boundary (Explicit Layer) */}
+          {wardBoundary && user?.email !== 'jawan_61' && (() => {
+             const geom = JSON.parse(wardBoundary.geom_json);
+             const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+             return polys.map((poly, idx) => {
+                const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
+                return (
+                  <Polygon
+                    key={`ward-boundary-${wardBoundary.id}-${idx}`}
+                    coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                    fillColor="rgba(255, 255, 255, 0.03)"
+                    strokeColor="#FFFFFF"
+                    strokeWidth={4}
+                    zIndex={10}
+                  />
+                );
+             });
+          })()}
+
+          {/* QGIS Infrastructure Layers */}
+          {infrastructure.map(item => {
+             if (!item.geom_json) return null;
+             
+             // If Jawan 61, only show assigned roads, no boundaries or other infrastructure
+             if (user?.email === 'jawan_61') {
+                if (item.type !== 'road' || !isAssignedRoad(item)) {
+                   return null;
+                }
+             }
+
+             const geom = JSON.parse(item.geom_json);
+             
+             if (geom.type === 'LineString' || geom.type === 'MultiLineString') {
+                const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+                return coords.map((cList, idx) => (
+                  <Polyline
+                    key={`infra-road-${item.id}-${idx}`}
+                    coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                    strokeColor={getRoadColor(item)}
+                    strokeWidth={item.type === 'road' ? 4 : 2}
+                    tappable={false}
+                    zIndex={11}
+                  />
+                ));
+             } else if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+                const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+                return polys.map((poly, idx) => {
+                   const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
+                   let fillColor = "rgba(255, 255, 255, 0.02)";
+                   let strokeColor = "rgba(255, 255, 255, 0.1)";
+                   let strokeWidth = 0.5;
+                   let lineDash = null;
+                   
+                   if (item.type === 'row') {
+                      fillColor = "rgba(255, 152, 0, 0.15)";
+                      strokeColor = "rgba(255, 152, 0, 0.6)";
+                      strokeWidth = 1.5;
+                   } else if (item.type === 'ward') {
+                      fillColor = "rgba(255, 255, 255, 0.03)";
+                      strokeColor = "#FFFFFF";
+                      strokeWidth = 4;
+                      lineDash = null;
+                   }
+                   
+                   return (
+                     <Polygon 
+                       key={`infra-poly-${item.id}-${idx}`}
+                       coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                       fillColor={fillColor}
+                       strokeColor={strokeColor}
+                       strokeWidth={strokeWidth}
+                       lineDashPattern={lineDash}
+                       zIndex={5}
+                     />
+                   );
+                });
+             }
+             return null;
           })}
         </MapView>
         
@@ -194,7 +474,19 @@ const styles = StyleSheet.create({
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   taskTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.text, flex: 1, marginRight: 10 },
-  taskDesc: { color: Colors.textSecondary, marginBottom: 12, fontSize: 14 },
+  taskDesc: { color: Colors.textSecondary, marginBottom: 8, fontSize: 13, lineHeight: 18 },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 6,
+    marginTop: -2,
+  },
+  metaText: {
+    fontSize: 12,
+    color: '#666',
+    marginRight: 10,
+    marginBottom: 4,
+  },
   statusBadge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 },
   statusText: { color: Colors.white, fontSize: 10, fontWeight: 'bold' },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10 },

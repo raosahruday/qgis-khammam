@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
-import MapView, { Polyline, Marker } from 'react-native-maps';
+import MapView, { Polyline, Marker, Polygon } from '../../components/MapViewWrapper';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../api/axios';
@@ -13,12 +13,49 @@ export default function MapTaskCreationScreen({ navigation }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [workers, setWorkers] = useState([]);
+  const [wards, setWards] = useState([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
+  const [selectedWardId, setSelectedWardId] = useState('');
+  const [lineId, setLineId] = useState('');
+  const [rdName, setRdName] = useState('');
   const [loading, setLoading] = useState(false);
   const { user } = useContext(AuthContext);
 
+  const [region, setRegion] = useState({
+    latitude: 17.2473,
+    longitude: 80.1514,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  });
+  const [infrastructure, setInfrastructure] = useState([]);
+  const debounceTimer = useRef(null);
+
+  const fetchInfrastructure = async (activeRegion) => {
+    try {
+      const { latitude, longitude, latitudeDelta, longitudeDelta } = activeRegion;
+      const minLat = latitude - latitudeDelta / 2;
+      const maxLat = latitude + latitudeDelta / 2;
+      const minLng = longitude - longitudeDelta / 2;
+      const maxLng = longitude + longitudeDelta / 2;
+
+      const res = await api.get(
+        `/infrastructure?minLat=${minLat}&maxLat=${maxLat}&minLng=${minLng}&maxLng=${maxLng}&latDelta=${latitudeDelta}&limit=500`
+      );
+      setInfrastructure(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch infrastructure', err);
+    }
+  };
+
+  const onRegionChangeComplete = (newRegion) => {
+    setRegion(newRegion);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => fetchInfrastructure(newRegion), 400);
+  };
+
   useEffect(() => {
     fetchWorkers();
+    fetchWards();
   }, []);
 
   const fetchWorkers = async () => {
@@ -27,6 +64,19 @@ export default function MapTaskCreationScreen({ navigation }) {
       setWorkers(response.data);
     } catch (error) {
       console.error('Failed to fetch workers', error);
+    }
+  };
+
+  const fetchWards = async () => {
+    try {
+      const response = await api.get('/wards');
+      setWards(response.data);
+      // Auto-select the first ward for supervisors (they typically manage one)
+      if (response.data.length > 0 && user?.role === 'supervisor') {
+        setSelectedWardId(response.data[0].id);
+      }
+    } catch (error) {
+      console.error('Failed to fetch wards', error);
     }
   };
 
@@ -40,6 +90,8 @@ export default function MapTaskCreationScreen({ navigation }) {
 
   const clearPoints = () => {
     setCoordinates([]);
+    setLineId('');
+    setRdName('');
   };
 
   const handleCreateTask = async () => {
@@ -55,11 +107,13 @@ export default function MapTaskCreationScreen({ navigation }) {
         description,
         area_geojson: coordinates,
         assignedWorkerId: selectedWorkerId || null,
-        wardId: user?.ward_id || null,
-        taskType: 'road'
+        wardId: selectedWardId || null,
+        taskType: 'road',
+        lineId: lineId || null,
+        rdName: rdName || title
       });
       Alert.alert('Success', 'Road Task created successfully!');
-      navigation.replace('QRDisplay', { task: response.data });
+      navigation.goBack();
     } catch (error) {
       Alert.alert('Error', 'Failed to create task');
       console.error(error);
@@ -80,19 +134,85 @@ export default function MapTaskCreationScreen({ navigation }) {
       <MapView
         style={styles.map}
         mapType="satellite"
-        initialRegion={{
-          latitude: 17.2473,
-          longitude: 80.1514,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
+        initialRegion={region}
+        onRegionChangeComplete={onRegionChangeComplete}
         onPress={handleMapPress}
       >
+        {/* QGIS Infrastructure Layers */}
+        {infrastructure.map(item => {
+           if (!item.geom_json) return null;
+           const geom = JSON.parse(item.geom_json);
+           
+           if (geom.type === 'LineString' || geom.type === 'MultiLineString') {
+              const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+              return coords.map((cList, idx) => (
+                <Polyline
+                  key={`infra-road-${item.id}-${idx}`}
+                  coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                  strokeColor={item.type === 'road' ? '#1A73E8' : 'rgba(66,133,244,0.5)'}
+                  strokeWidth={item.type === 'road' ? 4 : 2}
+                  zIndex={11}
+                  tappable={true}
+                  onPress={() => {
+                     const props = item.properties || {};
+                     const lineIdVal = props.Line_ID || props.line_id || '';
+                     const rdNameVal = props.Rd_Name || props.rd_name || item.name || '';
+                     
+                     setTitle(rdNameVal);
+                     setLineId(lineIdVal.toString());
+                     setRdName(rdNameVal);
+                     
+                     // Set coordinates to match this polyline
+                     const polyCoords = cList.map(c => ({ longitude: c[0], latitude: c[1] }));
+                     setCoordinates(polyCoords);
+                     
+                     Alert.alert('Road Selected', `Road: ${rdNameVal}\nLine ID: ${lineIdVal}`);
+                  }}
+                />
+              ));
+           } else if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+              const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+              return polys.map((poly, idx) => {
+                 const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
+                 // Style based on type
+                 let fillColor = "rgba(255, 255, 255, 0.02)";
+                 let strokeColor = "rgba(255, 255, 255, 0.1)";
+                 let strokeWidth = 0.5;
+                 let lineDash = null;
+                 
+                 if (item.type === 'row') {
+                    fillColor = "rgba(255, 152, 0, 0.15)";
+                    strokeColor = "rgba(255, 152, 0, 0.6)";
+                    strokeWidth = 1.5;
+                 } else if (item.type === 'ward') {
+                    fillColor = "rgba(255, 255, 255, 0.03)";
+                    strokeColor = "rgba(255, 255, 255, 0.45)";
+                    strokeWidth = 1.5;
+                    lineDash = [6, 6];
+                 }
+                 
+                 return (
+                   <Polygon 
+                     key={`infra-poly-${item.id}-${idx}`}
+                     coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                     fillColor={fillColor}
+                     strokeColor={strokeColor}
+                     strokeWidth={strokeWidth}
+                     lineDashPattern={lineDash}
+                     zIndex={5}
+                   />
+                 );
+              });
+           }
+           return null;
+        })}
+
         {coordinates.map((coord, index) => (
           <Marker 
             key={index} 
             coordinate={coord} 
             anchor={{x: 0.5, y: 0.5}}
+            zIndex={21}
           >
             <View style={[styles.dotMarker, index === 0 && {backgroundColor: '#4CAF50'}]} />
           </Marker>
@@ -102,6 +222,7 @@ export default function MapTaskCreationScreen({ navigation }) {
             coordinates={coordinates} 
             strokeColor="#FFFF00" 
             strokeWidth={5} 
+            zIndex={20}
           />
         )}
       </MapView>
@@ -153,12 +274,28 @@ export default function MapTaskCreationScreen({ navigation }) {
           </Picker>
         </View>
 
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={selectedWardId}
+            onValueChange={(itemValue) => setSelectedWardId(itemValue)}
+          >
+            <Picker.Item label="-- Assign Ward --" value="" />
+            {wards.map(ward => (
+              <Picker.Item 
+                key={ward.id} 
+                label={ward.name} 
+                value={ward.id} 
+              />
+            ))}
+          </Picker>
+        </View>
+
         <TouchableOpacity 
            style={[styles.button, (coordinates.length < 2 || loading) ? styles.buttonDisabled : null]} 
            onPress={handleCreateTask}
            disabled={coordinates.length < 2 || loading}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>CREATE LINE TASK & GEN QR</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>CREATE LINE TASK</Text>}
         </TouchableOpacity>
         <View style={{height: 40}} />
       </ScrollView>

@@ -7,13 +7,13 @@ const Header = () => {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <Image
-          source={require('../../assets/logo_telangana.png')}
+          source={require('../../assets/logo_telangana.jpeg')}
           style={styles.logo}
           resizeMode="contain"
         />
         <View style={styles.spacer} />
         <Image
-          source={require('../../assets/logo_khammam.png')}
+          source={require('../../assets/logo_khammam.jpeg')}
           style={styles.logo}
           resizeMode="contain"
         />

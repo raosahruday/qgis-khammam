@@ -40,14 +40,14 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.subtitle}>Welcome back! Please login to continue.</Text>
             
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email Address</Text>
+              <Text style={styles.label}>Mobile Number or Email</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email"
+                placeholder="Enter mobile number or email"
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
-                keyboardType="email-address"
+                keyboardType="default"
               />
             </View>
 

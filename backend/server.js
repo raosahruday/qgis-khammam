@@ -22,7 +22,12 @@ app.get('/', (req, res) => {
   res.send('Cleaning Task API is running');
 });
 
+const { startResetJob } = require('./src/jobs/resetTasks');
+const { startCleanupJob } = require('./src/jobs/cleanupPhotos');
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  startResetJob();
+  startCleanupJob();
 });

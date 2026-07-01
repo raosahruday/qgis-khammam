@@ -1,5 +1,78 @@
 const db = require('../config/db');
 const crypto = require('crypto');
+const cloudinary = require('cloudinary').v2;
+const fs = require('fs');
+
+// Sort and align segments of a MultiLineString to form a continuous line
+function sortAndAlignSegments(segments) {
+  if (!segments || segments.length === 0) return [];
+  
+  let remaining = segments.map(s => [...s]);
+  let chain = [...remaining.shift()];
+  
+  const distance = (p1, p2) => {
+    return Math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2);
+  };
+  
+  const threshold = 0.001; // roughly 100 meters
+
+  let progress = true;
+  while (remaining.length > 0 && progress) {
+    progress = false;
+    let bestDist = Infinity;
+    let bestMode = '';
+    let bestIdx = -1;
+
+    const startPoint = chain[0];
+    const endPoint = chain[chain.length - 1];
+
+    for (let i = 0; i < remaining.length; i++) {
+      const seg = remaining[i];
+      const segStart = seg[0];
+      const segEnd = seg[seg.length - 1];
+
+      const dEndStart = distance(endPoint, segStart);
+      const dEndEnd = distance(endPoint, segEnd);
+      const dStartEnd = distance(startPoint, segEnd);
+      const dStartStart = distance(startPoint, segStart);
+
+      const minDist = Math.min(dEndStart, dEndEnd, dStartEnd, dStartStart);
+      if (minDist < threshold && minDist < bestDist) {
+        bestDist = minDist;
+        bestIdx = i;
+        if (minDist === dEndStart) {
+          bestMode = 'append';
+        } else if (minDist === dEndEnd) {
+          bestMode = 'append-reversed';
+        } else if (minDist === dStartEnd) {
+          bestMode = 'prepend';
+        } else {
+          bestMode = 'prepend-reversed';
+        }
+      }
+    }
+
+    if (bestIdx !== -1) {
+      const seg = remaining.splice(bestIdx, 1)[0];
+      if (bestMode === 'append') {
+        chain.push(...seg.slice(1));
+      } else if (bestMode === 'append-reversed') {
+        chain.push(...seg.slice(0, -1).reverse());
+      } else if (bestMode === 'prepend') {
+        chain.unshift(...seg.slice(0, -1));
+      } else if (bestMode === 'prepend-reversed') {
+        chain.unshift(...seg.reverse().slice(1));
+      }
+      progress = true;
+    }
+  }
+
+  while (remaining.length > 0) {
+    chain.push(...remaining.shift());
+  }
+
+  return chain;
+}
 
 // Calculate distance between two points in meters
 const getDistanceFromLatLonInM = (lat1, lon1, lat2, lon2) => {
@@ -12,6 +85,34 @@ const getDistanceFromLatLonInM = (lat1, lon1, lat2, lon2) => {
     Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
   return R * c; 
+};
+
+const normalizeName = (name) => {
+  if (!name) return '';
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    .replace(/shw/g, 'sw')
+    .replace(/narayan$/g, 'narayana')
+    .replace(/srinivasa/g, 'srinivas');
+};
+
+const isJawanMatch = (name1, name2) => {
+  const n1 = normalizeName(name1);
+  const n2 = normalizeName(name2);
+  if (n1 === n2) return true;
+  if (n1.includes(n2) || n2.includes(n1)) {
+    const shorter = n1.length < n2.length ? n1 : n2;
+    if (shorter.length >= 6) return true;
+  }
+  return false;
+};
+
+const hasActiveWorkerMatch = (jawanName, activeWorkerNames) => {
+  for (const workerName of activeWorkerNames) {
+    if (isJawanMatch(jawanName, workerName)) {
+      return true;
+    }
+  }
+  return false;
 };
 
 // --- QR & Progress Flow ---
@@ -35,6 +136,46 @@ exports.verifyQR = async (req, res) => {
     }
   } catch (error) {
     console.error('Verify QR error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+exports.swipeStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type, latitude, longitude } = req.body; // type: 'start' or 'complete'
+    
+    const taskResult = await db.query('SELECT * FROM tasks WHERE id = $1', [id]);
+    if (taskResult.rows.length === 0) return res.status(404).json({ error: 'Task not found' });
+    const task = taskResult.rows[0];
+
+    const points = (typeof task.area_geojson === 'string' ? JSON.parse(task.area_geojson) : task.area_geojson) || [];
+    if (points.length === 0) {
+      return res.status(400).json({ error: 'Task coordinates are missing.' });
+    }
+
+    const targetPoint = type === 'start' ? points[0] : points[points.length - 1];
+    
+    // Calculate distance in meters
+    const dist = getDistanceFromLatLonInM(
+      parseFloat(latitude), 
+      parseFloat(longitude), 
+      parseFloat(targetPoint.latitude), 
+      parseFloat(targetPoint.longitude)
+    );
+
+    if (dist > 150) {
+      return res.status(400).json({ 
+        error: `Too far away. You are ${Math.round(dist)}m away from the ${type === 'start' ? 'Start' : 'End'} Point. You must be within 150m.` 
+      });
+    }
+
+    const newStatus = type === 'start' ? 'in_progress' : 'submitted';
+    await db.query('UPDATE tasks SET status = $1 WHERE id = $2', [newStatus, id]);
+    
+    res.json({ success: true, status: newStatus, message: `Task status updated to ${newStatus} successfully.` });
+  } catch (error) {
+    console.error('Swipe status error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -66,7 +207,8 @@ exports.updateLiveProgress = async (req, res) => {
 
 exports.createTask = async (req, res) => {
   try {
-    const { title, description, area_geojson, assignedWorkerId, wardId, taskType, sourceQr, destinationQr } = req.body;
+    const { title, description, area_geojson, assignedWorkerId, wardId, taskType, sourceQr, destinationQr, lineId, rdName } = req.body;
+    const user = req.user;
     
     // Prepare geometry from geojson or custom coordinate array
     let geojson = area_geojson;
@@ -80,10 +222,19 @@ exports.createTask = async (req, res) => {
     const finalSourceQr = sourceQr || `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
     const finalDestinationQr = destinationQr || `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
+    // Fix for supervisor dashboard: auto-assign to a managed ward if wardId is null
+    let finalWardId = wardId;
+    if (!finalWardId && user && user.role === 'supervisor') {
+        const wardQuery = await db.query('SELECT id FROM wards WHERE supervisor_id = $1 LIMIT 1', [user.id]);
+        if (wardQuery.rows.length > 0) {
+            finalWardId = wardQuery.rows[0].id;
+        }
+    }
+
     const newTask = await db.query(
-      `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status)
-       VALUES ($1, $2, $3, ST_SetSRID(ST_GeomFromGeoJSON($4), 4326), $5, $6, $7, $8, $9, 'pending') RETURNING *, ST_AsGeoJSON(geom) as geom_json`,
-      [title, description, JSON.stringify(area_geojson), JSON.stringify(geojson), assignedWorkerId || null, wardId || null, taskType || 'area', finalSourceQr, finalDestinationQr]
+      `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
+       VALUES ($1, $2, $3, ST_SetSRID(ST_GeomFromGeoJSON($4), 4326), $5, $6, $7, $8, $9, 'pending', $10, $11) RETURNING *, ST_AsGeoJSON(geom) as geom_json`,
+      [title, description, JSON.stringify(area_geojson), JSON.stringify(geojson), assignedWorkerId || null, finalWardId || null, taskType || 'area', finalSourceQr, finalDestinationQr, lineId || null, rdName || title]
     );
 
     res.status(201).json(newTask.rows[0]);
@@ -96,7 +247,142 @@ exports.createTask = async (req, res) => {
 exports.getTasks = async (req, res) => {
   try {
     const user = req.user;
-    const { status, limit = 50, offset = 0, minLat, maxLat, minLng, maxLng } = req.query;
+    const { status, limit = 1000, offset = 0, minLat, maxLat, minLng, maxLng } = req.query;
+
+    if (user.role === 'worker') {
+      // 1. Get the worker's ward details
+      const userRes = await db.query(
+        `SELECT u.name, u.ward_id, w.name as ward_name
+         FROM users u
+         LEFT JOIN wards w ON u.ward_id = w.id
+         WHERE u.id = $1`,
+        [user.id]
+      );
+      
+      if (userRes.rows.length > 0 && userRes.rows[0].ward_id) {
+        const wardId = userRes.rows[0].ward_id;
+        const wardName = userRes.rows[0].ward_name;
+        
+        let wardNum = '';
+        const match = wardName.match(/Ward\s+(\d+)/i);
+        if (match) {
+          wardNum = match[1];
+        }
+
+        const isJawan61 = user.email === 'jawan_61';
+
+        // 2. Fetch all roads for this worker/ward
+        // For Jawan 61, remove ST_Intersects fallback to exclude adjacent roads crossing the boundary. Other jawans retain the fallback.
+        let roadsRes;
+        if (isJawan61) {
+          roadsRes = await db.query(
+            `SELECT r.id, r.name, r.properties, ST_AsGeoJSON(r.geom) as geom_json, r.geom
+             FROM infrastructure r
+             WHERE r.type = 'road' AND (
+                 r.properties->>'Ward_No' = $1 
+                 OR LOWER(r.properties->>'JAWAN_NAME') = LOWER($2)
+             )`,
+            [wardNum, userRes.rows[0].name]
+          );
+        } else {
+          roadsRes = await db.query(
+            `WITH worker_ward AS (
+                 SELECT geom FROM infrastructure WHERE type = 'ward' AND LOWER(name) = LOWER($1) LIMIT 1
+             )
+             SELECT r.id, r.name, r.properties, ST_AsGeoJSON(r.geom) as geom_json, r.geom
+             FROM infrastructure r
+             LEFT JOIN worker_ward w ON true
+             WHERE r.type = 'road' AND (
+                 r.properties->>'Ward_No' = $2 
+                 OR (w.geom IS NOT NULL AND ST_Intersects(r.geom, w.geom))
+                 OR LOWER(r.properties->>'JAWAN_NAME') = LOWER($3)
+             )`,
+            [wardName, wardNum, userRes.rows[0].name]
+          );
+        }
+
+        // 3. Fetch all active workers' names
+        const allWorkersRes = await db.query(`SELECT name FROM users WHERE role = 'worker'`);
+        const activeWorkerNames = new Set(allWorkersRes.rows.map(w => w.name));
+
+        // 4. Fetch existing tasks for this worker
+        const existingTasksRes = await db.query(
+          `SELECT line_id, rd_name FROM tasks WHERE assigned_worker_id = $1`,
+          [user.id]
+        );
+        const existingKeys = new Set(
+          existingTasksRes.rows.map(t => `${t.line_id || ''}_${t.rd_name || ''}`)
+        );
+
+        // Fetch duplicate Line_IDs globally in the database
+        const dupRes = await db.query(
+          `SELECT properties->>'Line_ID' as line_id 
+           FROM infrastructure 
+           WHERE properties->>'Line_ID' IS NOT NULL 
+           GROUP BY properties->>'Line_ID' 
+           HAVING COUNT(*) > 1`
+        );
+        const duplicateLineIds = new Set(dupRes.rows.map(row => row.line_id));
+
+        // 5. Insert tasks for any missing roads
+        for (const road of roadsRes.rows) {
+          const props = road.properties || {};
+          let lineId = props.Line_ID || props.line_id || `RD_${road.id}`;
+          const rdName = props.Rd_Name || props.rd_name || road.name || `Road ${road.id}`;
+
+          // Only suffix duplicate segments for Jawan 61 (Ward 61)
+          if (isJawan61 && lineId && duplicateLineIds.has(lineId)) {
+            lineId = `${lineId}_${road.id}`;
+          }
+
+          const key = `${lineId}_${rdName}`;
+
+          const jawanNameInProps = props.JAWAN_NAME || props.jawan_name;
+          const workerName = userRes.rows[0].name;
+
+          if (jawanNameInProps && isJawanMatch(jawanNameInProps, workerName)) {
+            // Assigned to this worker - keep
+          } else if (jawanNameInProps && hasActiveWorkerMatch(jawanNameInProps, activeWorkerNames)) {
+            // Assigned to another active worker - skip
+            continue;
+          }
+
+          let areaGeojson = null;
+          if (road.geom_json) {
+            const parsed = JSON.parse(road.geom_json);
+            if (parsed.type === 'LineString') {
+              areaGeojson = parsed.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
+            } else if (parsed.type === 'MultiLineString') {
+              const aligned = sortAndAlignSegments(parsed.coordinates);
+              areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
+            } else if (parsed.type === 'Polygon') {
+              areaGeojson = parsed.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }));
+            } else if (parsed.type === 'MultiPolygon') {
+              areaGeojson = parsed.coordinates.flat(2).map(c => ({ longitude: c[0], latitude: c[1] }));
+            }
+          }
+
+          if (!existingKeys.has(key)) {
+            const sourceQr = `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+            const destinationQr = `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+            await db.query(
+              `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
+               VALUES ($1, $2, $3, $4, $5, $6, 'road', $7, $8, 'pending', $9, $10)`,
+              [rdName, `Clean ${rdName}`, JSON.stringify(areaGeojson), road.geom, user.id, wardId, sourceQr, destinationQr, lineId, rdName]
+            );
+            existingKeys.add(key);
+          } else {
+            // Update existing task if area_geojson is null
+            await db.query(
+              `UPDATE tasks SET area_geojson = $1
+               WHERE assigned_worker_id = $2 AND line_id = $3 AND rd_name = $4 AND area_geojson IS NULL`,
+              [JSON.stringify(areaGeojson), user.id, lineId, rdName]
+            );
+          }
+        }
+      }
+    }
     
     let query = `
       SELECT t.*, ST_AsGeoJSON(t.geom) as geom_json, u.name as worker_name, w.name as ward_name
@@ -143,6 +429,105 @@ exports.getTasks = async (req, res) => {
 exports.getTaskById = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    if (typeof id === 'string' && id.startsWith('virtual-')) {
+      const roadId = parseInt(id.split('-')[1]);
+      const roadResult = await db.query('SELECT *, ST_AsGeoJSON(geom) as geom_json FROM infrastructure WHERE id = $1', [roadId]);
+      if (roadResult.rows.length === 0) return res.status(404).json({ error: 'Task not found' });
+      const road = roadResult.rows[0];
+
+      let lineId = road.properties?.Line_ID || road.properties?.line_id || null;
+      if (lineId) {
+        const isWard61 = road.properties?.Ward_No === '61' || road.properties?.ward_no === '61';
+        const dupCheck = await db.query(
+          `SELECT COUNT(*) FROM infrastructure WHERE properties->>'Line_ID' = $1`,
+          [lineId]
+        );
+        const isDuplicate = parseInt(dupCheck.rows[0].count) > 1;
+        const targetLineId = (isWard61 && isDuplicate) ? `${lineId}_${road.id}` : lineId;
+
+        const existingTask = await db.query(`
+          SELECT t.*, ST_AsGeoJSON(t.geom) as geom_json, u.name as worker_name, w.name as ward_name
+          FROM tasks t
+          LEFT JOIN users u ON t.assigned_worker_id = u.id
+          LEFT JOIN wards w ON t.ward_id = w.id
+          WHERE t.line_id = $1
+        `, [targetLineId]);
+        if (existingTask.rows.length > 0) {
+          return res.json(existingTask.rows[0]);
+        }
+      }
+
+      const geom = JSON.parse(road.geom_json);
+      let areaGeojson = [];
+      if (geom.type === 'LineString') {
+        areaGeojson = geom.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
+      } else if (geom.type === 'MultiLineString') {
+        const aligned = sortAndAlignSegments(geom.coordinates);
+        areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
+      }
+
+      const wardNo = road.properties?.Ward_No || road.properties?.ward_no;
+      let wardId = null;
+      let wardName = '';
+      if (wardNo) {
+        const wardRes = await db.query('SELECT id, name FROM wards WHERE name ILIKE $1 LIMIT 1', [`%Ward ${wardNo}%`]);
+        if (wardRes.rows.length > 0) {
+          wardId = wardRes.rows[0].id;
+          wardName = wardRes.rows[0].name;
+        }
+      }
+
+      const jawanName = road.properties?.JAWAN_NAME || road.properties?.jawan_name || null;
+      let workerId = null;
+      let workerName = 'Unassigned';
+      if (jawanName) {
+        const jawanRes = await db.query("SELECT id, name FROM users WHERE role = 'worker' AND name ILIKE $1 LIMIT 1", [jawanName.trim()]);
+        if (jawanRes.rows.length > 0) {
+          workerId = jawanRes.rows[0].id;
+          workerName = jawanRes.rows[0].name;
+        } else {
+          workerName = jawanName;
+        }
+      }
+
+      const title = road.name || road.properties?.Rd_Name || 'Unnamed Road';
+      const description = 'Assigned from road network';
+      const rdName = road.properties?.Rd_Name || road.properties?.rd_name || road.name || null;
+
+      const crypto = require('crypto');
+      const finalSourceQr = `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+      const finalDestinationQr = `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+      // Check if duplicate globally and in Ward 61 to ensure we insert with the correct targetLineId
+      let targetLineId = lineId;
+      if (lineId) {
+        const isWard61 = road.properties?.Ward_No === '61' || road.properties?.ward_no === '61';
+        const dupCheck = await db.query(
+          `SELECT COUNT(*) FROM infrastructure WHERE properties->>'Line_ID' = $1`,
+          [lineId]
+        );
+        if (isWard61 && parseInt(dupCheck.rows[0].count) > 1) {
+          targetLineId = `${lineId}_${road.id}`;
+        }
+      }
+
+      const insertResult = await db.query(
+        `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
+         VALUES ($1, $2, $3, ST_GeomFromGeoJSON($4), $5, $6, 'road', $7, $8, 'pending', $9, $10)
+         RETURNING *`,
+        [title, description, JSON.stringify(areaGeojson), road.geom_json, workerId, wardId, finalSourceQr, finalDestinationQr, targetLineId, rdName]
+      );
+
+      const materialized = insertResult.rows[0];
+      return res.json({
+        ...materialized,
+        worker_name: workerName,
+        ward_name: wardName,
+        geom_json: road.geom_json
+      });
+    }
+
     const task = await db.query(`
       SELECT t.*, ST_AsGeoJSON(t.geom) as geom_json, u.name as worker_name, w.name as ward_name
       FROM tasks t
@@ -163,6 +548,60 @@ exports.assignTask = async (req, res) => {
   try {
     const { id } = req.params;
     const { workerId } = req.body;
+
+    if (typeof id === 'string' && id.startsWith('virtual-')) {
+      const roadId = parseInt(id.split('-')[1]);
+      const roadResult = await db.query('SELECT *, ST_AsGeoJSON(geom) as geom_json FROM infrastructure WHERE id = $1', [roadId]);
+      if (roadResult.rows.length === 0) return res.status(404).json({ error: 'Road segment not found' });
+      const road = roadResult.rows[0];
+
+      const geom = JSON.parse(road.geom_json);
+      let areaGeojson = [];
+      if (geom.type === 'LineString') {
+        areaGeojson = geom.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
+      } else if (geom.type === 'MultiLineString') {
+        const aligned = sortAndAlignSegments(geom.coordinates);
+        areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
+      }
+
+      const wardNo = road.properties?.Ward_No || road.properties?.ward_no;
+      let wardId = null;
+      if (wardNo) {
+        const wardRes = await db.query('SELECT id FROM wards WHERE name ILIKE $1 LIMIT 1', [`%Ward ${wardNo}%`]);
+        if (wardRes.rows.length > 0) {
+          wardId = wardRes.rows[0].id;
+        }
+      }
+
+      const title = road.name || road.properties?.Rd_Name || 'Unnamed Road';
+      const description = 'Assigned from road network';
+      let lineId = road.properties?.Line_ID || road.properties?.line_id || null;
+      const rdName = road.properties?.Rd_Name || road.properties?.rd_name || road.name || null;
+      
+      if (lineId) {
+        const isWard61 = road.properties?.Ward_No === '61' || road.properties?.ward_no === '61';
+        const dupCheck = await db.query(
+          `SELECT COUNT(*) FROM infrastructure WHERE properties->>'Line_ID' = $1`,
+          [lineId]
+        );
+        if (isWard61 && parseInt(dupCheck.rows[0].count) > 1) {
+          lineId = `${lineId}_${road.id}`;
+        }
+      }
+
+      const crypto = require('crypto');
+      const finalSourceQr = `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+      const finalDestinationQr = `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+      const insertResult = await db.query(
+        `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
+         VALUES ($1, $2, $3, ST_GeomFromGeoJSON($4), $5, $6, 'road', $7, $8, 'pending', $9, $10) RETURNING *`,
+        [title, description, JSON.stringify(areaGeojson), road.geom_json, workerId, wardId, finalSourceQr, finalDestinationQr, lineId, rdName]
+      );
+      
+      return res.json(insertResult.rows[0]);
+    }
+
     const updatedTask = await db.query('UPDATE tasks SET assigned_worker_id = $1 WHERE id = $2 RETURNING *', [workerId, id]);
     res.json(updatedTask.rows[0]);
   } catch (error) {
@@ -181,7 +620,12 @@ exports.getWardStats = async (req, res) => {
         COUNT(t.id) as total_tasks,
         COUNT(CASE WHEN t.status = 'approved' THEN 1 END) as completed_tasks,
         COUNT(CASE WHEN t.status IN ('in_progress', 'submitted') THEN 1 END) as active_tasks,
-        COUNT(CASE WHEN t.status = 'pending' THEN 1 END) as pending_tasks
+        COUNT(CASE WHEN t.status = 'pending' THEN 1 END) as pending_tasks,
+        (
+          SELECT json_agg(json_build_object('name', u.name, 'phone', u.phone))
+          FROM users u
+          WHERE u.ward_id = w.id AND u.role = 'worker'
+        ) as jawans
       FROM wards w
       LEFT JOIN tasks t ON w.id = t.ward_id
       GROUP BY w.id
@@ -193,6 +637,23 @@ exports.getWardStats = async (req, res) => {
   }
 };
 
+exports.getTaskSummary = async (req, res) => {
+    try {
+        const stats = await db.query(`
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN status = 'approved' THEN 1 END) as completed,
+                COUNT(CASE WHEN status IN ('in_progress', 'submitted') THEN 1 END) as active,
+                COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending
+            FROM tasks
+        `);
+        res.json(stats.rows[0]);
+    } catch (error) {
+        console.error('Get task summary error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
 // --- Photo Handling & Status ---
 
 exports.uploadPhoto = async (req, res) => {
@@ -202,17 +663,42 @@ exports.uploadPhoto = async (req, res) => {
 
     if (!req.file) return res.status(400).json({ error: 'No image provided' });
 
-    const taskResult = await db.query('SELECT * FROM tasks WHERE id = $1', [id]);
-    const task = taskResult.rows[0];
-    const imageUrl = `/uploads/${req.file.filename}`;
+    let imageUrl = `/uploads/${req.file.filename}`;
+    let publicId = null;
+
+    // Check if Cloudinary is configured
+    const isCloudinaryConfigured = process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
+    if (isCloudinaryConfigured) {
+      try {
+        console.log('Uploading image to Cloudinary...');
+        cloudinary.config({
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+          api_key: process.env.CLOUDINARY_API_KEY,
+          api_secret: process.env.CLOUDINARY_API_SECRET
+        });
+        const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+          folder: 'khammam_cleanup_tasks'
+        });
+        imageUrl = uploadResult.secure_url;
+        publicId = uploadResult.public_id;
+        console.log('Cloudinary upload successful:', imageUrl, publicId);
+
+        // Delete the temporary local file asynchronously to clean up disk space
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error('Error deleting local temp file:', err);
+        });
+      } catch (uploadError) {
+        console.error('Cloudinary upload failed, falling back to local file:', uploadError);
+      }
+    }
 
     await db.query(
-      'INSERT INTO photos (task_id, worker_id, image_url, latitude, longitude) VALUES ($1, $2, $3, $4, $5)',
-      [id, req.user.id, imageUrl, latitude, longitude]
+      'INSERT INTO photos (task_id, worker_id, image_url, latitude, longitude, public_id) VALUES ($1, $2, $3, $4, $5, $6)',
+      [id, req.user.id, imageUrl, latitude, longitude, publicId]
     );
 
     await db.query("UPDATE tasks SET status = 'submitted' WHERE id = $1", [id]);
-    res.status(201).json({ message: 'Photo uploaded successfully' });
+    res.status(201).json({ message: 'Photo uploaded successfully', image_url: imageUrl });
   } catch (error) {
     console.error('Upload photo error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -233,11 +719,14 @@ exports.getTaskPhotos = async (req, res) => {
 exports.updateTaskStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, comment } = req.body;
     
-    console.log(`Updating task ${id} to status: ${status}`);
+    console.log(`Updating task ${id} to status: ${status}, comment: ${comment}`);
     
-    const updated = await db.query("UPDATE tasks SET status = $1 WHERE id = $2 RETURNING *", [status, id]);
+    const updated = await db.query(
+      "UPDATE tasks SET status = $1, review_comment = COALESCE($2, review_comment) WHERE id = $3 RETURNING *",
+      [status, comment || null, id]
+    );
     
     if (updated.rows.length === 0) {
       return res.status(404).json({ error: 'Task not found' });
@@ -315,6 +804,17 @@ exports.deleteAllTasks = async (req, res) => {
     res.json({ message: 'Success', deletedCount: result.rowCount });
   } catch (error) {
     console.error('Bulk delete error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+};
+
+exports.bulkResetTasks = async (req, res) => {
+  try {
+    const { resetCompletedTasks } = require('../jobs/resetTasks');
+    await resetCompletedTasks();
+    res.json({ success: true, message: 'All completed tasks have been reset to pending.' });
+  } catch (error) {
+    console.error('Bulk reset error:', error);
     res.status(500).json({ error: 'Server error', details: error.message });
   }
 };

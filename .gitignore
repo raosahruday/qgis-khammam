@@ -1,0 +1,17 @@
+# Node modules
+node_modules/
+
+# Local configuration files
+.env
+.env*.local
+
+# Temporary files & credentials
+backend/jawan_credentials.json
+backend/si_credentials.json
+backend/uploads/
+*.xlsx
+*.xlsx.lock
+
+# System files
+.DS_Store
+Thumbs.db

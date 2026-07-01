@@ -1,10 +1,75 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Dimensions } from 'react-native';
-import MapView, { Polygon, Polyline, Marker } from 'react-native-maps';
+import React, { useState, useEffect, useRef, useContext, useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Dimensions, Linking, Platform, PanResponder, Animated } from 'react-native';
+import MapView, { Polygon, Polyline, Marker } from '../../components/MapViewWrapper';
 import * as Location from 'expo-location';
 import api from '../../api/axios';
 import { AuthContext } from '../../context/AuthContext';
 import Colors from '../../constants/Colors';
+
+function SwipeButton({ onSwipeComplete, title, disabled, color = '#3F51B5' }) {
+  const pan = useRef(new Animated.ValueXY()).current;
+  const [width, setWidth] = useState(0);
+  const buttonWidth = 60;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !disabled,
+      onMoveShouldSetPanResponder: () => !disabled,
+      onPanResponderMove: (e, gestureState) => {
+        if (gestureState.dx > 0 && gestureState.dx < (width - buttonWidth)) {
+          pan.x.setValue(gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (e, gestureState) => {
+        if (gestureState.dx >= (width - buttonWidth) * 0.85) {
+          Animated.timing(pan.x, {
+            toValue: width - buttonWidth,
+            duration: 100,
+            useNativeDriver: false,
+          }).start(() => {
+            onSwipeComplete();
+            Animated.timing(pan.x, {
+              toValue: 0,
+              duration: 200,
+              useNativeDriver: false,
+            }).start();
+          });
+        } else {
+          Animated.spring(pan.x, {
+            toValue: 0,
+            useNativeDriver: false,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <View 
+      style={[
+        styles.swipeContainer, 
+        { backgroundColor: disabled ? '#F5F5F5' : `${color}15`, borderColor: disabled ? '#E0E0E0' : color }
+      ]}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
+      <Animated.View
+        style={[
+          styles.swipeHandle,
+          {
+            transform: [{ translateX: pan.x }],
+            backgroundColor: disabled ? '#BDBDBD' : color,
+          },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <Text style={styles.swipeHandleText}>➔</Text>
+      </Animated.View>
+      <Text style={[styles.swipeText, { color: disabled ? '#9E9E9E' : '#333' }]} pointerEvents="none">
+        {title}
+      </Text>
+    </View>
+  );
+}
 
 export default function MapNavigationScreen({ route, navigation }) {
   const { task } = route.params;
@@ -13,6 +78,57 @@ export default function MapNavigationScreen({ route, navigation }) {
   const [liveTask, setLiveTask] = useState(task);
   const [loading, setLoading] = useState(true);
   const locationSubscription = useRef(null);
+  const mapRef = useRef(null);
+
+  const areaGeojsonStr = useMemo(() => {
+    if (!liveTask.area_geojson) return '';
+    return typeof liveTask.area_geojson === 'string'
+      ? liveTask.area_geojson
+      : JSON.stringify(liveTask.area_geojson);
+  }, [liveTask.area_geojson]);
+
+  const mappedPoints = useMemo(() => {
+    if (!areaGeojsonStr) return [];
+    try {
+      const points = JSON.parse(areaGeojsonStr) || [];
+      return Array.isArray(points) ? points.map(c => ({ latitude: parseFloat(c.latitude), longitude: parseFloat(c.longitude) })) : [];
+    } catch (e) {
+      return [];
+    }
+  }, [areaGeojsonStr]);
+
+  const initialPoints = typeof task.area_geojson === 'string' ? JSON.parse(task.area_geojson) : task.area_geojson;
+  const [region, setRegion] = useState({
+     latitude: (initialPoints && initialPoints.length > 0) ? parseFloat(initialPoints[0].latitude) : 17.2473,
+     longitude: (initialPoints && initialPoints.length > 0) ? parseFloat(initialPoints[0].longitude) : 80.1514,
+     latitudeDelta: 0.01,
+     longitudeDelta: 0.01,
+  });
+  const [infrastructure, setInfrastructure] = useState([]);
+  const debounceTimer = useRef(null);
+
+  const fetchInfrastructure = async (activeRegion) => {
+    try {
+      const { latitude, longitude, latitudeDelta, longitudeDelta } = activeRegion;
+      const minLat = latitude - latitudeDelta / 2;
+      const maxLat = latitude + latitudeDelta / 2;
+      const minLng = longitude - longitudeDelta / 2;
+      const maxLng = longitude + longitudeDelta / 2;
+
+      const res = await api.get(
+        `/infrastructure?minLat=${minLat}&maxLat=${maxLat}&minLng=${minLng}&maxLng=${maxLng}&latDelta=${latitudeDelta}&limit=500`
+      );
+      setInfrastructure(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch infrastructure', err);
+    }
+  };
+
+  const onRegionChangeComplete = (newRegion) => {
+     setRegion(newRegion);
+     if (debounceTimer.current) clearTimeout(debounceTimer.current);
+     debounceTimer.current = setTimeout(() => fetchInfrastructure(newRegion), 400);
+  };
 
   useEffect(() => {
     fetchLatestTask();
@@ -24,6 +140,17 @@ export default function MapNavigationScreen({ route, navigation }) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (mapRef.current && mappedPoints.length > 0) {
+      setTimeout(() => {
+        mapRef.current.fitToCoordinates(mappedPoints, {
+          edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
+          animated: true,
+        });
+      }, 500);
+    }
+  }, [mappedPoints.length]);
 
   const fetchLatestTask = async () => {
     try {
@@ -113,6 +240,22 @@ export default function MapNavigationScreen({ route, navigation }) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   };
 
+  const getRoadColor = (item) => {
+    if (item.type !== 'road') return 'rgba(211,47,47,0.5)';
+    const props = item.properties || {};
+    const lineId = props.Line_ID || props.line_id;
+    const rdName = props.Rd_Name || props.rd_name || item.name;
+
+    if (liveTask && (
+      (lineId && liveTask.line_id === lineId) || 
+      (rdName && liveTask.rd_name === rdName)
+    )) {
+      if (liveTask.status === 'approved') return '#2E7D32';
+      if (liveTask.status === 'submitted' || liveTask.status === 'in_progress') return '#FFD600';
+    }
+    return '#D32F2F';
+  };
+
   if (loading || !currentLocation) {
     return (
       <View style={styles.loading}>
@@ -122,8 +265,7 @@ export default function MapNavigationScreen({ route, navigation }) {
     );
   }
 
-  const points = typeof liveTask.area_geojson === 'string' ? JSON.parse(liveTask.area_geojson) : liveTask.area_geojson;
-  const mappedPoints = points.map(c => ({ latitude: parseFloat(c.latitude), longitude: parseFloat(c.longitude) }));
+  
   
   // Split points for live color conversion
   const lastReached = liveTask.last_point_reached || 0;
@@ -137,47 +279,211 @@ export default function MapNavigationScreen({ route, navigation }) {
      longitudeDelta: 0.01,
   } : { latitude: 17.2473, longitude: 80.1514, latitudeDelta: 0.02, longitudeDelta: 0.02 };
 
-  const handleScanQR = (type) => {
-    navigation.navigate('QRScanner', { taskId: liveTask.id, type });
+  const handleSwipeStatus = async (type) => {
+    if (mappedPoints.length === 0) {
+      Alert.alert('Error', 'No road coordinates available.');
+      return;
+    }
+
+    const targetPoint = type === 'start' ? mappedPoints[0] : mappedPoints[mappedPoints.length - 1];
+    const dist = getDist(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      targetPoint.latitude,
+      targetPoint.longitude
+    );
+
+    if (dist > 150) {
+      Alert.alert(
+        'Too Far Away!',
+        `You are currently ${Math.round(dist)}m away from the ${type === 'start' ? 'Start' : 'End'} Point of the road. You must be within 150 meters to swipe.`
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await api.post(`/tasks/${liveTask.id}/swipe-status`, {
+        type,
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude
+      });
+      if (res.data.success) {
+        Alert.alert('Success', `Task successfully ${type === 'start' ? 'started!' : 'submitted for approval!'}`);
+        setLiveTask(prev => ({ ...prev, status: res.data.status }));
+      }
+    } catch (err) {
+      console.error(err);
+      const errorMsg = err.response?.data?.error || 'Failed to update task status.';
+      Alert.alert('Error', errorMsg);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleNavigateToStart = () => {
+    if (mappedPoints.length === 0) return;
+    const startPoint = mappedPoints[0];
+    const lat = startPoint.latitude;
+    const lon = startPoint.longitude;
+    
+    // Construct Google Maps URL (works on both Android and iOS if app installed)
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
+    
+    // Fallback for iOS Apple Maps
+    const appleUrl = `http://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`;
+
+    Linking.canOpenURL(url).then(supported => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Linking.openURL(appleUrl);
+      }
+    }).catch(err => {
+      Alert.alert('Error', 'Could not open maps application.');
+      console.error(err);
+    });
+  };
+
+  const geom = liveTask.geom_json ? (typeof liveTask.geom_json === 'string' ? JSON.parse(liveTask.geom_json) : liveTask.geom_json) : null;
+  const isArea = geom ? (geom.type === 'Polygon' || geom.type === 'MultiPolygon') : (liveTask.task_type === 'area');
 
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         mapType="satellite"
         initialRegion={initialRegion}
+        onRegionChangeComplete={onRegionChangeComplete}
         showsUserLocation={true}
-        followsUserLocation={true}
+        followsUserLocation={false}
       >
-        {liveTask.task_type === 'area' ? (
-           <Polygon 
-             coordinates={mappedPoints} 
-             fillColor="rgba(0, 0, 255, 0.3)" 
-             strokeColor="#0000FF"
-             strokeWidth={2}
-           />
-        ) : (
-           <>
-             {/* Yellow = Cleaned */}
-             {completedPath.length > 1 && (
-               <Polyline coordinates={completedPath} strokeColor="#FFFF00" strokeWidth={6} />
-             )}
-             {/* Red = Remaining */}
-             {remainingPath.length > 1 && (
-               <Polyline coordinates={remainingPath} strokeColor="#FF0000" strokeWidth={6} />
-             )}
-             {/* Source/Destination Markers */}
-             <Marker coordinate={mappedPoints[0]} title="Start Point (Source QR)" pinColor="red" />
-             <Marker coordinate={mappedPoints[mappedPoints.length - 1]} title="End Point (Destination QR)" pinColor="orange" />
-           </>
-        )}
+        {/* QGIS Infrastructure Layers */}
+        {(() => {
+           const elements = [];
+           infrastructure.forEach(item => {
+              if (!item.geom_json) return;
+              let geom;
+              try {
+                geom = JSON.parse(item.geom_json);
+              } catch (e) {
+                return;
+              }
+              
+              if (geom.type === 'LineString' || geom.type === 'MultiLineString') {
+                 const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+                 coords.forEach((cList, idx) => {
+                    elements.push(
+                      <Polyline
+                        key={`infra-road-${item.id}-${idx}`}
+                        coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                        strokeColor={getRoadColor(item)}
+                        strokeWidth={item.type === 'road' ? 4 : 2}
+                        zIndex={11}
+                      />
+                    );
+                 });
+              } else if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+                 const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+                 polys.forEach((poly, idx) => {
+                    const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
+                    // Style based on type
+                    let fillColor = "rgba(255, 255, 255, 0.02)";
+                    let strokeColor = "rgba(255, 255, 255, 0.1)";
+                    let strokeWidth = 0.5;
+                    let lineDash = null;
+                    
+                    if (item.type === 'row') {
+                       fillColor = "rgba(255, 152, 0, 0.15)";
+                       strokeColor = "rgba(255, 152, 0, 0.6)";
+                       strokeWidth = 1.5;
+                    } else if (item.type === 'ward') {
+                       fillColor = "rgba(255, 255, 255, 0.03)";
+                       strokeColor = "rgba(255, 255, 255, 0.45)";
+                       strokeWidth = 1.5;
+                       lineDash = [6, 6];
+                    }
+                    
+                    elements.push(
+                      <Polygon 
+                        key={`infra-poly-${item.id}-${idx}`}
+                        coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                        fillColor={fillColor}
+                        strokeColor={strokeColor}
+                        strokeWidth={strokeWidth}
+                        lineDashPattern={lineDash}
+                        zIndex={5}
+                      />
+                    );
+                 });
+              }
+           });
+           return elements;
+        })()}
+
+                          {isArea && mappedPoints.length > 0 && (
+            <Polygon 
+              key={`task-poly-${liveTask.id}-${mappedPoints.length}`}
+              coordinates={mappedPoints} 
+              fillColor={
+                liveTask.status === 'approved' ? 'rgba(46, 125, 50, 0.25)' :
+                liveTask.status === 'submitted' ? 'rgba(255, 214, 0, 0.25)' :
+                'rgba(211, 47, 47, 0.25)'
+              } 
+              strokeColor={
+                liveTask.status === 'approved' ? '#2E7D32' :
+                liveTask.status === 'submitted' ? '#FFD600' :
+                '#D32F2F'
+              }
+              strokeWidth={3}
+              zIndex={20}
+            />
+         )}
+
+         {!isArea && mappedPoints.length > 0 && (
+            <Polyline 
+              key={`task-line-${liveTask.id}`}
+              coordinates={mappedPoints} 
+              strokeColor={
+                liveTask.status === 'approved' ? '#2E7D32' :
+                liveTask.status === 'submitted' ? '#FFD600' :
+                '#D32F2F'
+              } 
+              strokeWidth={6} 
+              zIndex={20} 
+            />
+         )}
+
+         {mappedPoints.length > 0 && (
+            <Marker 
+              key="start-pin"
+              coordinate={mappedPoints[0]} 
+              title="Start Point" 
+              description="Start cleaning here"
+              pinColor="red" 
+              zIndex={22} 
+            />
+         )}
+
+         {mappedPoints.length > 0 && (
+            <Marker 
+              key="end-pin"
+              coordinate={mappedPoints[mappedPoints.length - 1]} 
+              title="End Point" 
+              description="End cleaning here"
+              pinColor="green" 
+              zIndex={22} 
+            />
+         )}
       </MapView>
 
       <View style={styles.footer}>
         <View style={styles.infoRow}>
-           <View>
+           <View style={{ flex: 1 }}>
              <Text style={styles.title}>{liveTask.title}</Text>
+             {liveTask.line_id ? <Text style={styles.metaText}>🔗 Line ID: {liveTask.line_id}</Text> : null}
+             {liveTask.rd_name ? <Text style={styles.metaText}>🛣️ Road Name: {liveTask.rd_name}</Text> : null}
              <Text style={styles.ward}>{liveTask.ward_name || 'Ward Area'}</Text>
            </View>
            <View style={[styles.badge, { backgroundColor: liveTask.status === 'in_progress' ? '#FFC107' : '#E0E0E0' }]}>
@@ -186,15 +492,35 @@ export default function MapNavigationScreen({ route, navigation }) {
         </View>
 
         {liveTask.status === 'pending' && (
-           <TouchableOpacity style={styles.qrBtn} onPress={() => handleScanQR('source')}>
-              <Text style={styles.btnText}>Scan Start QR at Source</Text>
-           </TouchableOpacity>
+           <>
+             <TouchableOpacity style={[styles.qrBtn, { backgroundColor: '#FF5722', marginBottom: 10 }]} onPress={handleNavigateToStart}>
+                <Text style={styles.btnText}>📍 Navigate to Start Point</Text>
+             </TouchableOpacity>
+                           <SwipeButton 
+                title="Swipe to Start Task"
+                color="#3F51B5"
+                onSwipeComplete={() => handleSwipeStatus('start')}
+              />
+             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#007bff', marginTop: 10 }]} onPress={() => navigation.navigate('CapturePhoto', { task: liveTask })}>
+                <Text style={styles.btnText}>📷 Upload Photo Proof</Text>
+             </TouchableOpacity>
+           </>
         )}
 
         {liveTask.status === 'in_progress' && (
-           <TouchableOpacity style={[styles.qrBtn, { backgroundColor: '#FF9800' }]} onPress={() => handleScanQR('destination')}>
-              <Text style={styles.btnText}>Scan End QR at Destination</Text>
-           </TouchableOpacity>
+           <>
+             <TouchableOpacity style={[styles.qrBtn, { backgroundColor: '#FF5722', marginBottom: 10 }]} onPress={handleNavigateToStart}>
+                <Text style={styles.btnText}>📍 Re-Navigate to Start</Text>
+             </TouchableOpacity>
+                           <SwipeButton 
+                title="Swipe to Complete Task"
+                color="#009688"
+                onSwipeComplete={() => handleSwipeStatus('complete')}
+              />
+             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#007bff', marginTop: 10 }]} onPress={() => navigation.navigate('CapturePhoto', { task: liveTask })}>
+                <Text style={styles.btnText}>📷 Upload Photo Proof</Text>
+             </TouchableOpacity>
+           </>
         )}
 
         {liveTask.status === 'submitted' && (
@@ -220,6 +546,7 @@ const styles = StyleSheet.create({
   footer: { padding: 20, backgroundColor: '#fff', borderTopLeftRadius: 25, borderTopRightRadius: 25, shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   title: { fontSize: 22, fontWeight: 'bold', color: '#333' },
+  metaText: { fontSize: 13, color: '#666', marginTop: 2, fontWeight: '600' },
   ward: { color: '#666', fontSize: 14 },
   badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15 },
   badgeText: { fontSize: 12, fontWeight: 'bold' },
@@ -227,5 +554,40 @@ const styles = StyleSheet.create({
   actionBtn: { backgroundColor: '#28a745', padding: 18, borderRadius: 12, alignItems: 'center' },
   btnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   approvedBox: { backgroundColor: '#E8F5E9', padding: 15, borderRadius: 10, alignItems: 'center' },
-  approvedText: { color: '#2E7D32', fontWeight: 'bold' }
+  approvedText: { color: '#2E7D32', fontWeight: 'bold' },
+  swipeContainer: {
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  swipeHandle: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: 60,
+    height: 58,
+    borderRadius: 29,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  swipeHandleText: {
+    color: '#FFF',
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  swipeText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  }
 });

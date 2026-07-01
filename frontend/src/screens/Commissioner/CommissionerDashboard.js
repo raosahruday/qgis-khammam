@@ -1,61 +1,285 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import MapView, { Polygon, Polyline, Marker } from 'react-native-maps';
+import MapView, { Polygon, Polyline, Marker, Geojson } from '../../components/MapViewWrapper';
+import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 import api from '../../api/axios';
 
+// --- Memoized Components to prevent bridge congestion during map movement ---
+const MemoizedWards = React.memo(({ wardStats, selectedWardId, onWardPress }) => {
+  return (
+    <>
+      {wardStats.map(ward => {
+         const geom = ward.geom_json ? JSON.parse(ward.geom_json) : null;
+         if (!geom || !geom.coordinates) return null;
+         
+         const isSelected = selectedWardId === ward.id;
+         return (
+           <Polygon
+             key={`ward-${ward.id}`}
+             coordinates={geom.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }))}
+             fillColor={isSelected ? "rgba(255, 214, 0, 0.12)" : "rgba(255, 255, 255, 0.05)"}
+             strokeColor={isSelected ? "#FFD600" : "rgba(255, 255, 255, 0.65)"}
+             strokeWidth={isSelected ? 3.5 : 1.5}
+             lineDashPattern={isSelected ? null : [10, 10]}
+             tappable={true}
+             onPress={() => onWardPress(ward)}
+           />
+         );
+      })}
+    </>
+  );
+}, (prevProps, nextProps) => {
+  return prevProps.wardStats === nextProps.wardStats &&
+         prevProps.selectedWardId === nextProps.selectedWardId;
+});
+
+const MemoizedRoads = React.memo(({ roads, tasks, isZoomedOut }) => {
+  const activeTasks = [];
+  const completedTasks = [];
+  const pendingFeatures = [];
+
+  roads.forEach(road => {
+     if (!road.geom_json) return;
+     const geom = JSON.parse(road.geom_json);
+     if (geom.type !== 'LineString' && geom.type !== 'MultiLineString') return;
+
+     const props = road.properties || {};
+     const lineId = props.Line_ID || props.line_id;
+     const rdName = props.Rd_Name || props.rd_name || road.name;
+
+     // Find matching task for status coloring using Line ID strictly
+     const matchingTask = tasks.find(t => 
+       lineId && t.line_id === lineId.toString()
+     );
+
+     if (matchingTask) {
+       if (matchingTask.status === 'approved') {
+         completedTasks.push({ road, geom, props, lineId, rdName, task: matchingTask });
+       } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
+         activeTasks.push({ road, geom, props, lineId, rdName, task: matchingTask });
+       }
+     } else {
+       pendingFeatures.push({
+         type: "Feature",
+         geometry: geom,
+         properties: props
+       });
+     }
+  });
+
+  const pendingGeojson = {
+    type: "FeatureCollection",
+    features: pendingFeatures
+  };
+
+  return (
+    <>
+      {/* 1. Render all pending roads natively using a single Geojson component for 120 FPS performance */}
+      {pendingFeatures.length > 0 && (
+        <Geojson
+          geojson={pendingGeojson}
+          strokeColor="#D32F2F"
+          strokeWidth={isZoomedOut ? 1.0 : 2.5}
+        />
+      )}
+
+      {/* 2. Render completed tasks (Green) as interactive Polylines */}
+      {completedTasks.map(({ road, geom, props, lineId, rdName, task }) => {
+         const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+         return coords.map((cList, idx) => (
+           <Polyline
+             key={`completed-${road.id}-${idx}`}
+             coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
+             strokeColor="#2E7D32"
+             strokeWidth={isZoomedOut ? 1.5 : 3.5}
+             zIndex={12}
+             tappable={true}
+             onPress={() => {
+               const wardText = props.Ward_No ? `Ward ${props.Ward_No}` : 'Unknown Ward';
+               Alert.alert(
+                 rdName || 'Unnamed Road',
+                 `Status: CLEANED (APPROVED)\n${wardText}\nLine ID: ${lineId || 'N/A'}`
+               );
+             }}
+           />
+         ));
+      })}
+
+      {/* 3. Render active/in-progress tasks (Yellow) as interactive Polylines */}
+      {activeTasks.map(({ road, geom, props, lineId, rdName, task }) => {
+         const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+         return coords.map((cList, idx) => (
+           <Polyline
+             key={`active-${road.id}-${idx}`}
+             coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
+             strokeColor="#FFD600"
+             strokeWidth={isZoomedOut ? 2.0 : 4.0}
+             zIndex={13}
+             tappable={true}
+             onPress={() => {
+               const wardText = props.Ward_No ? `Ward ${props.Ward_No}` : 'Unknown Ward';
+               Alert.alert(
+                 rdName || 'Unnamed Road',
+                 `Status: ACTIVE (IN PROGRESS)\n${wardText}\nLine ID: ${lineId || 'N/A'}`
+               );
+             }}
+           />
+         ));
+      })}
+    </>
+  );
+}, (prevProps, nextProps) => {
+  return prevProps.roads === nextProps.roads &&
+         prevProps.tasks === nextProps.tasks &&
+         prevProps.isZoomedOut === nextProps.isZoomedOut;
+});
+
+const MemoizedRows = React.memo(({ rows, isZoomedOut }) => {
+  if (isZoomedOut) return null;
+  return (
+    <>
+      {rows.map(item => {
+         if (!item.geom_json) return null;
+         const geom = JSON.parse(item.geom_json);
+         
+         if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+            const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+            return polys.map((poly, idx) => {
+               const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
+               return (
+                 <Polygon 
+                   key={`infra-poly-${item.id}-${idx}`}
+                   coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                   fillColor="rgba(255, 152, 0, 0.15)"
+                   strokeColor="rgba(255, 152, 0, 0.6)"
+                   strokeWidth={1.5}
+                   zIndex={5}
+                 />
+               );
+            });
+         }
+         return null;
+      })}
+    </>
+  );
+}, (prevProps, nextProps) => {
+  return prevProps.rows === nextProps.rows &&
+         prevProps.isZoomedOut === nextProps.isZoomedOut;
+});
+
 export default function CommissionerDashboard({ navigation }) {
   const [wardStats, setWardStats] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [machines, setMachines] = useState([]);
+  const [infrastructure, setInfrastructure] = useState([]);
+  const [totals, setTotals] = useState({ completed: 0, active: 0, pending: 0 });
   const [loading, setLoading] = useState(true);
+  const [selectedWard, setSelectedWard] = useState(null);
   const { logout } = useContext(AuthContext);
 
-  const [region, setRegion] = useState({
+  const [activeTab, setActiveTab] = useState('map'); // 'map' or 'registrations'
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const regionRef = useRef({
     latitude: 17.2473,
     longitude: 80.1514,
     latitudeDelta: 0.08,
     longitudeDelta: 0.08,
   });
+  const [isZoomedOut, setIsZoomedOut] = useState(true);
+  const debounceTimer = useRef(null);
 
   useEffect(() => {
-    fetchData(region);
-    const interval = setInterval(() => fetchData(region), 10000); 
+    fetchData(regionRef.current);
+    const interval = setInterval(() => fetchData(regionRef.current), 10000); 
     return () => clearInterval(interval);
   }, []);
 
   const fetchData = async (currentRegion = null) => {
     try {
-      let taskUrl = '/tasks?limit=400'; 
-      if (currentRegion) {
-        const { latitude, longitude, latitudeDelta, longitudeDelta } = currentRegion;
-        const minLat = latitude - latitudeDelta / 2;
-        const maxLat = latitude + latitudeDelta / 2;
-        const minLng = longitude - longitudeDelta / 2;
-        const maxLng = longitude + longitudeDelta / 2;
-        taskUrl += `&minLat=${minLat}&maxLat=${maxLat}&minLng=${minLng}&maxLng=${maxLng}`;
-      }
+      const activeRegion = currentRegion || regionRef.current;
+      const { latitude, longitude, latitudeDelta, longitudeDelta } = activeRegion;
+      
+      const minLat = latitude - latitudeDelta / 2;
+      const maxLat = latitude + latitudeDelta / 2;
+      const minLng = longitude - longitudeDelta / 2;
+      const maxLng = longitude + longitudeDelta / 2;
 
-      const [statsRes, machinesRes, tasksRes] = await Promise.all([
+      let taskUrl = `/tasks?limit=5000&minLat=${minLat}&maxLat=${maxLat}&minLng=${minLng}&maxLng=${maxLng}`;
+
+      const [statsRes, machinesRes, tasksRes, summaryRes, infrastructureRes, pendingRes] = await Promise.all([
         api.get('/wards/stats'),
         api.get('/machines'),
-        api.get(taskUrl)
+        api.get(taskUrl),
+        api.get('/tasks/summary'),
+        api.get(`/infrastructure?minLat=${minLat}&maxLat=${maxLat}&minLng=${minLng}&maxLng=${maxLng}&latDelta=${latitudeDelta}&limit=5000`),
+        api.get('/registrations/pending')
       ]);
       setWardStats(statsRes.data);
       setMachines(machinesRes.data || []);
       setTasks(tasksRes.data || []);
+      setTotals(summaryRes.data);
+      setInfrastructure(infrastructureRes.data || []);
+      setPendingUsers(pendingRes.data || []);
+      setPendingCount(pendingRes.data ? pendingRes.data.length : 0);
     } catch (err) {
-      console.error('Failed to fetch data', err);
+      console.warn('Failed to fetch data', err);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleApprove = async (id) => {
+    try {
+      setLoading(true);
+      await api.put(`/registrations/${id}/approve`);
+      Alert.alert('Approved', 'User registration approved successfully!');
+      fetchData(regionRef.current);
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to approve registration');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReject = async (id) => {
+    Alert.alert(
+      'Confirm Rejection',
+      'Are you sure you want to reject and delete this registration?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Reject', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await api.put(`/registrations/${id}/reject`);
+              Alert.alert('Rejected', 'User registration rejected.');
+              fetchData(regionRef.current);
+            } catch (err) {
+              Alert.alert('Error', err.response?.data?.error || 'Failed to reject registration');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const onRegionChangeComplete = (newRegion) => {
-    setRegion(newRegion);
-    fetchData(newRegion);
+    regionRef.current = newRegion;
+    const newZoomedOut = newRegion.latitudeDelta >= 0.05;
+    if (newZoomedOut !== isZoomedOut) {
+      setIsZoomedOut(newZoomedOut);
+    }
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => fetchData(newRegion), 400);
   };
 
   if (loading) {
@@ -70,18 +294,10 @@ export default function CommissionerDashboard({ navigation }) {
   const getTaskColor = (status) => {
       switch(status) {
           case 'approved': return '#2E7D32'; // Green
-          case 'in_progress':
           case 'submitted': return '#FFD600'; // Yellow
           default: return '#D32F2F'; // Red
       }
   };
-
-  const totals = wardStats.reduce((acc, curr) => ({
-    total: acc.total + parseInt(curr.total_tasks),
-    completed: acc.completed + parseInt(curr.completed_tasks),
-    active: acc.active + parseInt(curr.active_tasks),
-    pending: acc.pending + parseInt(curr.pending_tasks)
-  }), { total: 0, completed: 0, active: 0, pending: 0 });
 
   return (
     <View style={styles.container}>
@@ -94,113 +310,206 @@ export default function CommissionerDashboard({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.statsContainer}>
-          <View style={[styles.statBox, { backgroundColor: '#E8F5E9' }]}>
-            <Text style={[styles.statVal, { color: '#2E7D32' }]}>{totals.completed}</Text>
-            <Text style={styles.statLabel}>Cleaned</Text>
-          </View>
-          <View style={[styles.statBox, { backgroundColor: '#FFFDE7' }]}>
-            <Text style={[styles.statVal, { color: '#FBC02D' }]}>{totals.active}</Text>
-            <Text style={styles.statLabel}>Active</Text>
-          </View>
-          <View style={[styles.statBox, { backgroundColor: '#FFEBEE' }]}>
-            <Text style={[styles.statVal, { color: '#C62828' }]}>{totals.pending}</Text>
-            <Text style={styles.statLabel}>Pending</Text>
-          </View>
-          <View style={[styles.statBox, { backgroundColor: '#E3F2FD' }]}>
-            <Text style={[styles.statVal, { color: '#1565C0' }]}>{machines.length}</Text>
-            <Text style={styles.statLabel}>Trucks</Text>
-          </View>
-      </View>
-
-      <View style={styles.mapWrapper}>
-        <MapView
-          style={styles.map}
-          mapType="satellite"
-          initialRegion={region}
-          onRegionChangeComplete={onRegionChangeComplete}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity 
+          style={[styles.tabButton, activeTab === 'map' && styles.activeTabButton]}
+          onPress={() => setActiveTab('map')}
         >
-          {/* Ward Boundaries */}
-          {wardStats.map(ward => {
-             const geom = ward.geom_json ? JSON.parse(ward.geom_json) : null;
-             if (!geom || !geom.coordinates) return null;
-             
-             return (
-               <Polygon
-                 key={`ward-${ward.id}`}
-                 coordinates={geom.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }))}
-                 fillColor="rgba(255, 255, 255, 0.05)"
-                 strokeColor="rgba(255, 255, 255, 0.3)"
-                 strokeWidth={1}
-               />
-             );
-          })}
-
-          {/* Road Tasks (Lines) */}
-          {tasks.map(task => {
-              if (!task.geom_json) return null;
-              const geom = JSON.parse(task.geom_json);
-              const color = getTaskColor(task.status);
-
-              if (geom.type === 'LineString') {
-                  return (
-                      <Polyline 
-                          key={`task-${task.id}`}
-                          coordinates={geom.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                          strokeColor={color}
-                          strokeWidth={task.status === 'in_progress' ? 6 : 4} // Thicker for active
-                          lineDashPattern={task.status === 'pending' ? [5, 5] : null} // Dashed for pending
-                          tappable
-                          onPress={() => Alert.alert(task.title, `Status: ${task.status.toUpperCase()}\nWard: ${task.ward_name}`)}
-                      />
-                  );
-              }
-              return null;
-          })}
-
-          {machines.map(m => (
-             <Marker
-               key={m.id}
-               coordinate={{ latitude: parseFloat(m.current_lat), longitude: parseFloat(m.current_lng) }}
-               title={m.name}
-               description={`Last updated: ${new Date(m.last_updated).toLocaleTimeString()}`}
-             >
-                <View style={styles.machineMarkerContainer}>
-                   <View style={styles.truckIconWrapper}>
-                      <Text style={{fontSize: 24}}>🚜</Text>
-                      <View style={styles.statusDot} />
-                   </View>
-                   <View style={styles.labelBubble}>
-                      <Text style={styles.labelText}>{m.name}</Text>
-                   </View>
-                </View>
-             </Marker>
-          ))}
-        </MapView>
+          <Ionicons name="map-outline" size={18} color={activeTab === 'map' ? Colors.primary : '#666'} />
+          <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>Overview Map</Text>
+        </TouchableOpacity>
         
-        {/* Map Legend */}
-        <View style={styles.legend}>
-           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#2E7D32' }]} /><Text style={styles.legendText}>Cleaned</Text></View>
-           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#FFD600' }]} /><Text style={styles.legendText}>Active</Text></View>
-           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#D32F2F' }]} /><Text style={styles.legendText}>Pending</Text></View>
-        </View>
+        <TouchableOpacity 
+          style={[styles.tabButton, activeTab === 'registrations' && styles.activeTabButton]}
+          onPress={() => setActiveTab('registrations')}
+        >
+          <Ionicons name="people-outline" size={18} color={activeTab === 'registrations' ? Colors.primary : '#666'} />
+          <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>New Registrations</Text>
+          {pendingCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{pendingCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.wardList}>
-         <Text style={styles.listTitle}>Ward-wise Summary (60 Wards)</Text>
-         {wardStats.map(ward => (
-            <View key={ward.id} style={styles.wardItem}>
-               <Text style={styles.wardName}>{ward.name}</Text>
-               <View style={styles.progressTrack}>
-                  <View style={[styles.progressBar, { 
-                      width: ward.total_tasks > 0 ? `${(ward.completed_tasks / ward.total_tasks) * 100}%` : '0%',
-                      backgroundColor: ward.completed_tasks == ward.total_tasks ? '#4CAF50' : '#FF9800'
-                  }]} />
+      {activeTab === 'map' ? (
+        <>
+          <View style={styles.statsContainer}>
+              <View style={[styles.statBox, { backgroundColor: '#E8F5E9' }]}>
+                <Text style={[styles.statVal, { color: '#2E7D32' }]}>{totals.completed}</Text>
+                <Text style={styles.statLabel}>Cleaned</Text>
+              </View>
+              <View style={[styles.statBox, { backgroundColor: '#FFFDE7' }]}>
+                <Text style={[styles.statVal, { color: '#FBC02D' }]}>{totals.active}</Text>
+                <Text style={styles.statLabel}>Active</Text>
+              </View>
+              <View style={[styles.statBox, { backgroundColor: '#FFEBEE' }]}>
+                <Text style={[styles.statVal, { color: '#C62828' }]}>{totals.pending}</Text>
+                <Text style={styles.statLabel}>Pending</Text>
+              </View>
+              <View style={[styles.statBox, { backgroundColor: '#E3F2FD' }]}>
+                <Text style={[styles.statVal, { color: '#1565C0' }]}>{machines.length}</Text>
+                <Text style={styles.statLabel}>Trucks</Text>
+              </View>
+          </View>
+
+          <View style={styles.mapWrapper}>
+            <MapView
+              style={styles.map}
+              mapType="satellite"
+              initialRegion={regionRef.current}
+              onRegionChangeComplete={onRegionChangeComplete}
+            >
+              {/* Ward Boundaries (Memoized to prevent UI thread lag) */}
+              <MemoizedWards
+                wardStats={wardStats}
+                selectedWardId={selectedWard ? selectedWard.id : null}
+                onWardPress={setSelectedWard}
+              />
+
+              {/* Draw all QGIS infrastructure roads colored by task status (Memoized) */}
+              <MemoizedRoads
+                roads={infrastructure.filter(item => item.type === 'road')}
+                tasks={tasks}
+                isZoomedOut={isZoomedOut}
+              />
+
+              {/* Non-road infrastructure geometries (Memoized) */}
+              <MemoizedRows
+                rows={infrastructure.filter(item => item.type === 'row')}
+                isZoomedOut={isZoomedOut}
+              />
+
+              {machines.map(m => (
+                 <Marker
+                   key={m.id}
+                   coordinate={{ latitude: parseFloat(m.current_lat), longitude: parseFloat(m.current_lng) }}
+                   title={m.name}
+                   description={`Last updated: ${new Date(m.last_updated).toLocaleTimeString()}`}
+                   tracksViewChanges={false}
+                 >
+                    <View style={styles.machineMarkerContainer}>
+                       <View style={styles.truckIconWrapper}>
+                          <Text style={{fontSize: 24}}>🚜</Text>
+                          <View style={styles.statusDot} />
+                       </View>
+                       <View style={styles.labelBubble}>
+                          <Text style={styles.labelText}>{m.name}</Text>
+                       </View>
+                    </View>
+                 </Marker>
+              ))}
+            </MapView>
+            
+             {/* Map Legend */}
+             <View style={styles.legend}>
+                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#2E7D32' }]} /><Text style={styles.legendText}>Cleaned</Text></View>
+                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#FFD600' }]} /><Text style={styles.legendText}>Active</Text></View>
+                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#D32F2F' }]} /><Text style={styles.legendText}>Pending</Text></View>
+             </View>
+
+             {/* Selected Ward Info Hover Overlay */}
+             {selectedWard && (
+               <View style={styles.hoverBox}>
+                 <View style={styles.hoverHeader}>
+                   <Text style={styles.hoverTitle}>{selectedWard.name}</Text>
+                   <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn}>
+                     <Text style={styles.closeText}>✕</Text>
+                   </TouchableOpacity>
+                 </View>
+                 <View style={styles.hoverContent}>
+                   <Text style={styles.hoverSubtitle}>👷 Assigned Jawans:</Text>
+                   {selectedWard.jawans && selectedWard.jawans.length > 0 ? (
+                     selectedWard.jawans.map((jawan, idx) => (
+                       <View key={idx} style={styles.jawanRow}>
+                         <Text style={styles.jawanName}>• {jawan.name || 'Unknown'}</Text>
+                         {jawan.phone ? (
+                           <Text style={styles.jawanPhone}>📞 {jawan.phone}</Text>
+                         ) : (
+                           <Text style={styles.jawanPhoneNo}>No mobile listed</Text>
+                         )}
+                       </View>
+                     ))
+                   ) : (
+                     <Text style={styles.noJawanText}>No jawans assigned to this ward</Text>
+                   )}
+                   
+                   <View style={styles.progressRow}>
+                     <Text style={styles.progressText}>
+                       Cleaned: <Text style={{color: '#2E7D32', fontWeight: 'bold'}}>{selectedWard.completed_tasks}</Text> | 
+                       Active: <Text style={{color: '#FBC02D', fontWeight: 'bold'}}>{selectedWard.active_tasks}</Text> | 
+                       Pending: <Text style={{color: '#C62828', fontWeight: 'bold'}}>{selectedWard.pending_tasks}</Text>
+                     </Text>
+                   </View>
+                 </View>
                </View>
-               <Text style={styles.wardCount}>{ward.completed_tasks}/{ward.total_tasks}</Text>
+             )}
+
+             {/* Zoom suggestion hint */}
+             {isZoomedOut && (
+               <View style={styles.zoomHintBox}>
+                 <Text style={styles.zoomHintText}>🔍 Zoom in to view detailed road networks</Text>
+               </View>
+             )}
+          </View>
+        </>
+      ) : (
+        <ScrollView contentContainerStyle={styles.registrationsList}>
+          {pendingUsers.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="checkmark-circle-outline" size={60} color="#999" />
+              <Text style={styles.emptyText}>No pending registrations to approve</Text>
             </View>
-         ))}
-      </ScrollView>
+          ) : (
+            pendingUsers.map(u => (
+              <View key={u.id} style={styles.regCard}>
+                <View style={styles.regHeader}>
+                  <Text style={styles.regName}>{u.name}</Text>
+                  <View style={[
+                    styles.regRoleTag, 
+                    { backgroundColor: u.role === 'worker' ? '#E3F2FD' : '#EDE7F6' }
+                  ]}>
+                    <Text style={[
+                      styles.regRoleText, 
+                      { color: u.role === 'worker' ? '#1565C0' : '#5E35B1' }
+                    ]}>
+                      {u.role === 'worker' ? 'Jawan' : 'Sanitary Inspector'}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.regDetailRow}>
+                  <Ionicons name="call-outline" size={16} color="#666" style={{ marginRight: 8 }} />
+                  <Text style={styles.regDetailText}>{u.phone || 'No mobile listed'}</Text>
+                </View>
+                
+                <View style={styles.regDetailRow}>
+                  <Ionicons name="grid-outline" size={16} color="#666" style={{ marginRight: 8 }} />
+                  <Text style={styles.regDetailText}>
+                    {u.role === 'worker' ? `Division: ${u.divisions}` : `Divisions: ${u.divisions}`}
+                  </Text>
+                </View>
+                
+                <View style={styles.regActions}>
+                  <TouchableOpacity 
+                    style={[styles.regBtn, styles.approveBtn]} 
+                    onPress={() => handleApprove(u.id)}
+                  >
+                    <Text style={styles.regBtnText}>Approve</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.regBtn, styles.rejectBtn]} 
+                    onPress={() => handleReject(u.id)}
+                  >
+                    <Text style={styles.regBtnText}>Reject</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -212,63 +521,292 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: Colors.primary },
   logout: { padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#D32F2F' },
   logoutText: { color: '#D32F2F', fontWeight: 'bold' },
-  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', padding: 10 },
-  statBox: { width: '23.5%', padding: 10, borderRadius: 12, alignItems: 'center', elevation: 2 },
-  statVal: { fontSize: 18, fontWeight: 'bold' },
-  statLabel: { fontSize: 10, color: '#666', marginTop: 2, fontWeight: '600' },
-  mapWrapper: { position: 'relative' },
-  map: { width: Dimensions.get('window').width, height: 350 },
+  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', padding: 15, backgroundColor: '#fff' },
+  statBox: { width: '23.5%', padding: 12, borderRadius: 15, alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3 },
+  statVal: { fontSize: 20, fontWeight: 'bold' },
+  statLabel: { fontSize: 10, color: '#666', marginTop: 4, fontWeight: '700', textTransform: 'uppercase' },
+  mapWrapper: { flex: 1, position: 'relative' },
+  map: { ...StyleSheet.absoluteFillObject },
   legend: { 
     position: 'absolute', 
-    bottom: 20, 
+    bottom: 25, 
     right: 20, 
-    backgroundColor: 'rgba(255,255,255,0.9)', 
-    padding: 10, 
-    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.95)', 
+    padding: 12, 
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ddd'
+    borderColor: '#eee',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5
   },
-  legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
-  legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 8 },
-  legendText: { fontSize: 12, fontWeight: 'bold', color: '#444' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 10 },
+  legendText: { fontSize: 13, fontWeight: 'bold', color: '#333' },
   machineMarkerContainer: { alignItems: 'center', justifyContent: 'center' },
   truckIconWrapper: { 
     backgroundColor: '#fff', 
-    padding: 5, 
-    borderRadius: 15, 
+    padding: 6, 
+    borderRadius: 18, 
     borderWidth: 2, 
     borderColor: '#3F51B5',
-    elevation: 4,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
     position: 'relative'
   },
   statusDot: { 
-    width: 10, 
-    height: 10, 
-    borderRadius: 5, 
+    width: 12, 
+    height: 12, 
+    borderRadius: 6, 
     backgroundColor: '#4CAF50', 
-    borderWidth: 1.5, 
+    borderWidth: 2, 
     borderColor: '#fff', 
     position: 'absolute', 
-    bottom: -2, 
-    right: -2 
+    bottom: -3, 
+    right: -3 
   },
   labelBubble: {
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 4
+  },
+  labelText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  hoverBox: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 15,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    zIndex: 100,
+  },
+  hoverHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  hoverTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.primary,
+  },
+  closeBtn: {
+    padding: 4,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeText: {
+    fontSize: 12,
+    color: '#888',
+    fontWeight: 'bold',
+  },
+  hoverContent: {
+    marginTop: 4,
+  },
+  hoverSubtitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#666',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  jawanRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  jawanName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  jawanPhone: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  jawanPhoneNo: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  noJawanText: {
+    fontSize: 13,
+    color: '#999',
+    fontStyle: 'italic',
+    marginVertical: 4,
+  },
+  progressRow: {
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#EEE',
+    paddingTop: 8,
+  },
+  progressText: {
+    fontSize: 12,
+    color: '#555',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  zoomHintBox: {
+    position: 'absolute',
+    top: 20,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 99,
+  },
+  zoomHintText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingHorizontal: 10,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  activeTabButton: {
+    borderBottomColor: Colors.primary || '#007bff',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#666',
+    marginLeft: 6,
+  },
+  activeTabText: {
+    color: Colors.primary || '#007bff',
+  },
+  badge: {
+    backgroundColor: '#D32F2F',
+    borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 2
+    marginLeft: 6,
   },
-  labelText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
-  wardList: { flex: 1, padding: 15 },
-  listTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 15 },
-  wardItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 10, marginBottom: 10 },
-  wardName: { flex: 1, fontSize: 14, fontWeight: '600' },
-  progressTrack: { flex: 1, height: 10, backgroundColor: '#EEE', borderRadius: 5, marginHorizontal: 10, overflow: 'hidden' },
-  progressBar: { height: '100%', borderRadius: 5 },
-  wardCount: { fontSize: 12, color: '#666', width: 40, textAlign: 'right' }
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  registrationsList: {
+    padding: 15,
+  },
+  regCard: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 15,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  regHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    paddingBottom: 8,
+  },
+  regName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  regRoleTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  regRoleText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  regDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  regDetailText: {
+    fontSize: 14,
+    color: '#555',
+    marginLeft: 8,
+  },
+  regActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 15,
+  },
+  regBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 5,
+  },
+  approveBtn: {
+    backgroundColor: '#2E7D32',
+  },
+  rejectBtn: {
+    backgroundColor: '#C62828',
+  },
+  regBtnText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 50,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
+    marginTop: 10,
+  }
 });

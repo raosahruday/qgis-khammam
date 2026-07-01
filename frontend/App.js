@@ -12,15 +12,14 @@ import RegisterScreen from './src/screens/Auth/RegisterScreen';
 import OwnerDashboard from './src/screens/Owner/OwnerDashboard';
 import MapTaskCreationScreen from './src/screens/Owner/MapTaskCreationScreen';
 import TaskDetailsScreen from './src/screens/Owner/TaskDetailsScreen';
-import PhotoReviewScreen from './src/screens/Owner/PhotoReviewScreen';
 import CommissionerDashboard from './src/screens/Commissioner/CommissionerDashboard';
-import QRDisplayScreen from './src/screens/Owner/QRDisplayScreen';
+
 
 // Worker Screens
 import WorkerDashboard from './src/screens/Worker/WorkerDashboard';
 import MapNavigationScreen from './src/screens/Worker/MapNavigationScreen';
 import CapturePhotoScreen from './src/screens/Worker/CapturePhotoScreen';
-import QRScannerScreen from './src/screens/Auth/QRScannerScreen';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -55,8 +54,7 @@ const AppNavigator = () => {
           <Stack.Screen name="OwnerDashboard" component={OwnerDashboard} options={{ title: 'Dashboard' }} />
           <Stack.Screen name="MapTaskCreation" component={MapTaskCreationScreen} options={{ title: 'Create Task' }} />
           <Stack.Screen name="TaskDetails" component={TaskDetailsScreen} options={{ title: 'Task Details' }} />
-          <Stack.Screen name="PhotoReview" component={PhotoReviewScreen} options={{ title: 'Review Completion' }} />
-          <Stack.Screen name="QRDisplay" component={QRDisplayScreen} options={{ title: 'Task QR Codes' }} />
+          
         </>
       ) : (
         // Worker Flow
@@ -64,7 +62,7 @@ const AppNavigator = () => {
           <Stack.Screen name="WorkerDashboard" component={WorkerDashboard} options={{ title: 'My Assignments' }} />
           <Stack.Screen name="MapNavigation" component={MapNavigationScreen} options={{ title: 'Task Location' }} />
           <Stack.Screen name="CapturePhoto" component={CapturePhotoScreen} options={{ title: 'Upload Proof' }} />
-          <Stack.Screen name="QRScanner" component={QRScannerScreen} options={{ title: 'Scan QR Code' }} />
+          
         </>
       )}
     </Stack.Navigator>

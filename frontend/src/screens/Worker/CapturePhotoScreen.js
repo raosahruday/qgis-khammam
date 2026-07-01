@@ -27,6 +27,8 @@ export default function CapturePhotoScreen({ route, navigation }) {
     }
   };
 
+
+
   const submitWork = async () => {
     if (!photo) {
       Alert.alert("Error", "Please take a photo first.");
@@ -81,8 +83,10 @@ export default function CapturePhotoScreen({ route, navigation }) {
       )}
 
       <TouchableOpacity style={styles.cameraBtn} onPress={takePhoto}>
-        <Text style={styles.btnText}>Take Photo</Text>
+        <Text style={styles.btnText}>📷 Take Photo</Text>
       </TouchableOpacity>
+
+
 
       {photo && (
         <TouchableOpacity style={styles.submitBtn} onPress={submitWork} disabled={uploading}>
@@ -99,9 +103,9 @@ export default function CapturePhotoScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  preview: { width: 300, height: 400, borderRadius: 10, marginBottom: 20 },
-  placeholder: { width: 300, height: 400, backgroundColor: '#eee', borderRadius: 10, marginBottom: 20, justifyContent: 'center', alignItems: 'center' },
-  cameraBtn: { backgroundColor: '#007bff', padding: 15, borderRadius: 10, width: '100%', alignItems: 'center', marginBottom: 15 },
+  preview: { width: 300, height: 350, borderRadius: 10, marginBottom: 15 },
+  placeholder: { width: 300, height: 350, backgroundColor: '#eee', borderRadius: 10, marginBottom: 15, justifyContent: 'center', alignItems: 'center' },
+  cameraBtn: { backgroundColor: '#007bff', padding: 15, borderRadius: 10, width: '100%', alignItems: 'center', marginBottom: 10 },
   submitBtn: { backgroundColor: '#28a745', padding: 15, borderRadius: 10, width: '100%', alignItems: 'center' },
   btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
 });

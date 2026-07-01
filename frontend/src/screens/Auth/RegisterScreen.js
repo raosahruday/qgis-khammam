@@ -4,25 +4,76 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
+import api from '../../api/axios';
 
 export default function RegisterScreen({ navigation }) {
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [divisions, setDivisions] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState('worker');
+  const [role, setRole] = useState('worker'); // 'worker' is Jawan, 'supervisor' is Sanitary Inspector
   const [loading, setLoading] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+
   const { register } = useContext(AuthContext);
 
-  const handleRegister = async () => {
-    if (!name || !email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+  const handleSendOTP = async () => {
+    if (!phone || !/^\d{10}$/.test(phone.trim())) {
+      Alert.alert('Error', 'Please enter a valid 10-digit mobile number');
       return;
     }
+    setOtpLoading(true);
+    try {
+      const response = await api.post('/otp/send', { phone: phone.trim() });
+      setOtpSent(true);
+      Alert.alert(
+        'OTP Sent (Simulator)',
+        `OTP sent to ${phone.trim()}.\nVerification code is: ${response.data.otp}`
+      );
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.error || 'Failed to send OTP');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!name || !phone || !divisions || !password || !otp) {
+      Alert.alert('Error', 'Please fill in all fields and verify OTP');
+      return;
+    }
+
+    const cleanDivs = divisions.trim();
+    if (role === 'worker') {
+      if (!/^\d+$/.test(cleanDivs)) {
+        Alert.alert('Validation Error', 'Jawan must enter a single numeric division number (e.g. 53)');
+        return;
+      }
+    } else {
+      const parts = cleanDivs.split(',').map(p => p.trim()).filter(Boolean);
+      if (parts.length === 0) {
+        Alert.alert('Validation Error', 'Sanitary Inspector must enter division numbers');
+        return;
+      }
+      if (parts.length > 15) {
+        Alert.alert('Validation Error', 'Sanitary Inspector can enter up to 15 divisions only');
+        return;
+      }
+      for (const part of parts) {
+        if (!/^\d+$/.test(part)) {
+          Alert.alert('Validation Error', 'All division numbers must be numeric');
+          return;
+        }
+      }
+    }
+
     setLoading(true);
     try {
-      await register(name, email, password, role);
-      Alert.alert('Success', 'Registered successfully. Please login.');
+      await register(name, phone.trim(), password, role, cleanDivs, otp.trim());
+      Alert.alert('Success', 'Registered successfully. Please wait for Commissioner approval.');
       navigation.navigate('Login');
     } catch (error) {
       Alert.alert('Registration Failed', error.response?.data?.error || 'Something went wrong');
@@ -54,14 +105,69 @@ export default function RegisterScreen({ navigation }) {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email Address</Text>
+              <Text style={styles.label}>Register as</Text>
+              <View style={styles.roleGrid}>
+                <TouchableOpacity 
+                  style={[styles.roleButton, role === 'worker' && styles.roleActive]} 
+                  onPress={() => setRole('worker')}>
+                  <Ionicons name="construct-outline" size={18} color={role === 'worker' ? Colors.white : Colors.primary} />
+                  <Text style={role === 'worker' ? styles.roleTextActive : styles.roleText}>Jawan</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.roleButton, role === 'supervisor' && styles.roleActive]} 
+                  onPress={() => setRole('supervisor')}>
+                  <Ionicons name="shield-checkmark-outline" size={18} color={role === 'supervisor' ? Colors.white : Colors.primary} />
+                  <Text style={role === 'supervisor' ? styles.roleTextActive : styles.roleText}>Sanitary Inspector</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Mobile Number</Text>
+              <View style={styles.phoneContainer}>
+                <TextInput 
+                  style={[styles.input, { flex: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0 }]} 
+                  placeholder="Enter 10-digit mobile number" 
+                  value={phone} 
+                  onChangeText={setPhone} 
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+                <TouchableOpacity 
+                  style={[styles.otpButton, (!phone || phone.length < 10) && styles.otpButtonDisabled]} 
+                  onPress={handleSendOTP} 
+                  disabled={otpLoading || !phone || phone.length < 10}
+                >
+                  {otpLoading ? (
+                    <ActivityIndicator size="small" color={Colors.white} />
+                  ) : (
+                    <Text style={styles.otpButtonText}>{otpSent ? 'RESEND' : 'GET OTP'}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Verification Code (OTP)</Text>
               <TextInput 
                 style={styles.input} 
-                placeholder="Enter your email" 
-                value={email} 
-                onChangeText={setEmail} 
-                autoCapitalize="none" 
-                keyboardType="email-address" 
+                placeholder="Enter 6-digit OTP code" 
+                value={otp} 
+                onChangeText={setOtp} 
+                keyboardType="number-pad"
+                maxLength={6}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>
+                {role === 'worker' ? 'Division Number' : 'Division Numbers (up to 15)'}
+              </Text>
+              <TextInput 
+                style={styles.input} 
+                placeholder={role === 'worker' ? "e.g. 53" : "e.g. 1, 2, 3 (comma separated)"} 
+                value={divisions} 
+                onChangeText={setDivisions} 
               />
             </View>
             
@@ -77,38 +183,6 @@ export default function RegisterScreen({ navigation }) {
                 />
                 <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword(!showPassword)}>
                   <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={24} color={Colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-            
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Register as</Text>
-              <View style={styles.roleGrid}>
-                <TouchableOpacity 
-                  style={[styles.roleButton, role === 'worker' && styles.roleActive]} 
-                  onPress={() => setRole('worker')}>
-                  <Ionicons name="construct-outline" size={18} color={role === 'worker' ? Colors.white : Colors.primary} />
-                  <Text style={role === 'worker' ? styles.roleTextActive : styles.roleText}>Worker</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.roleButton, role === 'supervisor' && styles.roleActive]} 
-                  onPress={() => setRole('supervisor')}>
-                  <Ionicons name="shield-checkmark-outline" size={18} color={role === 'supervisor' ? Colors.white : Colors.primary} />
-                  <Text style={role === 'supervisor' ? styles.roleTextActive : styles.roleText}>Supervisor</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={[styles.roleGrid, { marginTop: 10 }]}>
-                <TouchableOpacity 
-                  style={[styles.roleButton, role === 'commissioner' && styles.roleActive]} 
-                  onPress={() => setRole('commissioner')}>
-                  <Ionicons name="ribbon-outline" size={18} color={role === 'commissioner' ? Colors.white : Colors.primary} />
-                  <Text style={role === 'commissioner' ? styles.roleTextActive : styles.roleText}>Commissioner</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.roleButton, role === 'owner' && styles.roleActive]} 
-                  onPress={() => setRole('owner')}>
-                  <Ionicons name="business-outline" size={18} color={role === 'owner' ? Colors.white : Colors.primary} />
-                  <Text style={role === 'owner' ? styles.roleTextActive : styles.roleText}>Admin/Owner</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -143,6 +217,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
+    marginVertical: 10,
   },
   title: { fontSize: 28, fontWeight: 'bold', marginBottom: 10, textAlign: 'center', color: Colors.primary },
   subtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginBottom: 25 },
@@ -155,6 +230,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     fontSize: 16,
+  },
+  phoneContainer: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  otpButton: {
+    backgroundColor: Colors.primary,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  otpButtonDisabled: {
+    backgroundColor: Colors.border,
+    borderColor: Colors.border,
+  },
+  otpButtonText: {
+    color: Colors.white,
+    fontWeight: 'bold',
+    fontSize: 13,
   },
   passwordContainer: {
     flexDirection: 'row',
@@ -170,7 +268,7 @@ const styles = StyleSheet.create({
   roleButton: { 
     width: '48%', 
     flexDirection: 'row',
-    padding: 10, 
+    padding: 14, 
     borderWidth: 1, 
     borderColor: Colors.primary, 
     borderRadius: 12, 

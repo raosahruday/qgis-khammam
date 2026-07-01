@@ -5,27 +5,39 @@ const authController = require('../controllers/authController');
 const taskController = require('../controllers/taskController');
 const userController = require('../controllers/userController');
 const machineController = require('../controllers/machineController');
+const infrastructureController = require('../controllers/infrastructureController');
 const { authenticateToken, authorizeRole } = require('../middlewares/auth');
 const upload = require('../middlewares/upload');
 
 // ----- PUBLIC ROUTES -----
 router.post('/register', authController.register);
 router.post('/login', authController.login);
+router.post('/otp/send', authController.sendOTP);
 
 // ----- PROTECTED ROUTES -----
 router.use(authenticateToken); 
 
+// --- Registrations (Commissioner Only) ---
+router.get('/registrations/pending', authorizeRole(['commissioner']), userController.getPendingRegistrations);
+router.put('/registrations/:id/approve', authorizeRole(['commissioner']), userController.approveRegistration);
+router.put('/registrations/:id/reject', authorizeRole(['commissioner']), userController.rejectRegistration);
+
 // --- Tasks (Bulk & Management) ---
 router.delete('/tasks/all', authorizeRole(['owner', 'supervisor']), taskController.deleteAllTasks);
+router.post('/tasks/bulk-reset', authorizeRole(['owner', 'supervisor']), taskController.bulkResetTasks);
 router.get('/tasks', taskController.getTasks);
 router.post('/tasks', authorizeRole(['owner', 'supervisor']), taskController.createTask);
 router.get('/workers', authorizeRole(['owner', 'supervisor', 'commissioner']), userController.getWorkers);
+router.get('/wards', authorizeRole(['owner', 'supervisor', 'commissioner']), userController.getWards);
+
 
 // --- QR & Live Flow ---
 router.post('/tasks/verify-qr', authorizeRole(['worker', 'owner', 'supervisor']), taskController.verifyQR);
+router.post('/tasks/:id/swipe-status', authorizeRole(['worker']), taskController.swipeStatus);
 router.post('/tasks/live-progress', authorizeRole(['worker']), taskController.updateLiveProgress);
 
 // --- Task Specific Operations ---
+router.get('/tasks/summary', authorizeRole(['owner', 'supervisor', 'commissioner']), taskController.getTaskSummary);
 router.get('/tasks/:id', taskController.getTaskById);
 router.put('/tasks/:id/assign', authorizeRole(['owner', 'supervisor']), taskController.assignTask);
 router.get('/tasks/:id/photos', authorizeRole(['owner', 'supervisor', 'commissioner']), taskController.getTaskPhotos);
@@ -51,5 +63,9 @@ router.get('/wards/stats', authorizeRole(['owner', 'supervisor', 'commissioner']
 router.get('/machines', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker']), machineController.getMachines);
 router.post('/machines/:id/location', authorizeRole(['worker']), machineController.updateMachineLocation);
 router.put('/machines/link-worker', authorizeRole(['worker']), machineController.linkWorkerToMachine);
+
+// --- Geospatial Infrastructure ---
+router.get('/infrastructure/ward-boundary', authorizeRole(['worker']), infrastructureController.getWorkerWard);
+router.get('/infrastructure', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker']), infrastructureController.getInfrastructure);
 
 module.exports = router;

@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../utils/storage';
 import api from '../api/axios';
 
 export const AuthContext = createContext();
@@ -16,12 +16,27 @@ export const AuthProvider = ({ children }) => {
           setUser(JSON.parse(userData));
         }
       } catch (e) {
-        console.error('Error restoring token', e);
+        console.warn('Error restoring token', e);
       }
       setIsLoading(false);
     };
 
     bootstrapAsync();
+
+    const interceptor = api.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+          console.warn('Session expired or unauthorized. Logging out...');
+          await logout();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      api.interceptors.response.eject(interceptor);
+    };
   }, []);
 
   const login = async (email, password) => {
@@ -36,10 +51,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (name, email, password, role) => {
+  const register = async (name, phone, password, role, divisions, otp) => {
     try {
-      await api.post('/register', { name, email, password, role });
-      // Automate login after register if desired, or let user do it
+      await api.post('/register', { name, phone, password, role, divisions, otp });
     } catch (error) {
       throw error;
     }
