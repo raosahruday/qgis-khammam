@@ -27,15 +27,11 @@ This guide describes how to deploy the **Khammam Cleanup QGIS Project** backend 
    - **Name**: `task-photos`
    - **Public Bucket**: **Toggle ON** *(required so the Commissioner dashboard can fetch public image links).*
 6. Click **Save**.
-## Part 2B: Set up Supabase Phone OTP Auth
-1. In your Supabase Dashboard, click on **Authentication** in the left sidebar (the lock icon).
-2. Go to **Providers** under the settings section.
-3. Scroll down and click on **Phone** to expand it.
-4. Toggle the Phone provider **ON**.
-5. Select your chosen SMS Provider (e.g. **Twilio**, **Vonage**, **MessageBird**, or **Twilio Verify**).
-6. Fill in your credentials:
-   - For **Twilio**: Enter your *Twilio Account SID*, *Twilio Auth Token*, and *Twilio Message Service SID* (or sender phone number).
-7. Scroll to the bottom of the Phone provider settings and click **Save**.
+## Part 2B: Set up Fast2SMS for Mobile OTPs
+1. Go to [Fast2SMS](https://www.fast2sms.com) and register for a free account.
+2. Log in and copy your **API Authorization Key** from your Dev API dashboard.
+3. Recharge your wallet (you can add ₹100 using UPI/Google Pay/Paytm).
+4. Add the key as an environment variable in Render (`FAST2SMS_API_KEY`).
 
 ## Part 2C: Get your Supabase API Keys
 1. Go to **Project Settings** (the gear icon at the bottom of the left sidebar) $\rightarrow$ **API**.
@@ -72,6 +68,7 @@ Before launching the Web Service, scroll down to the **Environment Variables** s
 | **`SUPABASE_URL`** | *(Paste the Supabase Project URL from Part 2)* | Supabase API connection |
 | **`SUPABASE_KEY`** | *(Paste the Supabase `service_role` key from Part 2)* | Supabase credentials |
 | **`SUPABASE_BUCKET`** | `task-photos` | Supabase Bucket name |
+| **`FAST2SMS_API_KEY`** | *(Paste the Fast2SMS API Authorization Key from Part 2B)* | Fast2SMS Gateway credential (optional, fallback to console simulated OTP if left empty) |
 
 Click **Create Web Service** (or **Save Changes**). Render will pull your GitHub repository, install packages, and deploy the live backend.
 
