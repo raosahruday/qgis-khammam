@@ -27,8 +27,19 @@ This guide describes how to deploy the **Khammam Cleanup QGIS Project** backend 
    - **Name**: `task-photos`
    - **Public Bucket**: **Toggle ON** *(required so the Commissioner dashboard can fetch public image links).*
 6. Click **Save**.
-7. Go to **Project Settings** (the gear icon at the bottom of the left sidebar) $\rightarrow$ **API**.
-8. Copy the following credentials:
+## Part 2B: Set up Supabase Phone OTP Auth
+1. In your Supabase Dashboard, click on **Authentication** in the left sidebar (the lock icon).
+2. Go to **Providers** under the settings section.
+3. Scroll down and click on **Phone** to expand it.
+4. Toggle the Phone provider **ON**.
+5. Select your chosen SMS Provider (e.g. **Twilio**, **Vonage**, **MessageBird**, or **Twilio Verify**).
+6. Fill in your credentials:
+   - For **Twilio**: Enter your *Twilio Account SID*, *Twilio Auth Token*, and *Twilio Message Service SID* (or sender phone number).
+7. Scroll to the bottom of the Phone provider settings and click **Save**.
+
+## Part 2C: Get your Supabase API Keys
+1. Go to **Project Settings** (the gear icon at the bottom of the left sidebar) $\rightarrow$ **API**.
+2. Copy the following credentials:
    - **Project URL** (This is your `SUPABASE_URL`)
    - **`service_role` Secret API Key** (This is your `SUPABASE_KEY` - click *Reveal* to copy it. *Do not use the public/anon key*).
 

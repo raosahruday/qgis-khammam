@@ -1,6 +1,14 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const { createClient } = require('@supabase/supabase-js');
+
+// Initialize Supabase Client if credentials exist
+const isSupabaseConfigured = process.env.SUPABASE_URL && process.env.SUPABASE_KEY;
+let supabase = null;
+if (isSupabaseConfigured) {
+  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+}
 
 // In-memory store for OTPs: phone -> { otp, expiresAt }
 const otpStore = {};
@@ -21,7 +29,23 @@ exports.sendOTP = async (req, res) => {
       return res.status(400).json({ error: 'User with this mobile number already exists' });
     }
 
-    // Generate 6-digit OTP
+    if (isSupabaseConfigured) {
+      console.log(`[Supabase Auth] Sending OTP to ${cleanPhone}...`);
+      const e164Phone = `+91${cleanPhone}`;
+      const { data, error } = await supabase.auth.signInWithOtp({
+        phone: e164Phone,
+      });
+
+      if (error) {
+        console.error('Supabase signInWithOtp error:', error);
+        return res.status(400).json({ error: error.message });
+      }
+
+      console.log(`[Supabase Auth] OTP sent successfully to ${e164Phone}`);
+      return res.json({ message: 'OTP sent successfully' });
+    }
+
+    // Fallback: Generate 6-digit OTP locally
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
 
@@ -79,20 +103,36 @@ exports.register = async (req, res) => {
     }
 
     // Verify OTP
-    const cachedOtp = otpStore[cleanPhone];
-    if (!cachedOtp) {
-      return res.status(400).json({ error: 'Please request an OTP first' });
-    }
-    if (Date.now() > cachedOtp.expiresAt) {
-      delete otpStore[cleanPhone];
-      return res.status(400).json({ error: 'OTP has expired. Please request a new one.' });
-    }
-    if (cachedOtp.otp !== otp.trim()) {
-      return res.status(400).json({ error: 'Invalid OTP' });
-    }
+    if (isSupabaseConfigured) {
+      console.log(`[Supabase Auth] Verifying OTP for ${cleanPhone}...`);
+      const e164Phone = `+91${cleanPhone}`;
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: e164Phone,
+        token: otp.trim(),
+        type: 'sms'
+      });
 
-    // Clear verified OTP
-    delete otpStore[cleanPhone];
+      if (error) {
+        console.error('Supabase verifyOtp error:', error);
+        return res.status(400).json({ error: `OTP verification failed: ${error.message}` });
+      }
+
+      console.log(`[Supabase Auth] OTP verified successfully for ${e164Phone}`);
+    } else {
+      const cachedOtp = otpStore[cleanPhone];
+      if (!cachedOtp) {
+        return res.status(400).json({ error: 'Please request an OTP first' });
+      }
+      if (Date.now() > cachedOtp.expiresAt) {
+        delete otpStore[cleanPhone];
+        return res.status(400).json({ error: 'OTP has expired. Please request a new one.' });
+      }
+      if (cachedOtp.otp !== otp.trim()) {
+        return res.status(400).json({ error: 'Invalid OTP' });
+      }
+      // Clear verified OTP
+      delete otpStore[cleanPhone];
+    }
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
