@@ -105,14 +105,14 @@ const initDb = async () => {
     await db.query(`
       INSERT INTO users (name, email, password, role, approved) 
       VALUES ('Khammam Commissioner', 'commissioner@test.com', $1, 'commissioner', TRUE)
-      ON CONFLICT (email) DO NOTHING;
+      ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, approved = TRUE;
     `, [adminPasswordHash]);
 
     // Seed Supervisor
     await db.query(`
       INSERT INTO users (name, email, password, role, approved) 
       VALUES ('Ward Supervisor', 'supervisor@test.com', $1, 'supervisor', TRUE)
-      ON CONFLICT (email) DO NOTHING;
+      ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, approved = TRUE;
     `, [adminPasswordHash]);
 
     console.log('✅ Seed users checked/inserted.');

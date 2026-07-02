@@ -13,6 +13,19 @@ const upload = require('../middlewares/upload');
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/otp/send', authController.sendOTP);
+router.get('/debug-db', async (req, res) => {
+  try {
+    const db = require('../config/db');
+    const usersResult = await db.query('SELECT id, name, email, phone, role, approved FROM users');
+    res.json({
+      status: 'connected',
+      bootTime: global.bootTime,
+      users: usersResult.rows
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // ----- PROTECTED ROUTES -----
 router.use(authenticateToken); 
