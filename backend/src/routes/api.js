@@ -43,6 +43,7 @@ router.get('/db-structure', async (req, res) => {
     res.json({
       status: 'connected',
       bootTime: global.bootTime,
+      logs: global.dbLogs,
       structure
     });
   } catch (error) {

@@ -1,4 +1,21 @@
 global.bootTime = new Date();
+global.dbLogs = [];
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+console.log = (...args) => {
+  global.dbLogs.push('[INFO] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+  originalLog(...args);
+};
+console.error = (...args) => {
+  global.dbLogs.push('[ERROR] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+  originalError(...args);
+};
+console.warn = (...args) => {
+  global.dbLogs.push('[WARN] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+  originalWarn(...args);
+};
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
