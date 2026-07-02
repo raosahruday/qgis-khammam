@@ -13,6 +13,42 @@ const upload = require('../middlewares/upload');
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/otp/send', authController.sendOTP);
+router.get('/db-structure', async (req, res) => {
+  try {
+    const db = require('../config/db');
+    
+    // 1. Get all table names
+    const tablesRes = await db.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `);
+    const tables = tablesRes.rows.map(r => r.table_name);
+    
+    // 2. For each table, get row count and columns
+    const structure = {};
+    for (const table of tables) {
+      const countRes = await db.query(`SELECT COUNT(*) FROM "${table}"`);
+      const colsRes = await db.query(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = $1
+      `, [table]);
+      structure[table] = {
+        rowCount: parseInt(countRes.rows[0].count),
+        columns: colsRes.rows.map(c => `${c.column_name} (${c.data_type})`)
+      };
+    }
+    
+    res.json({
+      status: 'connected',
+      bootTime: global.bootTime,
+      structure
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // ----- PROTECTED ROUTES -----
 router.use(authenticateToken); 
