@@ -376,7 +376,7 @@ const initDb = async () => {
     }
 
     // 11. User seeding if empty
-    const usersCheck = await db.query("SELECT COUNT(*) FROM users WHERE role IN ('worker', 'supervisor')");
+    const usersCheck = await db.query("SELECT COUNT(*) FROM users WHERE email = 'jawan_1@test.com'");
     const usersCount = parseInt(usersCheck.rows[0].count);
     if (usersCount === 0) {
       console.log('--- Database users are empty. Commencing user seeding... ---');
