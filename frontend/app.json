@@ -29,6 +29,12 @@
     "plugins": [
       "expo-asset",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d0a55284-6069-4177-8f13-76fe466886de"
+      }
+    },
+    "owner": "raosahruday5"
   }
 }
