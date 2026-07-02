@@ -81,3 +81,42 @@ In your local code or build configuration:
 1. Open `QGIS/QGIS/frontend/src/api/axios.js`.
 2. Update the `baseURL` to point to your new Live Service URL instead of `http://localhost:5000/api`.
 3. Commit and push the frontend changes to GitHub!
+
+---
+
+## Part 6: Deploy the Web Dashboard (Static Site) on Render
+1. Go back to your [Render Dashboard](https://dashboard.render.com).
+2. Click **New** $\rightarrow$ **Static Site**.
+3. Select your connected GitHub repository: **`qgis-khammam`**.
+4. Configure the Static Site settings:
+   - **Name**: `khammam-cleanup-dashboard`
+   - **Branch**: `main`
+   - **Root Directory**: `QGIS/QGIS/frontend` *(This tells Render to enter the frontend folder).*
+   - **Build Command**: `npx expo export` *(This compiles the React Native web files into a production build).*
+   - **Publish Directory**: `dist` *(This is the directory where the compiled web build is outputted).*
+5. Click **Create Static Site**.
+6. Once the deployment completes, Render will provide you with a live URL (e.g., `https://khammam-cleanup-dashboard.onrender.com`). You and the Commissioner can open this URL in any browser to access the dashboard!
+
+---
+
+## Part 7: Build the Mobile App APK (Without Google Play Store)
+If you want to generate a direct installer (`.apk` file) to share with your workers via WhatsApp:
+1. Open your terminal in the frontend directory (`QGIS/QGIS/frontend`).
+2. Install EAS CLI globally if you haven't already:
+   ```bash
+   npm install -g eas-cli
+   ```
+3. Log in to your Expo account:
+   ```bash
+   eas login
+   ```
+4. Initialize EAS configuration (if not already done):
+   ```bash
+   eas build:configure
+   ```
+   *(Select "All" or "Android" when prompted).*
+5. Run the build command for a direct installable APK:
+   ```bash
+   eas build --platform android --profile preview
+   ```
+6. EAS will build the app in the cloud. Once completed, it will output a downloadable link to your **`.apk`** file. Send this file to your workers to install directly on their phones!
