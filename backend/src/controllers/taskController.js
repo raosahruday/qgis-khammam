@@ -665,6 +665,27 @@ exports.uploadPhoto = async (req, res) => {
 
     if (!req.file) return res.status(400).json({ error: 'No image provided' });
 
+    // Auto-compress the image to keep size under ~150KB
+    try {
+      console.log('Compressing image with Jimp...');
+      const { Jimp } = require('jimp');
+      const image = await Jimp.read(req.file.path);
+      
+      // Limit resolution to max 1200px width/height
+      if (image.width > 1200 || image.height > 1200) {
+        image.scaleToFit({ w: 1200, h: 1200 });
+      }
+      
+      // Get compressed JPEG buffer (75% quality)
+      const compressedBuffer = await image.getBuffer('image/jpeg', { quality: 75 });
+      
+      // Overwrite the temporary local file with the compressed version
+      fs.writeFileSync(req.file.path, compressedBuffer);
+      console.log(`Compression successful. New size: ${(compressedBuffer.length / 1024).toFixed(2)} KB`);
+    } catch (compressError) {
+      console.error('Image compression failed, using original file:', compressError);
+    }
+
     let imageUrl = `/uploads/${req.file.filename}`;
     let publicId = null;
 
