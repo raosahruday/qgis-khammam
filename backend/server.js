@@ -23,9 +23,15 @@ app.get('/', (req, res) => {
 });
 
 const { startResetJob } = require('./src/jobs/resetTasks');
+const initDb = require('./src/config/initDb');
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  startResetJob();
-});
+// Initialize database and start server
+const startServer = async () => {
+  await initDb();
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+    startResetJob();
+  });
+};
+
+startServer();
