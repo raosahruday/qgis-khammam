@@ -99,7 +99,7 @@ const initDb = async () => {
 
     // 8. Seed default accounts if they don't exist
     // Password is 'password123' bcrypt hash
-    const adminPasswordHash = '$2b$10$Xm3h.S/Qy97S9x9kF9z57.CxzpTo0n6S5sWJXZkG.x7rC8Z8w7t8m';
+    const adminPasswordHash = '$2b$10$4MBC37ck8zyFaOFdZs2eBOyNQlxg8PVFZKK88Bfe83rRG8cUdWXx6';
     
     // Seed Commissioner
     await db.query(`
