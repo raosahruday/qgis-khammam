@@ -351,15 +351,13 @@ const initDb = async () => {
 
     console.log('✅ Default users checked/inserted.');
 
-    // 10. Shapefile auto-import and user/task seeding if empty
+    // 10. Shapefile auto-import if empty
     const infraCheck = await db.query('SELECT COUNT(*) FROM infrastructure');
     const infraCount = parseInt(infraCheck.rows[0].count);
+    const rootPath = path.join(__dirname, '..', '..', '..'); // Repository root
     
     if (infraCount === 0) {
-      console.log('--- Database is empty. Commencing Shapefile import & seeding... ---');
-      
-      const rootPath = path.join(__dirname, '..', '..', '..'); // Repository root
-      
+      console.log('--- Database infrastructure is empty. Commencing Shapefile import... ---');
       const wardsShpFile = path.join(rootPath, 'Export_Output_2.shp');
       const rowShpFile = path.join(rootPath, 'Export_Output_3.shp');
       const roadsShpFile = path.join(rootPath, 'Export_Output_4.shp');
@@ -370,179 +368,193 @@ const initDb = async () => {
         await importWards(wardsShpFile);
         await importRow(rowShpFile);
         console.log('✅ GIS Shapefiles successfully imported.');
-        
-        // Seed supervisors and workers
-        const siCredentialsPath = path.join(__dirname, '..', '..', 'si_credentials.json');
-        const jawanCredentialsPath = path.join(__dirname, '..', '..', 'jawan_credentials.json');
-        
-        if (fs.existsSync(siCredentialsPath)) {
-          console.log('Seeding supervisors from si_credentials.json...');
-          const sis = JSON.parse(fs.readFileSync(siCredentialsPath, 'utf8'));
-          for (const si of sis) {
-            const username = si.username;
-            const email = `${username}@test.com`;
-            const passwordHash = bcrypt.hashSync(si.password, 10);
-            const name = si.siName;
-            
-            const res = await db.query(`
-              INSERT INTO users (name, email, password, role, approved)
-              VALUES ($1, $2, $3, 'supervisor', TRUE)
-              ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, approved = TRUE
-              RETURNING id
-            `, [name, email, passwordHash]);
-            
-            const supervisorId = res.rows[0].id;
-            
-            for (const wardNo of si.wards) {
-              await db.query(`
-                UPDATE wards 
-                SET supervisor_id = $1 
-                WHERE name = $2 OR name = $3
-              `, [supervisorId, `Ward ${wardNo}`, `Ward 0${wardNo}`]);
-            }
-          }
-          console.log('✅ Supervisors successfully seeded.');
-        }
-
-        if (fs.existsSync(jawanCredentialsPath)) {
-          console.log('Seeding jawans from jawan_credentials.json...');
-          const jawans = JSON.parse(fs.readFileSync(jawanCredentialsPath, 'utf8'));
-          for (const jawan of jawans) {
-            const username = jawan.username;
-            const email = `${username}@test.com`;
-            const passwordHash = bcrypt.hashSync(jawan.password, 10);
-            const name = jawan.name;
-            const wardNo = jawan.ward;
-            
-            const wardRes = await db.query(`
-              SELECT id FROM wards WHERE name = $1 OR name = $2 LIMIT 1
-            `, [`Ward ${wardNo}`, `Ward 0${wardNo}`]);
-            
-            const wardId = wardRes.rows.length > 0 ? wardRes.rows[0].id : null;
-            
-            await db.query(`
-              INSERT INTO users (name, email, password, role, approved, ward_id)
-              VALUES ($1, $2, $3, 'worker', TRUE, $4)
-              ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, approved = TRUE, ward_id = EXCLUDED.ward_id
-            `, [name, email, passwordHash, wardId]);
-          }
-          console.log('✅ Jawans successfully seeded.');
-        }
-
-        // Auto-generate pending tasks for all jawans
-        console.log('Auto-generating pending tasks for seeded jawans...');
-        const workersRes = await db.query(`
-          SELECT u.id, u.name, u.ward_id, w.name as ward_name
-          FROM users u
-          LEFT JOIN wards w ON u.ward_id = w.id
-          WHERE u.role = 'worker' AND u.ward_id IS NOT NULL
-        `);
-
-        // Fetch duplicate Line_IDs globally
-        const dupRes = await db.query(
-          `SELECT properties->>'Line_ID' as line_id 
-           FROM infrastructure 
-           WHERE properties->>'Line_ID' IS NOT NULL 
-           GROUP BY properties->>'Line_ID' 
-           HAVING COUNT(*) > 1`
-        );
-        const duplicateLineIds = new Set(dupRes.rows.map(row => row.line_id));
-
-        // Get all active worker names
-        const activeWorkerNames = new Set(workersRes.rows.map(w => w.name));
-
-        let totalTasksCreated = 0;
-        for (const worker of workersRes.rows) {
-          const workerId = worker.id;
-          const wardId = worker.ward_id;
-          const wardName = worker.ward_name;
-          const workerName = worker.name;
-          
-          let wardNum = '';
-          const match = wardName.match(/Ward\s+(\d+)/i);
-          if (match) {
-            wardNum = match[1];
-          }
-          
-          const isJawan61 = workerName.includes('61') || worker.name === 'jawan_61';
-          
-          let roadsRes;
-          if (isJawan61) {
-            roadsRes = await db.query(
-              `SELECT r.id, r.name, r.properties, ST_AsGeoJSON(r.geom) as geom_json, r.geom
-               FROM infrastructure r
-               WHERE r.type = 'road' AND (
-                   r.properties->>'Ward_No' = $1 
-                   OR LOWER(r.properties->>'JAWAN_NAME') = LOWER($2)
-               )`,
-              [wardNum, workerName]
-            );
-          } else {
-            roadsRes = await db.query(
-              `WITH worker_ward AS (
-                   SELECT geom FROM infrastructure WHERE type = 'ward' AND LOWER(name) = LOWER($1) LIMIT 1
-               )
-               SELECT r.id, r.name, r.properties, ST_AsGeoJSON(r.geom) as geom_json, r.geom
-               FROM infrastructure r
-               LEFT JOIN worker_ward w ON true
-               WHERE r.type = 'road' AND (
-                   r.properties->>'Ward_No' = $2 
-                   OR (w.geom IS NOT NULL AND ST_Intersects(r.geom, w.geom))
-                   OR LOWER(r.properties->>'JAWAN_NAME') = LOWER($3)
-               )`,
-              [wardName, wardNum, workerName]
-            );
-          }
-
-          for (const road of roadsRes.rows) {
-            const props = road.properties || {};
-            let lineId = props.Line_ID || props.line_id || `RD_${road.id}`;
-            const rdName = props.Rd_Name || props.rd_name || road.name || `Road ${road.id}`;
-            
-            if (isJawan61 && lineId && duplicateLineIds.has(lineId)) {
-              lineId = `${lineId}_${road.id}`;
-            }
-
-            const jawanNameInProps = props.JAWAN_NAME || props.jawan_name;
-            if (jawanNameInProps && !isJawanMatch(jawanNameInProps, workerName)) {
-              if (hasActiveWorkerMatch(jawanNameInProps, activeWorkerNames)) {
-                // Assigned to another active worker - skip
-                continue;
-              }
-            }
-
-            let areaGeojson = null;
-            if (road.geom_json) {
-              const parsed = JSON.parse(road.geom_json);
-              if (parsed.type === 'LineString') {
-                areaGeojson = parsed.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
-              } else if (parsed.type === 'MultiLineString') {
-                const aligned = sortAndAlignSegments(parsed.coordinates);
-                areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
-              } else if (parsed.type === 'Polygon') {
-                areaGeojson = parsed.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }));
-              } else if (parsed.type === 'MultiPolygon') {
-                areaGeojson = parsed.coordinates.flat(2).map(c => ({ longitude: c[0], latitude: c[1] }));
-              }
-            }
-
-            const sourceQr = `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-            const destinationQr = `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-
-            await db.query(
-              `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
-               VALUES ($1, $2, $3, $4, $5, $6, 'road', $7, $8, 'pending', $9, $10)`,
-              [rdName, `Clean ${rdName}`, JSON.stringify(areaGeojson), road.geom, workerId, wardId, sourceQr, destinationQr, lineId, rdName]
-            );
-            totalTasksCreated++;
-          }
-        }
-        console.log(`✅ Seeded ${totalTasksCreated} pending road tasks for jawans.`);
       } else {
         console.warn(`⚠️ Shapefiles not found in repo root at ${rootPath}. Skipping import.`);
       }
     } else {
       console.log(`✅ Database already populated with ${infraCount} infrastructure features.`);
+    }
+
+    // 11. User seeding if empty
+    const usersCheck = await db.query("SELECT COUNT(*) FROM users WHERE role IN ('worker', 'supervisor')");
+    const usersCount = parseInt(usersCheck.rows[0].count);
+    if (usersCount === 0) {
+      console.log('--- Database users are empty. Commencing user seeding... ---');
+      
+      const siCredentialsPath = path.join(__dirname, '..', '..', 'si_credentials.json');
+      const jawanCredentialsPath = path.join(__dirname, '..', '..', 'jawan_credentials.json');
+      
+      if (fs.existsSync(siCredentialsPath)) {
+        console.log('Seeding supervisors from si_credentials.json...');
+        const sis = JSON.parse(fs.readFileSync(siCredentialsPath, 'utf8'));
+        for (const si of sis) {
+          const username = si.username;
+          const email = `${username}@test.com`;
+          const passwordHash = bcrypt.hashSync(si.password, 10);
+          const name = si.siName;
+          
+          const res = await db.query(`
+            INSERT INTO users (name, email, password, role, approved)
+            VALUES ($1, $2, $3, 'supervisor', TRUE)
+            ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, approved = TRUE
+            RETURNING id
+          `, [name, email, passwordHash]);
+          
+          const supervisorId = res.rows[0].id;
+          
+          for (const wardNo of si.wards) {
+            await db.query(`
+              UPDATE wards 
+              SET supervisor_id = $1 
+              WHERE name = $2 OR name = $3
+            `, [supervisorId, `Ward ${wardNo}`, `Ward 0${wardNo}`]);
+          }
+        }
+        console.log('✅ Supervisors successfully seeded.');
+      }
+
+      if (fs.existsSync(jawanCredentialsPath)) {
+        console.log('Seeding jawans from jawan_credentials.json...');
+        const jawans = JSON.parse(fs.readFileSync(jawanCredentialsPath, 'utf8'));
+        for (const jawan of jawans) {
+          const username = jawan.username;
+          const email = `${username}@test.com`;
+          const passwordHash = bcrypt.hashSync(jawan.password, 10);
+          const name = jawan.name;
+          const wardNo = jawan.ward;
+          
+          const wardRes = await db.query(`
+            SELECT id FROM wards WHERE name = $1 OR name = $2 LIMIT 1
+          `, [`Ward ${wardNo}`, `Ward 0${wardNo}`]);
+          
+          const wardId = wardRes.rows.length > 0 ? wardRes.rows[0].id : null;
+          
+          await db.query(`
+            INSERT INTO users (name, email, password, role, approved, ward_id)
+            VALUES ($1, $2, $3, 'worker', TRUE, $4)
+            ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, approved = TRUE, ward_id = EXCLUDED.ward_id
+          `, [name, email, passwordHash, wardId]);
+        }
+        console.log('✅ Jawans successfully seeded.');
+      }
+    } else {
+      console.log(`✅ Users already seeded (${usersCount} SIs/Jawans present).`);
+    }
+
+    // 12. Task seeding if empty
+    const tasksCheck = await db.query('SELECT COUNT(*) FROM tasks');
+    const tasksCount = parseInt(tasksCheck.rows[0].count);
+    if (tasksCount === 0) {
+      console.log('--- Tasks table is empty. Commencing automatic pending task generation... ---');
+      const workersRes = await db.query(`
+        SELECT u.id, u.name, u.ward_id, w.name as ward_name
+        FROM users u
+        LEFT JOIN wards w ON u.ward_id = w.id
+        WHERE u.role = 'worker' AND u.ward_id IS NOT NULL
+      `);
+
+      // Fetch duplicate Line_IDs globally
+      const dupRes = await db.query(
+        `SELECT properties->>'Line_ID' as line_id 
+         FROM infrastructure 
+         WHERE properties->>'Line_ID' IS NOT NULL 
+         GROUP BY properties->>'Line_ID' 
+         HAVING COUNT(*) > 1`
+      );
+      const duplicateLineIds = new Set(dupRes.rows.map(row => row.line_id));
+
+      // Get all active worker names
+      const activeWorkerNames = new Set(workersRes.rows.map(w => w.name));
+
+      let totalTasksCreated = 0;
+      for (const worker of workersRes.rows) {
+        const workerId = worker.id;
+        const wardId = worker.ward_id;
+        const wardName = worker.ward_name;
+        const workerName = worker.name;
+        
+        let wardNum = '';
+        const match = wardName.match(/Ward\s+(\d+)/i);
+        if (match) {
+          wardNum = match[1];
+        }
+        
+        const isJawan61 = workerName.includes('61') || worker.name === 'jawan_61';
+        
+        let roadsRes;
+        if (isJawan61) {
+          roadsRes = await db.query(
+            `SELECT r.id, r.name, r.properties, ST_AsGeoJSON(r.geom) as geom_json, r.geom
+             FROM infrastructure r
+             WHERE r.type = 'road' AND (
+                 r.properties->>'Ward_No' = $1 
+                 OR LOWER(r.properties->>'JAWAN_NAME') = LOWER($2)
+             )`,
+            [wardNum, workerName]
+          );
+        } else {
+          roadsRes = await db.query(
+            `WITH worker_ward AS (
+                 SELECT geom FROM infrastructure WHERE type = 'ward' AND LOWER(name) = LOWER($1) LIMIT 1
+             )
+             SELECT r.id, r.name, r.properties, ST_AsGeoJSON(r.geom) as geom_json, r.geom
+             FROM infrastructure r
+             LEFT JOIN worker_ward w ON true
+             WHERE r.type = 'road' AND (
+                 r.properties->>'Ward_No' = $2 
+                 OR (w.geom IS NOT NULL AND ST_Intersects(r.geom, w.geom))
+                 OR LOWER(r.properties->>'JAWAN_NAME') = LOWER($3)
+             )`,
+            [wardName, wardNum, workerName]
+          );
+        }
+
+        for (const road of roadsRes.rows) {
+          const props = road.properties || {};
+          let lineId = props.Line_ID || props.line_id || `RD_${road.id}`;
+          const rdName = props.Rd_Name || props.rd_name || road.name || `Road ${road.id}`;
+          
+          if (isJawan61 && lineId && duplicateLineIds.has(lineId)) {
+            lineId = `${lineId}_${road.id}`;
+          }
+
+          const jawanNameInProps = props.JAWAN_NAME || props.jawan_name;
+          if (jawanNameInProps && !isJawanMatch(jawanNameInProps, workerName)) {
+            if (hasActiveWorkerMatch(jawanNameInProps, activeWorkerNames)) {
+              // Assigned to another active worker - skip
+              continue;
+            }
+          }
+
+          let areaGeojson = null;
+          if (road.geom_json) {
+            const parsed = JSON.parse(road.geom_json);
+            if (parsed.type === 'LineString') {
+              areaGeojson = parsed.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
+            } else if (parsed.type === 'MultiLineString') {
+              const aligned = sortAndAlignSegments(parsed.coordinates);
+              areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
+            } else if (parsed.type === 'Polygon') {
+              areaGeojson = parsed.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }));
+            } else if (parsed.type === 'MultiPolygon') {
+              areaGeojson = parsed.coordinates.flat(2).map(c => ({ longitude: c[0], latitude: c[1] }));
+            }
+          }
+
+          const sourceQr = `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+          const destinationQr = `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+          await db.query(
+            `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
+             VALUES ($1, $2, $3, $4, $5, $6, 'road', $7, $8, 'pending', $9, $10)`,
+            [rdName, `Clean ${rdName}`, JSON.stringify(areaGeojson), road.geom, workerId, wardId, sourceQr, destinationQr, lineId, rdName]
+          );
+          totalTasksCreated++;
+        }
+      }
+      console.log(`✅ Seeded ${totalTasksCreated} pending road tasks for jawans.`);
+    } else {
+      console.log(`✅ Tasks already seeded (${tasksCount} tasks present).`);
     }
 
     console.log('--- Database initialization complete ---');
