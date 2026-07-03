@@ -16,6 +16,11 @@
     },
     "android": {
       "package": "com.khammam.cleanup",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDUMMY_KEY_PLACEHOLDER_FOR_KHAMMAM"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
