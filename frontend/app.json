@@ -18,7 +18,7 @@
       "package": "com.khammam.cleanup",
       "config": {
         "googleMaps": {
-          "apiKey": "NOT_A_REAL_GOOGLE_MAPS_KEY_FOR_KHAMMAM"
+          "apiKey": "AIzaSyAlhrFJQrolodUkWWn7QYo9GGjPLDv76aU"
         }
       },
       "adaptiveIcon": {
