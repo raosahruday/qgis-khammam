@@ -277,6 +277,7 @@ const initDb = async () => {
         source_qr_id VARCHAR(255),
         destination_qr_id VARCHAR(255),
         last_point_reached INT DEFAULT 0,
+        review_comment TEXT,
         CONSTRAINT tasks_status_check CHECK (status IN ('pending', 'in_progress', 'submitted', 'approved', 'rejected'))
       );
     `);
@@ -286,6 +287,7 @@ const initDb = async () => {
       await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS geom GEOMETRY(Geometry, 4326);`);
       await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS line_id VARCHAR(255);`);
       await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rd_name VARCHAR(255);`);
+      await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS review_comment TEXT;`);
     } catch (e) {
       console.warn('Could not add geometry or utility columns to tasks:', e.message);
     }
