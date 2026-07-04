@@ -105,24 +105,21 @@ export default function MapNavigationScreen({ route, navigation }) {
      longitudeDelta: 0.01,
   });
   const [infrastructure, setInfrastructure] = useState([]);
-  const roadCollection = useMemo(() => {
-    const features = [];
+  const roadFeatures = useMemo(() => {
+    const roads = [];
     infrastructure.forEach(item => {
       const geom = item.parsedGeom;
       if (!geom) return;
       if (item.type !== 'road') return;
       if (geom.type !== 'LineString' && geom.type !== 'MultiLineString') return;
       
-      features.push({
-        type: "Feature",
-        geometry: geom,
+      roads.push({
+        id: item.id,
+        geom,
         properties: item.properties || {}
       });
     });
-    return {
-      type: "FeatureCollection",
-      features
-    };
+    return roads;
   }, [infrastructure]);
 
   const nonRoadFeatures = useMemo(() => {
@@ -400,14 +397,19 @@ export default function MapNavigationScreen({ route, navigation }) {
         showsUserLocation={true}
         followsUserLocation={false}
       >
-        {/* Grouped QGIS Infrastructure Roads (Native Fast Layer) */}
-        {roadCollection.features.length > 0 && (
-          <Geojson
-            geojson={roadCollection}
-            strokeColor="#1A73E8"
-            strokeWidth={2}
-          />
-        )}
+        {/* Grouped QGIS Infrastructure Roads */}
+        {roadFeatures.map(({ id, geom }) => {
+           const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+           return coords.map((cList, idx) => (
+             <Polyline
+               key={`road-${id}-${idx}`}
+               coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
+               strokeColor="#1A73E8"
+               strokeWidth={2}
+               zIndex={11}
+             />
+           ));
+        })}
 
         {/* Non-road Infrastructure (ROW and Ward Polygons) */}
         {nonRoadFeatures.map(item => {

@@ -61,29 +61,33 @@ const MemoizedRoads = React.memo(({ roads, tasks, isZoomedOut }) => {
          activeTasks.push({ road, geom, props, lineId, rdName, task: matchingTask });
        }
      } else {
-       pendingFeatures.push({
-         type: "Feature",
-         geometry: geom,
-         properties: props
-       });
+       pendingFeatures.push({ road, geom, props, lineId, rdName });
      }
   });
 
-  const pendingGeojson = {
-    type: "FeatureCollection",
-    features: pendingFeatures
-  };
-
   return (
     <>
-      {/* 1. Render all pending roads natively using a single Geojson component for 120 FPS performance */}
-      {pendingFeatures.length > 0 && (
-        <Geojson
-          geojson={pendingGeojson}
-          strokeColor="#D32F2F"
-          strokeWidth={isZoomedOut ? 0.5 : 1.25}
-        />
-      )}
+      {/* 1. Render all pending roads (Red) as interactive Polylines */}
+      {pendingFeatures.map(({ road, geom, props, lineId, rdName }) => {
+         const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+         return coords.map((cList, idx) => (
+           <Polyline
+             key={`pending-${road.id}-${idx}`}
+             coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
+             strokeColor="#D32F2F"
+             strokeWidth={isZoomedOut ? 0.5 : 1.25}
+             zIndex={11}
+             tappable={true}
+             onPress={() => {
+               const wardText = props.Ward_No ? `Ward ${props.Ward_No}` : 'Unknown Ward';
+               Alert.alert(
+                 rdName || 'Unnamed Road',
+                 `Status: PENDING\n${wardText}\nLine ID: ${lineId || 'N/A'}`
+               );
+             }}
+           />
+         ));
+      })}
 
       {/* 2. Render completed tasks (Green) as interactive Polylines */}
       {completedTasks.map(({ road, geom, props, lineId, rdName, task }) => {
@@ -299,6 +303,7 @@ export default function CommissionerDashboard({ navigation }) {
   });
   const [isZoomedOut, setIsZoomedOut] = useState(true);
   const debounceTimer = useRef(null);
+  const isFetchingRef = useRef(false);
 
   useEffect(() => {
     fetchData();
@@ -307,6 +312,8 @@ export default function CommissionerDashboard({ navigation }) {
   }, []);
 
   const fetchData = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     if (tasks.length === 0) {
       setLoading(true);
     }
@@ -363,6 +370,7 @@ export default function CommissionerDashboard({ navigation }) {
       console.warn('Failed to fetch data', err);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   };
 

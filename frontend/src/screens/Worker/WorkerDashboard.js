@@ -212,10 +212,8 @@ export default function WorkerDashboard({ navigation }) {
     }
   };
 
-  const roadCollections = useMemo(() => {
-    const pending = [];
-    const active = [];
-    const completed = [];
+  const roadList = useMemo(() => {
+    const roads = [];
     
     infrastructure.forEach(item => {
       const geom = item.parsedGeom;
@@ -232,34 +230,31 @@ export default function WorkerDashboard({ navigation }) {
       const rdName = props.Rd_Name || props.rd_name || item.name;
       
       let status = 'pending';
+      let task = null;
       if (lineId) {
-        const task = tasks.find(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase());
-        if (task) status = task.status;
+        task = tasks.find(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase());
       } else {
-        const task = tasks.find(t => (rdName && t.rd_name === rdName) || (t.title === rdName));
-        if (task) status = task.status;
+        task = tasks.find(t => (rdName && t.rd_name === rdName) || (t.title === rdName));
       }
+      if (task) status = task.status;
       
-      const feature = {
-        type: "Feature",
-        geometry: geom,
-        properties: props
-      };
-      
+      let roadColor = '#D32F2F'; // Red (Pending)
       if (status === 'approved') {
-        completed.push(feature);
+        roadColor = '#2E7D32'; // Green (Completed)
       } else if (status === 'submitted' || status === 'in_progress') {
-        active.push(feature);
-      } else {
-        pending.push(feature);
+        roadColor = '#FFD600'; // Yellow (Active)
       }
+      
+      roads.push({
+        id: item.id,
+        geom,
+        color: roadColor,
+        item,
+        task
+      });
     });
     
-    return {
-      pending: { type: "FeatureCollection", features: pending },
-      active: { type: "FeatureCollection", features: active },
-      completed: { type: "FeatureCollection", features: completed }
-    };
+    return roads;
   }, [infrastructure, tasks, user]);
 
   const nonRoadFeatures = useMemo(() => {
@@ -451,28 +446,21 @@ export default function WorkerDashboard({ navigation }) {
              });
           })()}
 
-          {/* Grouped QGIS Infrastructure Roads (Native Fast Layer) */}
-          {roadCollections.pending.features.length > 0 && (
-            <Geojson
-              geojson={roadCollections.pending}
-              strokeColor="#D32F2F"
-              strokeWidth={2}
-            />
-          )}
-          {roadCollections.active.features.length > 0 && (
-            <Geojson
-              geojson={roadCollections.active}
-              strokeColor="#FFD600"
-              strokeWidth={2}
-            />
-          )}
-          {roadCollections.completed.features.length > 0 && (
-            <Geojson
-              geojson={roadCollections.completed}
-              strokeColor="#2E7D32"
-              strokeWidth={2}
-            />
-          )}
+          {/* Grouped QGIS Infrastructure Roads */}
+          {roadList.map(({ id, geom, color, item, task }) => {
+             const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+             return coords.map((cList, idx) => (
+               <Polyline
+                 key={`road-${id}-${idx}`}
+                 coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                 strokeColor={color}
+                 strokeWidth={task ? 4 : 2}
+                 tappable={true}
+                 onPress={() => handleRoadPress(item)}
+                 zIndex={11}
+               />
+             ));
+          })}
 
           {/* Non-road Infrastructure (ROW and Ward Polygons) */}
           {nonRoadFeatures.map(item => {

@@ -18,6 +18,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
   const { user } = useContext(AuthContext);
 
   const [infrastructure, setInfrastructure] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const debounceTimer = useRef(null);
 
   const fetchInfrastructure = async (activeRegion) => {
@@ -72,8 +73,18 @@ export default function TaskDetailsScreen({ route, navigation }) {
     }
   };
 
+  const fetchTasks = async () => {
+    try {
+      const response = await api.get('/tasks');
+      setTasks(response.data || []);
+    } catch (e) {
+      console.log('Failed to fetch tasks in TaskDetailsScreen', e);
+    }
+  };
+
   useEffect(() => {
     fetchTaskDetails();
+    fetchTasks();
     if (taskId && !taskId.toString().startsWith('virtual-')) {
       fetchPhotos();
     }
