@@ -13,10 +13,15 @@ Marker.nativeName = 'Marker';
 export const Geojson = () => null;
 Geojson.nativeName = 'Geojson';
 
-export default function MapView({ children, style, initialRegion, mapType }) {
+export default function MapView({ children, style, initialRegion, mapType, onRegionChangeComplete }) {
   const mapRef = useRef(null);
   const containerRef = useRef(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
+  const onRegionChangeCompleteRef = useRef(onRegionChangeComplete);
+
+  useEffect(() => {
+    onRegionChangeCompleteRef.current = onRegionChangeComplete;
+  }, [onRegionChangeComplete]);
 
   // 1. Load Leaflet assets dynamically from CDN
   useEffect(() => {
@@ -60,7 +65,28 @@ export default function MapView({ children, style, initialRegion, mapType }) {
 
     mapRef.current = map;
 
+    const handleMoveEnd = () => {
+      if (onRegionChangeCompleteRef.current) {
+        const center = map.getCenter();
+        const bounds = map.getBounds();
+        const latDelta = Math.abs(bounds.getNorth() - bounds.getSouth());
+        const lngDelta = Math.abs(bounds.getEast() - bounds.getWest());
+        onRegionChangeCompleteRef.current({
+          latitude: center.lat,
+          longitude: center.lng,
+          latitudeDelta: latDelta,
+          longitudeDelta: lngDelta
+        });
+      }
+    };
+
+    map.on('moveend', handleMoveEnd);
+
+    // Trigger initial region report
+    handleMoveEnd();
+
     return () => {
+      map.off('moveend', handleMoveEnd);
       map.remove();
       mapRef.current = null;
     };
