@@ -1,27 +1,156 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 
-// Mock components so React Native doesn't crash on unrecognized child elements
-export const Polygon = () => null;
+// Context to share the Leaflet map instance with child layer components
+export const MapContext = createContext(null);
+
+export const Polygon = ({ coordinates, strokeColor, strokeWidth, fillColor, onPress }) => {
+  const map = useContext(MapContext);
+  useEffect(() => {
+    if (!map) return;
+    const coords = coordinates?.map(c => [c.latitude, c.longitude]) || [];
+    if (coords.length === 0) return;
+
+    const poly = window.L.polygon(coords, {
+      color: strokeColor || '#FFD600',
+      weight: strokeWidth || 3.5,
+      fillColor: fillColor || 'rgba(255, 214, 0, 0.12)',
+      fillOpacity: 0.3
+    }).addTo(map);
+
+    if (onPress) {
+      poly.on('click', () => onPress());
+    }
+
+    return () => {
+      map.removeLayer(poly);
+    };
+  }, [map, coordinates, strokeColor, strokeWidth, fillColor, onPress]);
+
+  return null;
+};
 Polygon.nativeName = 'Polygon';
 
-export const Polyline = () => null;
+export const Polyline = ({ coordinates, strokeColor, strokeWidth, onPress }) => {
+  const map = useContext(MapContext);
+  useEffect(() => {
+    if (!map) return;
+    const coords = coordinates?.map(c => [c.latitude, c.longitude]) || [];
+    if (coords.length === 0) return;
+
+    const line = window.L.polyline(coords, {
+      color: strokeColor || '#D32F2F',
+      weight: strokeWidth || 3
+    }).addTo(map);
+
+    if (onPress) {
+      line.on('click', () => onPress());
+    }
+
+    return () => {
+      map.removeLayer(line);
+    };
+  }, [map, coordinates, strokeColor, strokeWidth, onPress]);
+
+  return null;
+};
 Polyline.nativeName = 'Polyline';
 
-export const Marker = () => null;
+export const Marker = ({ coordinate, title, description, pinColor, children }) => {
+  const map = useContext(MapContext);
+  useEffect(() => {
+    if (!map) return;
+    const lat = coordinate?.latitude;
+    const lng = coordinate?.longitude;
+    if (!lat || !lng) return;
+
+    // Check if custom styles exist on child component
+    let dotColor = '#1A73E8'; // Default blue
+    let hasCustomChild = false;
+    
+    if (children) {
+       hasCustomChild = true;
+       const childEl = React.Children.toArray(children)[0];
+       if (childEl) {
+          const childProps = childEl.props || {};
+          const childStyle = Array.isArray(childProps.style) 
+            ? Object.assign({}, ...childProps.style) 
+            : childProps.style || {};
+          if (childStyle.backgroundColor) {
+             dotColor = childStyle.backgroundColor;
+          }
+       }
+    }
+
+    let markerEmoji = '🚜';
+    let badgeColor = 'rgba(0,0,0,0.85)';
+    if (pinColor === 'red' || title === 'Start Point') {
+       markerEmoji = '📍';
+       badgeColor = '#D32F2F';
+    } else if (pinColor === 'green' || title === 'End Point') {
+       markerEmoji = '🏁';
+       badgeColor = '#2E7D32';
+    }
+
+    let iconHtml = '';
+    if (hasCustomChild) {
+       iconHtml = `<div style="display: flex; align-items: center; justify-content: center;">
+                     <div style="width: 14px; height: 14px; border-radius: 50%; background-color: ${dotColor}; border: 2px solid white; box-shadow: 0px 0px 4px rgba(0,0,0,0.5);"></div>
+                   </div>`;
+    } else {
+       iconHtml = `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer;">
+                     <span style="font-size:28px; filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.4));">${markerEmoji}</span>
+                     <span style="background: ${badgeColor}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; white-space: nowrap; margin-top:-2px; border: 1px solid rgba(255,255,255,0.3); font-family: sans-serif; box-shadow: 0px 2px 4px rgba(0,0,0,0.25);">${title || 'Point'}</span>
+                   </div>`;
+    }
+
+    const marker = window.L.marker([lat, lng], {
+      icon: window.L.divIcon({
+        html: iconHtml,
+        className: hasCustomChild ? 'custom-leaflet-dot' : 'custom-leaflet-truck',
+        iconSize: hasCustomChild ? [20, 20] : [60, 60],
+        iconAnchor: hasCustomChild ? [10, 10] : [30, 45]
+      })
+    }).addTo(map);
+
+    if (description) {
+      marker.bindPopup(`<b>${title || 'Point'}</b><br/>${description}`);
+    }
+
+    return () => {
+      map.removeLayer(marker);
+    };
+  }, [map, coordinate, title, description, pinColor, children]);
+
+  return null;
+};
 Marker.nativeName = 'Marker';
 
-export const Geojson = () => null;
+export const Geojson = ({ geojson, strokeColor, strokeWidth }) => {
+  const map = useContext(MapContext);
+  useEffect(() => {
+    if (!map || !geojson) return;
+    const geojsonLayer = window.L.geoJSON(geojson, {
+      style: {
+        color: strokeColor || '#D32F2F',
+        weight: strokeWidth || 1.5,
+        opacity: 0.8
+      }
+    }).addTo(map);
+
+    return () => {
+      map.removeLayer(geojsonLayer);
+    };
+  }, [map, geojson, strokeColor, strokeWidth]);
+
+  return null;
+};
 Geojson.nativeName = 'Geojson';
 
-export default function MapView({ children, style, initialRegion, mapType, onRegionChangeComplete }) {
+export default function MapView({ children, style, initialRegion, mapType }) {
   const mapRef = useRef(null);
   const containerRef = useRef(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
-  const onRegionChangeCompleteRef = useRef(onRegionChangeComplete);
-
-  useEffect(() => {
-    onRegionChangeCompleteRef.current = onRegionChangeComplete;
-  }, [onRegionChangeComplete]);
+  const [mapInstance, setMapInstance] = useState(null);
 
   // 1. Load Leaflet assets dynamically from CDN
   useEffect(() => {
@@ -64,187 +193,32 @@ export default function MapView({ children, style, initialRegion, mapType, onReg
     }).addTo(map);
 
     mapRef.current = map;
-
-    const handleMoveEnd = () => {
-      if (onRegionChangeCompleteRef.current) {
-        const center = map.getCenter();
-        const bounds = map.getBounds();
-        const latDelta = Math.abs(bounds.getNorth() - bounds.getSouth());
-        const lngDelta = Math.abs(bounds.getEast() - bounds.getWest());
-        onRegionChangeCompleteRef.current({
-          latitude: center.lat,
-          longitude: center.lng,
-          latitudeDelta: latDelta,
-          longitudeDelta: lngDelta
-        });
-      }
-    };
-
-    map.on('moveend', handleMoveEnd);
-
-    // Trigger initial region report
-    handleMoveEnd();
+    setMapInstance(map);
 
     return () => {
-      map.off('moveend', handleMoveEnd);
       map.remove();
       mapRef.current = null;
+      setMapInstance(null);
     };
   }, [leafletLoaded, mapType]);
 
-  // 3. Process coordinates and add geometries dynamically
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !leafletLoaded) return;
-
-    const layers = [];
-
-    const flattenChildren = (childrenList) => {
-      const flat = [];
-      React.Children.forEach(childrenList, (child) => {
-        if (!child) return;
-        if (child.type === React.Fragment) {
-          flat.push(...flattenChildren(child.props.children));
-        } else if (Array.isArray(child)) {
-          flat.push(...flattenChildren(child));
-        } else {
-          flat.push(child);
-        }
-      });
-      return flat;
-    };
-
-    const flatChildren = flattenChildren(children);
-
-    flatChildren.forEach((child) => {
-      // Resolve component name safely, preserving names through minification via nativeName static property
-      const typeObj = child.type;
-      const typeName = typeObj?.nativeName || typeObj?.type?.nativeName || typeObj?.displayName || typeObj?.name || typeObj;
-      const props = child.props || {};
-
-      if (typeName === 'Polygon') {
-        const coords = props.coordinates?.map(c => [c.latitude, c.longitude]) || [];
-        if (coords.length > 0) {
-          const poly = window.L.polygon(coords, {
-            color: props.strokeColor || '#FFD600',
-            weight: props.strokeWidth || 3.5,
-            fillColor: props.fillColor || 'rgba(255, 214, 0, 0.12)',
-            fillOpacity: 0.3
-          }).addTo(map);
-          
-          if (props.onPress) {
-            poly.on('click', () => props.onPress());
-          }
-          layers.push(poly);
-        }
-      } 
-      else if (typeName === 'Polyline') {
-        const coords = props.coordinates?.map(c => [c.latitude, c.longitude]) || [];
-        if (coords.length > 0) {
-          const line = window.L.polyline(coords, {
-            color: props.strokeColor || '#D32F2F',
-            weight: props.strokeWidth || 3
-          }).addTo(map);
-
-          if (props.onPress) {
-            line.on('click', () => props.onPress());
-          }
-          layers.push(line);
-        }
-      } 
-      else if (typeName === 'Marker') {
-        const lat = props.coordinate?.latitude;
-        const lng = props.coordinate?.longitude;
-        if (lat && lng) {
-          // Check if custom styles exist on child component
-          let dotColor = '#1A73E8'; // Default blue
-          let hasCustomChild = false;
-          
-          if (child.props.children) {
-             hasCustomChild = true;
-             // Extract child properties (like style) to find background color
-             const childEl = React.Children.toArray(child.props.children)[0];
-             if (childEl) {
-                const childProps = childEl.props || {};
-                const childStyle = Array.isArray(childProps.style) 
-                  ? Object.assign({}, ...childProps.style) 
-                  : childProps.style || {};
-                if (childStyle.backgroundColor) {
-                   dotColor = childStyle.backgroundColor;
-                }
-             }
-          }
-
-          let markerEmoji = '🚜';
-          let badgeColor = 'rgba(0,0,0,0.85)';
-          if (props.pinColor === 'red' || props.title === 'Start Point') {
-             markerEmoji = '📍';
-             badgeColor = '#D32F2F';
-          } else if (props.pinColor === 'green' || props.title === 'End Point') {
-             markerEmoji = '🏁';
-             badgeColor = '#2E7D32';
-          }
-
-          let iconHtml = '';
-          if (hasCustomChild) {
-             iconHtml = `<div style="display: flex; align-items: center; justify-content: center;">
-                           <div style="width: 14px; height: 14px; border-radius: 50%; background-color: ${dotColor}; border: 2px solid white; box-shadow: 0px 0px 4px rgba(0,0,0,0.5);"></div>
-                         </div>`;
-          } else {
-             iconHtml = `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer;">
-                           <span style="font-size:28px; filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.4));">${markerEmoji}</span>
-                           <span style="background: ${badgeColor}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; white-space: nowrap; margin-top:-2px; border: 1px solid rgba(255,255,255,0.3); font-family: sans-serif; box-shadow: 0px 2px 4px rgba(0,0,0,0.25);">${props.title || 'Point'}</span>
-                         </div>`;
-          }
-
-          const marker = window.L.marker([lat, lng], {
-            icon: window.L.divIcon({
-              html: iconHtml,
-              className: hasCustomChild ? 'custom-leaflet-dot' : 'custom-leaflet-truck',
-              iconSize: hasCustomChild ? [20, 20] : [60, 60],
-              iconAnchor: hasCustomChild ? [10, 10] : [30, 45]
-            })
-          }).addTo(map);
-
-          if (props.description) {
-            marker.bindPopup(`<b>${props.title || 'Point'}</b><br/>${props.description}`);
-          }
-          layers.push(marker);
-        }
-      } 
-      else if (typeName === 'Geojson') {
-        if (props.geojson) {
-          const geojsonLayer = window.L.geoJSON(props.geojson, {
-            style: {
-              color: props.strokeColor || '#D32F2F',
-              weight: props.strokeWidth || 1.5,
-              opacity: 0.8
-            }
-          }).addTo(map);
-          layers.push(geojsonLayer);
-        }
-      }
-    });
-
-    return () => {
-      layers.forEach(layer => map.removeLayer(layer));
-    };
-  }, [children, leafletLoaded]);
-
   return (
-    <div 
-      ref={containerRef} 
-      style={{
-        width: '100%',
-        height: '100%',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 0,
-        ...style
-      }}
-    />
+    <MapContext.Provider value={mapInstance}>
+      <div 
+        ref={containerRef} 
+        style={{
+          width: '100%',
+          height: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 0,
+          ...style
+        }}
+      />
+      {leafletLoaded && mapInstance && children}
+    </MapContext.Provider>
   );
 }
