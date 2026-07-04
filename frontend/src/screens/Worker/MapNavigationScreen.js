@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useContext, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Dimensions, Linking, Platform, PanResponder, Animated } from 'react-native';
-import MapView, { Polygon, Polyline, Marker } from '../../components/MapViewWrapper';
+import MapView, { Polygon, Polyline, Marker, Geojson } from '../../components/MapViewWrapper';
 import * as Location from 'expo-location';
 import api from '../../api/axios';
 import { AuthContext } from '../../context/AuthContext';
@@ -105,11 +105,42 @@ export default function MapNavigationScreen({ route, navigation }) {
      longitudeDelta: 0.01,
   });
   const [infrastructure, setInfrastructure] = useState([]);
+  const roadCollection = useMemo(() => {
+    const features = [];
+    infrastructure.forEach(item => {
+      const geom = item.parsedGeom;
+      if (!geom) return;
+      if (item.type !== 'road') return;
+      if (geom.type !== 'LineString' && geom.type !== 'MultiLineString') return;
+      
+      features.push({
+        type: "Feature",
+        geometry: geom,
+        properties: item.properties || {}
+      });
+    });
+    return {
+      type: "FeatureCollection",
+      features
+    };
+  }, [infrastructure]);
+
+  const nonRoadFeatures = useMemo(() => {
+    return infrastructure.filter(item => item.type !== 'road');
+  }, [infrastructure]);
+
   const debounceTimer = useRef(null);
 
   const fetchInfrastructure = async (activeRegion) => {
     try {
       const { latitude, longitude, latitudeDelta, longitudeDelta } = activeRegion;
+      
+      // GIS Zoom optimization: if zoomed out too far, don't load detailed overlays
+      if (latitudeDelta > 0.02) {
+         setInfrastructure([]);
+         return;
+      }
+
       const minLat = latitude - latitudeDelta / 2;
       const maxLat = latitude + latitudeDelta / 2;
       const minLng = longitude - longitudeDelta / 2;
@@ -118,14 +149,24 @@ export default function MapNavigationScreen({ route, navigation }) {
       const res = await api.get(
         `/infrastructure?minLat=${minLat}&maxLat=${maxLat}&minLng=${minLng}&maxLng=${maxLng}&latDelta=${latitudeDelta}&limit=500`
       );
-      setInfrastructure(res.data || []);
+      
+      const parsedData = (res.data || []).map(item => {
+         try {
+            item.parsedGeom = item.geom_json
+              ? (typeof item.geom_json === 'string' ? JSON.parse(item.geom_json) : item.geom_json)
+              : null;
+         } catch (e) {
+            item.parsedGeom = null;
+         }
+         return item;
+      });
+      setInfrastructure(parsedData);
     } catch (err) {
       console.error('Failed to fetch infrastructure', err);
     }
   };
 
   const onRegionChangeComplete = (newRegion) => {
-     setRegion(newRegion);
      if (debounceTimer.current) clearTimeout(debounceTimer.current);
      debounceTimer.current = setTimeout(() => fetchInfrastructure(newRegion), 400);
   };
@@ -256,7 +297,7 @@ export default function MapNavigationScreen({ route, navigation }) {
     return '#D32F2F';
   };
 
-  if (loading || !currentLocation) {
+  if (loading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -359,68 +400,54 @@ export default function MapNavigationScreen({ route, navigation }) {
         showsUserLocation={true}
         followsUserLocation={false}
       >
-        {/* QGIS Infrastructure Layers */}
-        {(() => {
-           const elements = [];
-           infrastructure.forEach(item => {
-              if (!item.geom_json) return;
-              let geom;
-              try {
-                geom = JSON.parse(item.geom_json);
-              } catch (e) {
-                return;
-              }
-              
-              if (geom.type === 'LineString' || geom.type === 'MultiLineString') {
-                 const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
-                 coords.forEach((cList, idx) => {
-                    elements.push(
-                      <Polyline
-                        key={`infra-road-${item.id}-${idx}`}
-                        coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                        strokeColor={getRoadColor(item)}
-                        strokeWidth={item.type === 'road' ? 4 : 2}
-                        zIndex={11}
-                      />
-                    );
-                 });
-              } else if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
-                 const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
-                 polys.forEach((poly, idx) => {
-                    const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
-                    // Style based on type
-                    let fillColor = "rgba(255, 255, 255, 0.02)";
-                    let strokeColor = "rgba(255, 255, 255, 0.1)";
-                    let strokeWidth = 0.5;
-                    let lineDash = null;
-                    
-                    if (item.type === 'row') {
-                       fillColor = "rgba(255, 152, 0, 0.15)";
-                       strokeColor = "rgba(255, 152, 0, 0.6)";
-                       strokeWidth = 1.5;
-                    } else if (item.type === 'ward') {
-                       fillColor = "rgba(255, 255, 255, 0.03)";
-                       strokeColor = "rgba(255, 255, 255, 0.45)";
-                       strokeWidth = 1.5;
-                       lineDash = [6, 6];
-                    }
-                    
-                    elements.push(
-                      <Polygon 
-                        key={`infra-poly-${item.id}-${idx}`}
-                        coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                        fillColor={fillColor}
-                        strokeColor={strokeColor}
-                        strokeWidth={strokeWidth}
-                        lineDashPattern={lineDash}
-                        zIndex={5}
-                      />
-                    );
-                 });
-              }
-           });
-           return elements;
-        })()}
+        {/* Grouped QGIS Infrastructure Roads (Native Fast Layer) */}
+        {roadCollection.features.length > 0 && (
+          <Geojson
+            geojson={roadCollection}
+            strokeColor="#1A73E8"
+            strokeWidth={2}
+          />
+        )}
+
+        {/* Non-road Infrastructure (ROW and Ward Polygons) */}
+        {nonRoadFeatures.map(item => {
+           const geom = item.parsedGeom;
+           if (!geom) return null;
+           if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+              const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+              return polys.map((poly, idx) => {
+                 const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
+                 let fillColor = "rgba(255, 255, 255, 0.02)";
+                 let strokeColor = "rgba(255, 255, 255, 0.1)";
+                 let strokeWidth = 0.5;
+                 let lineDash = null;
+                 
+                 if (item.type === 'row') {
+                    fillColor = "rgba(255, 152, 0, 0.15)";
+                    strokeColor = "rgba(255, 152, 0, 0.6)";
+                    strokeWidth = 1.5;
+                 } else if (item.type === 'ward') {
+                    fillColor = "rgba(255, 255, 255, 0.03)";
+                    strokeColor = "rgba(255, 255, 255, 0.45)";
+                    strokeWidth = 1.5;
+                    lineDash = [6, 6];
+                 }
+                 
+                 return (
+                   <Polygon 
+                     key={`infra-poly-${item.id}-${idx}`}
+                     coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                     fillColor={fillColor}
+                     strokeColor={strokeColor}
+                     strokeWidth={strokeWidth}
+                     lineDashPattern={lineDash}
+                     zIndex={5}
+                   />
+                 );
+              });
+           }
+           return null;
+        })}
 
                           {isArea && mappedPoints.length > 0 && (
             <Polygon 
@@ -436,12 +463,12 @@ export default function MapNavigationScreen({ route, navigation }) {
                 liveTask.status === 'submitted' ? '#FFD600' :
                 '#D32F2F'
               }
-              strokeWidth={3}
+              strokeWidth={2}
               zIndex={20}
             />
          )}
 
-         {!isArea && mappedPoints.length > 0 && (
+          {!isArea && mappedPoints.length > 0 && (
             <Polyline 
               key={`task-line-${liveTask.id}`}
               coordinates={mappedPoints} 
@@ -450,7 +477,7 @@ export default function MapNavigationScreen({ route, navigation }) {
                 liveTask.status === 'submitted' ? '#FFD600' :
                 '#D32F2F'
               } 
-              strokeWidth={6} 
+              strokeWidth={3.5} 
               zIndex={20} 
             />
          )}
@@ -496,14 +523,11 @@ export default function MapNavigationScreen({ route, navigation }) {
              <TouchableOpacity style={[styles.qrBtn, { backgroundColor: '#FF5722', marginBottom: 10 }]} onPress={handleNavigateToStart}>
                 <Text style={styles.btnText}>📍 Navigate to Start Point</Text>
              </TouchableOpacity>
-                           <SwipeButton 
+             <SwipeButton 
                 title="Swipe to Start Task"
                 color="#3F51B5"
                 onSwipeComplete={() => handleSwipeStatus('start')}
               />
-             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#007bff', marginTop: 10 }]} onPress={() => navigation.navigate('CapturePhoto', { task: liveTask })}>
-                <Text style={styles.btnText}>📷 Upload Photo Proof</Text>
-             </TouchableOpacity>
            </>
         )}
 

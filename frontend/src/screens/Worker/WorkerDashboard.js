@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Alert } from 'react-native';
-import MapView, { Polygon, Polyline, Marker } from '../../components/MapViewWrapper';
+import MapView, { Polygon, Polyline, Marker, Geojson } from '../../components/MapViewWrapper';
+import * as Location from 'expo-location';
 import api from '../../api/axios';
 import { useIsFocused } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
@@ -22,10 +23,17 @@ export default function WorkerDashboard({ navigation }) {
 
   const isFocused = useIsFocused();
   const { logout, user, updateUserMachine } = useContext(AuthContext);
+  const mapRef = useRef(null);
 
   const fetchData = async () => {
-    setLoading(true);
+    if (tasks.length === 0) {
+      setLoading(true);
+    }
     try {
+      Location.requestForegroundPermissionsAsync().catch(locErr => {
+        console.log('Location permission request failed:', locErr);
+      });
+
       const [tasksRes, machinesRes] = await Promise.all([
         api.get('/tasks'),
         api.get('/machines')
@@ -66,37 +74,72 @@ export default function WorkerDashboard({ navigation }) {
         }
       }
 
-      // Fetch the ward boundary and infrastructure once on mount/refresh
-      try {
-        const [wardRes, infraRes] = await Promise.all([
-          api.get('/infrastructure/ward-boundary').catch(err => {
-            console.log('No ward boundary found (404/error):', err.response?.status || err.message);
-            return { data: null };
-          }),
-          api.get('/infrastructure?limit=1000').catch(err => {
-            console.log('Failed to fetch infrastructure:', err.message);
-            return { data: [] };
-          })
-        ]);
+      // Fetch the ward boundary and infrastructure once on mount/refresh if not already loaded
+      if (infrastructure.length === 0) {
+        try {
+          const [wardRes, infraRes] = await Promise.all([
+            api.get('/infrastructure/ward-boundary').catch(err => {
+              console.log('No ward boundary found (404/error):', err.response?.status || err.message);
+              return { data: null };
+            }),
+            api.get('/infrastructure?limit=1000').catch(err => {
+              console.log('Failed to fetch infrastructure:', err.message);
+              return { data: [] };
+            })
+          ]);
 
-        if (wardRes.data && wardRes.data.geom_json) {
-          setWardBoundary(wardRes.data);
-          const bbox = wardRes.data.bbox;
-          if (bbox) {
-            const newRegion = {
-              latitude: (bbox.minLat + bbox.maxLat) / 2,
-              longitude: (bbox.minLng + bbox.maxLng) / 2,
-              latitudeDelta: Math.max(0.015, (bbox.maxLat - bbox.minLat) * 1.2),
-              longitudeDelta: Math.max(0.015, (bbox.maxLng - bbox.minLng) * 1.2),
-            };
-            setRegion(newRegion);
+          if (wardRes.data && wardRes.data.geom_json) {
+            const wardData = wardRes.data;
+            try {
+              wardData.parsedGeom = typeof wardData.geom_json === 'string'
+                ? JSON.parse(wardData.geom_json)
+                : wardData.geom_json;
+            } catch (e) {
+              wardData.parsedGeom = null;
+            }
+            setWardBoundary(wardData);
+            const bbox = wardData.bbox;
+            if (bbox) {
+              const newRegion = {
+                latitude: (bbox.minLat + bbox.maxLat) / 2,
+                longitude: (bbox.minLng + bbox.maxLng) / 2,
+                latitudeDelta: Math.max(0.015, (bbox.maxLat - bbox.minLat) * 1.2),
+                longitudeDelta: Math.max(0.015, (bbox.maxLng - bbox.minLng) * 1.2),
+              };
+              setRegion(newRegion);
+              if (mapRef.current) {
+                mapRef.current.animateToRegion(newRegion, 1000);
+              }
+            }
+          } else if (computedRegion) {
+            setRegion(computedRegion);
+            if (mapRef.current) {
+              mapRef.current.animateToRegion(computedRegion, 1000);
+            }
           }
-        } else if (computedRegion) {
-          setRegion(computedRegion);
+
+          const parsedInfra = (infraRes.data || []).map(item => {
+            try {
+              item.parsedGeom = item.geom_json
+                ? (typeof item.geom_json === 'string' ? JSON.parse(item.geom_json) : item.geom_json)
+                : null;
+            } catch (e) {
+              item.parsedGeom = null;
+            }
+            return item;
+          });
+          setInfrastructure(parsedInfra);
+        } catch (wardErr) {
+          console.warn('Failed to fetch ward boundary or infrastructure', wardErr);
         }
-        setInfrastructure(infraRes.data || []);
-      } catch (wardErr) {
-        console.warn('Failed to fetch ward boundary or infrastructure', wardErr);
+      } else {
+        // Just animate to computed region if ward boundary wasn't previously loaded but computed region exists
+        if (!wardBoundary && computedRegion) {
+          setRegion(computedRegion);
+          if (mapRef.current) {
+            mapRef.current.animateToRegion(computedRegion, 1000);
+          }
+        }
       }
     } catch (error) {
       console.warn('Error fetching data', error);
@@ -169,6 +212,60 @@ export default function WorkerDashboard({ navigation }) {
     }
   };
 
+  const roadCollections = useMemo(() => {
+    const pending = [];
+    const active = [];
+    const completed = [];
+    
+    infrastructure.forEach(item => {
+      const geom = item.parsedGeom;
+      if (!geom) return;
+      if (item.type !== 'road') return;
+      if (geom.type !== 'LineString' && geom.type !== 'MultiLineString') return;
+      
+      if (user?.email === 'jawan_61') {
+        if (!isAssignedRoad(item)) return;
+      }
+      
+      const props = item.properties || {};
+      const lineId = props.Line_ID || props.line_id;
+      const rdName = props.Rd_Name || props.rd_name || item.name;
+      
+      let status = 'pending';
+      if (lineId) {
+        const task = tasks.find(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase());
+        if (task) status = task.status;
+      } else {
+        const task = tasks.find(t => (rdName && t.rd_name === rdName) || (t.title === rdName));
+        if (task) status = task.status;
+      }
+      
+      const feature = {
+        type: "Feature",
+        geometry: geom,
+        properties: props
+      };
+      
+      if (status === 'approved') {
+        completed.push(feature);
+      } else if (status === 'submitted' || status === 'in_progress') {
+        active.push(feature);
+      } else {
+        pending.push(feature);
+      }
+    });
+    
+    return {
+      pending: { type: "FeatureCollection", features: pending },
+      active: { type: "FeatureCollection", features: active },
+      completed: { type: "FeatureCollection", features: completed }
+    };
+  }, [infrastructure, tasks, user]);
+
+  const nonRoadFeatures = useMemo(() => {
+    return infrastructure.filter(item => item.type !== 'road');
+  }, [infrastructure]);
+
   const getDistanceToSegment = (x, y, x1, y1, x2, y2) => {
     const A = x - x1;
     const B = y - y1;
@@ -230,14 +327,9 @@ export default function WorkerDashboard({ navigation }) {
     let minDistance = Infinity;
 
     infrastructure.forEach(item => {
-      if (item.type !== 'road' || !item.geom_json) return;
-      
-      let geom;
-      try {
-        geom = JSON.parse(item.geom_json);
-      } catch (e) {
-        return;
-      }
+      if (item.type !== 'road') return;
+      const geom = item.parsedGeom;
+      if (!geom) return;
       
       const coordsList = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
 
@@ -300,7 +392,10 @@ export default function WorkerDashboard({ navigation }) {
     <View style={styles.container}>
       <Header />
       <View style={styles.titleSection}>
-        <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
+        <View>
+          <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
+          <Text style={styles.subText}>{wardBoundary?.wardName ? wardBoundary.wardName : (user?.ward_id ? `Ward ${user.ward_id}` : 'Unassigned')}</Text>
+        </View>
         <View style={{flexDirection: 'row'}}>
             <TouchableOpacity style={[styles.logoutButton, {marginRight: 10}]} onPress={fetchData}>
               <Text style={{color: Colors.primary, fontWeight: 'bold'}}>Refresh</Text>
@@ -329,15 +424,17 @@ export default function WorkerDashboard({ navigation }) {
 
       <View style={styles.mapWrapper}>
         <MapView
+          ref={mapRef}
           style={styles.map}
           mapType="satellite"
-          region={region}
-          onRegionChangeComplete={onRegionChangeComplete}
+          initialRegion={region}
           onPress={(e) => handleMapPress(e.nativeEvent.coordinate)}
+          showsUserLocation={true}
         >
           {/* Ward Boundary (Explicit Layer) */}
           {wardBoundary && user?.email !== 'jawan_61' && (() => {
-             const geom = JSON.parse(wardBoundary.geom_json);
+             const geom = wardBoundary.parsedGeom;
+             if (!geom) return null;
              const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
              return polys.map((poly, idx) => {
                 const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
@@ -347,39 +444,41 @@ export default function WorkerDashboard({ navigation }) {
                     coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
                     fillColor="rgba(255, 255, 255, 0.03)"
                     strokeColor="#FFFFFF"
-                    strokeWidth={4}
+                    strokeWidth={2}
                     zIndex={10}
                   />
                 );
              });
           })()}
 
-          {/* QGIS Infrastructure Layers */}
-          {infrastructure.map(item => {
-             if (!item.geom_json) return null;
-             
-             // If Jawan 61, only show assigned roads, no boundaries or other infrastructure
-             if (user?.email === 'jawan_61') {
-                if (item.type !== 'road' || !isAssignedRoad(item)) {
-                   return null;
-                }
-             }
+          {/* Grouped QGIS Infrastructure Roads (Native Fast Layer) */}
+          {roadCollections.pending.features.length > 0 && (
+            <Geojson
+              geojson={roadCollections.pending}
+              strokeColor="#D32F2F"
+              strokeWidth={2}
+            />
+          )}
+          {roadCollections.active.features.length > 0 && (
+            <Geojson
+              geojson={roadCollections.active}
+              strokeColor="#FFD600"
+              strokeWidth={2}
+            />
+          )}
+          {roadCollections.completed.features.length > 0 && (
+            <Geojson
+              geojson={roadCollections.completed}
+              strokeColor="#2E7D32"
+              strokeWidth={2}
+            />
+          )}
 
-             const geom = JSON.parse(item.geom_json);
-             
-             if (geom.type === 'LineString' || geom.type === 'MultiLineString') {
-                const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
-                return coords.map((cList, idx) => (
-                  <Polyline
-                    key={`infra-road-${item.id}-${idx}`}
-                    coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                    strokeColor={getRoadColor(item)}
-                    strokeWidth={item.type === 'road' ? 4 : 2}
-                    tappable={false}
-                    zIndex={11}
-                  />
-                ));
-             } else if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+          {/* Non-road Infrastructure (ROW and Ward Polygons) */}
+          {nonRoadFeatures.map(item => {
+             const geom = item.parsedGeom;
+             if (!geom) return null;
+             if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
                 const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
                 return polys.map((poly, idx) => {
                    const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
@@ -395,7 +494,7 @@ export default function WorkerDashboard({ navigation }) {
                    } else if (item.type === 'ward') {
                       fillColor = "rgba(255, 255, 255, 0.03)";
                       strokeColor = "#FFFFFF";
-                      strokeWidth = 4;
+                      strokeWidth = 2;
                       lineDash = null;
                    }
                    
@@ -529,5 +628,6 @@ const styles = StyleSheet.create({
   },
   machineEmoji: { fontSize: 18, marginRight: 5 },
   machineName: { fontSize: 14, color: '#666', fontWeight: '500' },
-  machineNameActive: { color: '#2E7D32', fontWeight: 'bold' }
+  machineNameActive: { color: '#2E7D32', fontWeight: 'bold' },
+  subText: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 }
 });

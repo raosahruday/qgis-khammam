@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, SafeAreaView } from 'react-native';
+import React, { useState, useEffect, useContext, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, SafeAreaView, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Polyline, Polygon } from '../../components/MapViewWrapper';
 import api from '../../api/axios';
@@ -12,56 +12,167 @@ export default function OwnerDashboard({ navigation }) {
   const [tasks, setTasks] = useState([]);
   const [infrastructure, setInfrastructure] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedWardFilter, setSelectedWardFilter] = useState(null);
   const [region, setRegion] = useState({
     latitude: 17.2473,
     longitude: 80.1514,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
   });
+  const mapRef = useRef(null);
   const isFocused = useIsFocused();
   const { user, logout } = useContext(AuthContext);
 
+  const getWardsList = () => {
+    const list = [];
+    infrastructure.forEach(item => {
+      if (item.type === 'ward') {
+        const props = item.properties || {};
+        const wardNo = props.Ward_No || props.ward_no || item.name;
+        if (wardNo) {
+          const wardStr = wardNo.toString().trim();
+          if (wardStr && !list.includes(wardStr)) {
+            list.push(wardStr);
+          }
+        }
+      }
+    });
+    if (list.length === 0) {
+      infrastructure.forEach(item => {
+        if (item.type === 'road') {
+          const props = item.properties || {};
+          const wardNo = props.Ward_No || props.ward_no;
+          if (wardNo) {
+            const wardStr = wardNo.toString().trim();
+            if (wardStr && !list.includes(wardStr)) {
+              list.push(wardStr);
+            }
+          }
+        }
+      });
+    }
+    return list.sort((a, b) => {
+      const numA = parseInt(a.replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.replace(/\D/g, '')) || 0;
+      return numA - numB;
+    });
+  };
+
+  const getFilteredInfrastructure = () => {
+    if (!selectedWardFilter) return infrastructure;
+    return infrastructure.filter(item => {
+      const props = item.properties || {};
+      const itemWard = props.Ward_No || props.ward_no || (item.type === 'ward' ? item.name : null);
+      if (!itemWard) return false;
+      return itemWard.toString().trim() === selectedWardFilter.toString().trim();
+    });
+  };
+
+  const handleWardSelect = (wardNo) => {
+    setSelectedWardFilter(wardNo);
+    if (!wardNo) {
+      const wardFeatures = infrastructure.filter(item => item.type === 'ward');
+      animateToWards(wardFeatures);
+      return;
+    }
+
+    const selectedWardFeature = infrastructure.find(item => {
+      if (item.type !== 'ward') return false;
+      const props = item.properties || {};
+      const itemWard = props.Ward_No || props.ward_no || item.name;
+      return itemWard && itemWard.toString().trim() === wardNo.toString().trim();
+    });
+
+    if (selectedWardFeature && selectedWardFeature.geom_json) {
+      try {
+        const geom = JSON.parse(selectedWardFeature.geom_json);
+        if (geom.coordinates && geom.coordinates[0]) {
+          let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+          geom.coordinates[0].forEach(c => {
+            const lng = c[0];
+            const lat = c[1];
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+            if (lng < minLng) minLng = lng;
+            if (lng > maxLng) maxLng = lng;
+          });
+          if (minLat !== 90) {
+            const newRegion = {
+              latitude: (minLat + maxLat) / 2,
+              longitude: (minLng + maxLng) / 2,
+              latitudeDelta: Math.max((maxLat - minLat) * 1.4, 0.015),
+              longitudeDelta: Math.max((maxLng - minLng) * 1.4, 0.015),
+            };
+            setRegion(newRegion);
+            if (mapRef.current) {
+              mapRef.current.animateToRegion(newRegion, 1000);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to center selected ward', err);
+      }
+    }
+  };
+
+  const animateToWards = (wardFeatures) => {
+    if (wardFeatures.length > 0) {
+      let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      wardFeatures.forEach(w => {
+        if (w.geom_json) {
+          const geom = JSON.parse(w.geom_json);
+          if (geom.coordinates && geom.coordinates[0]) {
+            geom.coordinates[0].forEach(c => {
+              const lng = c[0];
+              const lat = c[1];
+              if (lat < minLat) minLat = lat;
+              if (lat > maxLat) maxLat = lat;
+              if (lng < minLng) minLng = lng;
+              if (lng > maxLng) maxLng = lng;
+            });
+          }
+        }
+      });
+      if (minLat !== 90) {
+        const newRegion = {
+          latitude: (minLat + maxLat) / 2,
+          longitude: (minLng + maxLng) / 2,
+          latitudeDelta: Math.max((maxLat - minLat) * 1.3, 0.04),
+          longitudeDelta: Math.max((maxLng - minLng) * 1.3, 0.04),
+        };
+        setRegion(newRegion);
+        if (mapRef.current) {
+          setTimeout(() => {
+            mapRef.current.animateToRegion(newRegion, 1000);
+          }, 600);
+        }
+      }
+    }
+  };
+
   const fetchData = async () => {
-    setLoading(true);
+    if (tasks.length === 0) {
+      setLoading(true);
+    }
     try {
       console.log('Fetching tasks from /tasks in OwnerDashboard...');
       const response = await api.get('/tasks');
       console.log('Received tasks length:', response.data?.length);
       setTasks(response.data || []);
 
-      // Fetch supervisor's wards & roads
-      console.log('Fetching supervisor infrastructure...');
-      const infraResponse = await api.get('/infrastructure?limit=1500');
-      const infraData = infraResponse.data || [];
-      setInfrastructure(infraData);
+      // Fetch supervisor's wards & roads only if not already loaded
+      let infraData = infrastructure;
+      if (infrastructure.length === 0) {
+        console.log('Fetching supervisor infrastructure...');
+        const infraResponse = await api.get('/infrastructure?limit=1500');
+        infraData = infraResponse.data || [];
+        setInfrastructure(infraData);
+      }
 
       // Auto-center map around supervisor's wards
       const wardFeatures = infraData.filter(item => item.type === 'ward');
       if (wardFeatures.length > 0) {
-        let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-        wardFeatures.forEach(w => {
-          if (w.geom_json) {
-            const geom = JSON.parse(w.geom_json);
-            if (geom.coordinates && geom.coordinates[0]) {
-              geom.coordinates[0].forEach(c => {
-                const lng = c[0];
-                const lat = c[1];
-                if (lat < minLat) minLat = lat;
-                if (lat > maxLat) maxLat = lat;
-                if (lng < minLng) minLng = lng;
-                if (lng > maxLng) maxLng = lng;
-              });
-            }
-          }
-        });
-        if (minLat !== 90) {
-          setRegion({
-            latitude: (minLat + maxLat) / 2,
-            longitude: (minLng + maxLng) / 2,
-            latitudeDelta: Math.max((maxLat - minLat) * 1.3, 0.04),
-            longitudeDelta: Math.max((maxLng - minLng) * 1.3, 0.04),
-          });
-        }
+        animateToWards(wardFeatures);
       }
     } catch (error) {
       console.warn('Error fetching dashboard data:', error.response ? error.response.data : error.message);
@@ -115,14 +226,32 @@ export default function OwnerDashboard({ navigation }) {
   };
 
   const getCombinedTasks = () => {
-    const combined = [...tasks];
-    const roads = infrastructure.filter(item => item.type === 'road');
-    roads.forEach(road => {
+    const filteredInfra = getFilteredInfrastructure();
+    const filteredRoads = filteredInfra.filter(item => item.type === 'road');
+
+    // Filter database tasks by selected ward
+    const filteredDbTasks = tasks.filter(t => {
+      if (!selectedWardFilter) return true;
+      // Look up this task's road in the main infrastructure list to see if its Ward matches
+      const road = infrastructure.find(r => {
+        if (r.type !== 'road') return false;
+        const props = r.properties || {};
+        const lineId = props.Line_ID || props.line_id;
+        return lineId && lineId.toString() === t.line_id;
+      });
+      if (!road) return false;
+      const props = road.properties || {};
+      const roadWard = props.Ward_No || props.ward_no;
+      return roadWard?.toString().trim() === selectedWardFilter.toString().trim();
+    });
+
+    const combined = [...filteredDbTasks];
+    filteredRoads.forEach(road => {
       const props = road.properties || {};
       const lineId = props.Line_ID || props.line_id;
       const rdName = props.Rd_Name || props.rd_name || road.name;
       
-      const exists = tasks.some(t => 
+      const exists = filteredDbTasks.some(t => 
         lineId && t.line_id === lineId.toString()
       );
       
@@ -139,6 +268,25 @@ export default function OwnerDashboard({ navigation }) {
       }
     });
     return combined;
+  };
+
+  const getRoadStats = () => {
+    const combined = getCombinedTasks();
+    let completed = 0;
+    let active = 0;
+    let pending = 0;
+
+    combined.forEach(t => {
+      if (t.status === 'approved') {
+        completed++;
+      } else if (t.status === 'submitted' || t.status === 'in_progress') {
+        active++;
+      } else {
+        pending++;
+      }
+    });
+
+    return { completed, active, pending };
   };
 
   const renderTask = ({ item }) => (
@@ -187,7 +335,7 @@ export default function OwnerDashboard({ navigation }) {
       <Header />
       <View style={styles.titleSection}>
         <View>
-          <Text style={styles.headerTitle}>Task Dashboard</Text>
+          <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
           <Text style={styles.subText}>{tasks.length} Assigned / {getCombinedTasks().length} Total Road Segments</Text>
         </View>
         <TouchableOpacity style={styles.logoutButton} onPress={logout}>
@@ -220,15 +368,79 @@ export default function OwnerDashboard({ navigation }) {
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
       ) : (
         <>
+          {/* Stats Summary Cards Row */}
+          <View style={styles.statsContainer}>
+            <View style={[styles.statBox, { backgroundColor: '#E8F5E9' }]}>
+              <Text style={[styles.statVal, { color: '#2E7D32' }]}>{getRoadStats().completed}</Text>
+              <Text style={styles.statLabel}>Cleaned</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: '#FFFDE7' }]}>
+              <Text style={[styles.statVal, { color: '#FBC02D' }]}>{getRoadStats().active}</Text>
+              <Text style={styles.statLabel}>Active</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: '#FFEBEE' }]}>
+              <Text style={[styles.statVal, { color: '#C62828' }]}>{getRoadStats().pending}</Text>
+              <Text style={styles.statLabel}>Pending</Text>
+            </View>
+          </View>
+
+          {/* Horizontal Ward Selector Pill Row */}
+          {getWardsList().length > 0 && (
+            <View style={styles.filterContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterScroll}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    selectedWardFilter === null && styles.filterChipActive
+                  ]}
+                  onPress={() => handleWardSelect(null)}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      selectedWardFilter === null && styles.filterChipTextActive
+                    ]}
+                  >
+                    All Wards
+                  </Text>
+                </TouchableOpacity>
+                
+                {getWardsList().map(wardNo => (
+                  <TouchableOpacity
+                    key={`ward-pill-${wardNo}`}
+                    style={[
+                      styles.filterChip,
+                      selectedWardFilter === wardNo && styles.filterChipActive
+                    ]}
+                    onPress={() => handleWardSelect(wardNo)}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        selectedWardFilter === wardNo && styles.filterChipTextActive
+                      ]}
+                    >
+                      Ward {wardNo}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
           <View style={styles.mapWrapper}>
             <MapView
+              ref={mapRef}
               style={styles.map}
               mapType="satellite"
-              region={region}
-              onRegionChangeComplete={(r) => setRegion(r)}
+              initialRegion={region}
             >
               {/* Draw Wards Assigned to Supervisor */}
-              {infrastructure.filter(item => item.type === 'ward').map(ward => {
+              {getFilteredInfrastructure().filter(item => item.type === 'ward').map(ward => {
                 if (!ward.geom_json) return null;
                 const geom = JSON.parse(ward.geom_json);
                 if (!geom.coordinates || !geom.coordinates[0]) return null;
@@ -238,13 +450,13 @@ export default function OwnerDashboard({ navigation }) {
                     coordinates={geom.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }))}
                     fillColor="rgba(255, 255, 255, 0.03)"
                     strokeColor="#FFFFFF"
-                    strokeWidth={4}
+                    strokeWidth={2}
                   />
                 );
               })}
 
               {/* Draw Roads Colored by Task Status */}
-              {infrastructure.filter(item => item.type === 'road').map(road => {
+              {getFilteredInfrastructure().filter(item => item.type === 'road').map(road => {
                 if (!road.geom_json) return null;
                 const geom = JSON.parse(road.geom_json);
                 if (geom.type !== 'LineString' && geom.type !== 'MultiLineString') return null;
@@ -274,7 +486,7 @@ export default function OwnerDashboard({ navigation }) {
                     key={`road-${road.id}-${idx}`}
                     coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
                     strokeColor={roadColor}
-                    strokeWidth={matchingTask ? 6 : 3}
+                    strokeWidth={matchingTask ? 3.5 : 1.5}
                     tappable={true}
                     onPress={() => {
                       if (matchingTask) {
@@ -415,5 +627,63 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
-  }
+  },
+  filterContainer: {
+    marginBottom: 10,
+  },
+  filterScroll: {
+    paddingHorizontal: 15,
+    paddingVertical: 5,
+    alignItems: 'center',
+  },
+  filterChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#ECEFF1',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#CFD8DC',
+  },
+  filterChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  filterChipText: {
+    color: '#455A64',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  filterChipTextActive: {
+    color: Colors.white,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 15,
+    marginBottom: 15,
+  },
+  statBox: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 4,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  statVal: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '600',
+    marginTop: 2,
+  },
 });

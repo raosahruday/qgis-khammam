@@ -15,7 +15,6 @@ export default function TaskDetailsScreen({ route, navigation }) {
   const [workerIdInput, setWorkerIdInput] = useState('');
   const [photos, setPhotos] = useState([]);
   const [reviewComment, setReviewComment] = useState('');
-  const [tasks, setTasks] = useState([]);
   const { user } = useContext(AuthContext);
 
   const [infrastructure, setInfrastructure] = useState([]);
@@ -32,7 +31,18 @@ export default function TaskDetailsScreen({ route, navigation }) {
       const res = await api.get(
         `/infrastructure?minLat=${minLat}&maxLat=${maxLat}&minLng=${minLng}&maxLng=${maxLng}&latDelta=${latitudeDelta}&limit=500`
       );
-      setInfrastructure(res.data || []);
+      
+      const parsedData = (res.data || []).map(item => {
+         try {
+            item.parsedGeom = item.geom_json
+              ? (typeof item.geom_json === 'string' ? JSON.parse(item.geom_json) : item.geom_json)
+              : null;
+         } catch (e) {
+            item.parsedGeom = null;
+         }
+         return item;
+      });
+      setInfrastructure(parsedData);
     } catch (err) {
       console.error('Failed to fetch infrastructure', err);
     }
@@ -62,18 +72,8 @@ export default function TaskDetailsScreen({ route, navigation }) {
     }
   };
 
-  const fetchAllTasks = async () => {
-    try {
-      const res = await api.get('/tasks');
-      setTasks(res.data || []);
-    } catch (err) {
-      console.log('Failed to fetch tasks in details screen', err);
-    }
-  };
-
   useEffect(() => {
     fetchTaskDetails();
-    fetchAllTasks();
     if (taskId && !taskId.toString().startsWith('virtual-')) {
       fetchPhotos();
     }
@@ -160,13 +160,8 @@ export default function TaskDetailsScreen({ route, navigation }) {
         {(() => {
            const elements = [];
            infrastructure.forEach(item => {
-              if (!item.geom_json) return;
-              let geom;
-              try {
-                geom = JSON.parse(item.geom_json);
-              } catch (e) {
-                return;
-              }
+              const geom = item.parsedGeom;
+              if (!geom) return;
               
               if (geom.type === 'LineString' || geom.type === 'MultiLineString') {
                  const props = item.properties || {};

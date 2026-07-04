@@ -33,6 +33,13 @@ export default function MapTaskCreationScreen({ navigation }) {
   const fetchInfrastructure = async (activeRegion) => {
     try {
       const { latitude, longitude, latitudeDelta, longitudeDelta } = activeRegion;
+      
+      // GIS Zoom optimization: if zoomed out too far, don't load detailed overlays
+      if (latitudeDelta > 0.025) {
+         setInfrastructure([]);
+         return;
+      }
+
       const minLat = latitude - latitudeDelta / 2;
       const maxLat = latitude + latitudeDelta / 2;
       const minLng = longitude - longitudeDelta / 2;
@@ -41,14 +48,24 @@ export default function MapTaskCreationScreen({ navigation }) {
       const res = await api.get(
         `/infrastructure?minLat=${minLat}&maxLat=${maxLat}&minLng=${minLng}&maxLng=${maxLng}&latDelta=${latitudeDelta}&limit=500`
       );
-      setInfrastructure(res.data || []);
+      
+      const parsedData = (res.data || []).map(item => {
+         try {
+            item.parsedGeom = item.geom_json
+              ? (typeof item.geom_json === 'string' ? JSON.parse(item.geom_json) : item.geom_json)
+              : null;
+         } catch (e) {
+            item.parsedGeom = null;
+         }
+         return item;
+      });
+      setInfrastructure(parsedData);
     } catch (err) {
       console.error('Failed to fetch infrastructure', err);
     }
   };
 
   const onRegionChangeComplete = (newRegion) => {
-    setRegion(newRegion);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => fetchInfrastructure(newRegion), 400);
   };
@@ -137,11 +154,12 @@ export default function MapTaskCreationScreen({ navigation }) {
         initialRegion={region}
         onRegionChangeComplete={onRegionChangeComplete}
         onPress={handleMapPress}
+        showsUserLocation={true}
       >
         {/* QGIS Infrastructure Layers */}
         {infrastructure.map(item => {
-           if (!item.geom_json) return null;
-           const geom = JSON.parse(item.geom_json);
+           const geom = item.parsedGeom;
+           if (!geom) return null;
            
            if (geom.type === 'LineString' || geom.type === 'MultiLineString') {
               const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
@@ -150,7 +168,7 @@ export default function MapTaskCreationScreen({ navigation }) {
                   key={`infra-road-${item.id}-${idx}`}
                   coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
                   strokeColor={item.type === 'road' ? '#1A73E8' : 'rgba(66,133,244,0.5)'}
-                  strokeWidth={item.type === 'road' ? 4 : 2}
+                  strokeWidth={item.type === 'road' ? 2 : 1}
                   zIndex={11}
                   tappable={true}
                   onPress={() => {
@@ -183,11 +201,11 @@ export default function MapTaskCreationScreen({ navigation }) {
                  if (item.type === 'row') {
                     fillColor = "rgba(255, 152, 0, 0.15)";
                     strokeColor = "rgba(255, 152, 0, 0.6)";
-                    strokeWidth = 1.5;
+                    strokeWidth = 1;
                  } else if (item.type === 'ward') {
                     fillColor = "rgba(255, 255, 255, 0.03)";
                     strokeColor = "rgba(255, 255, 255, 0.45)";
-                    strokeWidth = 1.5;
+                    strokeWidth = 1;
                     lineDash = [6, 6];
                  }
                  
@@ -221,7 +239,7 @@ export default function MapTaskCreationScreen({ navigation }) {
           <Polyline 
             coordinates={coordinates} 
             strokeColor="#FFFF00" 
-            strokeWidth={5} 
+            strokeWidth={2.5} 
             zIndex={20}
           />
         )}
