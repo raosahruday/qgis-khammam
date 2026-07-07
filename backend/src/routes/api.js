@@ -51,6 +51,27 @@ router.get('/db-structure', async (req, res) => {
   }
 });
 
+router.get('/temp-check-prod-db', async (req, res) => {
+  try {
+    const db = require('../config/db');
+    const roadsCount = await db.query("SELECT COUNT(*) FROM infrastructure WHERE type = 'road'");
+    const ward3PropsCount = await db.query("SELECT COUNT(*) FROM infrastructure WHERE type = 'road' AND (properties->>'Ward_No' = '3' OR properties->>'ward_no' = '3')");
+    const intersectCount = await db.query(`
+      SELECT COUNT(r.id) 
+      FROM infrastructure r, infrastructure w 
+      WHERE r.type = 'road' AND w.type = 'ward' AND w.name = 'Ward 3' AND ST_Intersects(r.geom, w.geom)
+    `);
+    res.json({
+      total_roads: parseInt(roadsCount.rows[0].count),
+      ward3_props_count: parseInt(ward3PropsCount.rows[0].count),
+      ward3_intersect_count: parseInt(intersectCount.rows[0].count)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 // ----- PROTECTED ROUTES -----
 router.use(authenticateToken); 
 
