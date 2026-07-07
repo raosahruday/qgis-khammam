@@ -146,6 +146,58 @@ export const Geojson = ({ geojson, strokeColor, strokeWidth }) => {
 };
 Geojson.nativeName = 'Geojson';
 
+/**
+ * RoadsLayer — Renders ALL roads of one status as a SINGLE batched Leaflet GeoJSON layer.
+ * This replaces the old pattern of one <Polyline> per road (which caused a race condition
+ * on production where 4,332+ simultaneous useEffect calls dropped most roads).
+ *
+ * @param {Array} features  - Array of { geom: GeoJSONGeometry, properties: {} }
+ * @param {string} color    - Stroke color (e.g. '#D32F2F')
+ * @param {number} weight   - Line weight in pixels
+ * @param {function} onFeaturePress - Optional click handler receiving feature properties
+ */
+export const RoadsLayer = ({ features, color, weight, onFeaturePress }) => {
+  const map = useContext(MapContext);
+  useEffect(() => {
+    if (!map || !features || features.length === 0) return;
+
+    const geojsonData = {
+      type: 'FeatureCollection',
+      features: features
+        .filter(f => f.geom && f.geom.type)
+        .map(f => ({
+          type: 'Feature',
+          geometry: f.geom,
+          properties: f.properties || {}
+        }))
+    };
+
+    if (geojsonData.features.length === 0) return;
+
+    const layer = window.L.geoJSON(geojsonData, {
+      style: {
+        color: color || '#D32F2F',
+        weight: weight || 1.5,
+        opacity: 0.9,
+        lineCap: 'round',
+        lineJoin: 'round'
+      },
+      onEachFeature: (feature, lyr) => {
+        if (onFeaturePress) {
+          lyr.on('click', () => onFeaturePress(feature.properties));
+        }
+      }
+    }).addTo(map);
+
+    return () => {
+      map.removeLayer(layer);
+    };
+  }, [map, features, color, weight, onFeaturePress]);
+
+  return null;
+};
+RoadsLayer.nativeName = 'RoadsLayer';
+
 const MapView = forwardRef(({ children, style, initialRegion, mapType, onRegionChangeComplete }, ref) => {
   const mapRef = useRef(null);
   const containerRef = useRef(null);

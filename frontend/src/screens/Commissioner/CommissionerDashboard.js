@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import MapView, { Polygon, Polyline, Marker, Geojson } from '../../components/MapViewWrapper';
+import MapView, { Polygon, Polyline, Marker, Geojson, RoadsLayer } from '../../components/MapViewWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
 import Header from '../../components/Header';
@@ -36,107 +36,40 @@ const MemoizedWards = React.memo(({ wardStats, selectedWardId, onWardPress }) =>
          prevProps.selectedWardId === nextProps.selectedWardId;
 });
 
-const MemoizedRoads = React.memo(({ roads, tasks, isZoomedOut }) => {
-  const activeTasks = [];
-  const completedTasks = [];
-  const pendingFeatures = [];
-
-  roads.forEach(road => {
-     const geom = road.parsedGeom;
-     if (!geom || (geom.type !== 'LineString' && geom.type !== 'MultiLineString')) return;
-
-     const props = road.properties || {};
-     const lineId = props.Line_ID || props.line_id;
-     const rdName = props.Rd_Name || props.rd_name || road.name;
-
-     // Find matching task for status coloring using Line ID strictly
-     const matchingTask = tasks.find(t => 
-       lineId && t.line_id === lineId.toString()
-     );
-
-     if (matchingTask) {
-       if (matchingTask.status === 'approved') {
-         completedTasks.push({ road, geom, props, lineId, rdName, task: matchingTask });
-       } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
-         activeTasks.push({ road, geom, props, lineId, rdName, task: matchingTask });
-       }
-     } else {
-       pendingFeatures.push({ road, geom, props, lineId, rdName });
-     }
-  });
-
+// --- Batched road layer: renders all roads of one status as a SINGLE GeoJSON layer ---
+// This prevents the race condition of 4,332+ simultaneous Leaflet useEffect calls
+// that caused most roads to be invisible on production.
+const MemoizedRoadLayers = React.memo(({ pendingRoads, activeRoads, completedRoads, isZoomedOut, onRoadPress }) => {
+  const w = isZoomedOut ? 1.0 : 1.75;
   return (
     <>
-      {/* 1. Render all pending roads (Red) as interactive Polylines */}
-      {pendingFeatures.map(({ road, geom, props, lineId, rdName }) => {
-         const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
-         return coords.map((cList, idx) => (
-           <Polyline
-             key={`pending-${road.id}-${idx}`}
-             coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
-             strokeColor="#D32F2F"
-             strokeWidth={isZoomedOut ? 0.5 : 1.25}
-             zIndex={11}
-             tappable={true}
-             onPress={() => {
-               const wardText = props.Ward_No ? `Ward ${props.Ward_No}` : 'Unknown Ward';
-               Alert.alert(
-                 rdName || 'Unnamed Road',
-                 `Status: PENDING\n${wardText}\nLine ID: ${lineId || 'N/A'}`
-               );
-             }}
-           />
-         ));
-      })}
-
-      {/* 2. Render completed tasks (Green) as interactive Polylines */}
-      {completedTasks.map(({ road, geom, props, lineId, rdName, task }) => {
-         const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
-         return coords.map((cList, idx) => (
-           <Polyline
-             key={`completed-${road.id}-${idx}`}
-             coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
-             strokeColor="#2E7D32"
-             strokeWidth={isZoomedOut ? 0.75 : 1.75}
-             zIndex={12}
-             tappable={true}
-             onPress={() => {
-               const wardText = props.Ward_No ? `Ward ${props.Ward_No}` : 'Unknown Ward';
-               Alert.alert(
-                 rdName || 'Unnamed Road',
-                 `Status: CLEANED (APPROVED)\n${wardText}\nLine ID: ${lineId || 'N/A'}`
-               );
-             }}
-           />
-         ));
-      })}
-
-      {/* 3. Render active/in-progress tasks (Yellow) as interactive Polylines */}
-      {activeTasks.map(({ road, geom, props, lineId, rdName, task }) => {
-         const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
-         return coords.map((cList, idx) => (
-           <Polyline
-             key={`active-${road.id}-${idx}`}
-             coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
-             strokeColor="#FFD600"
-             strokeWidth={isZoomedOut ? 1.0 : 2.0}
-             zIndex={13}
-             tappable={true}
-             onPress={() => {
-               const wardText = props.Ward_No ? `Ward ${props.Ward_No}` : 'Unknown Ward';
-               Alert.alert(
-                 rdName || 'Unnamed Road',
-                 `Status: ACTIVE (IN PROGRESS)\n${wardText}\nLine ID: ${lineId || 'N/A'}`
-               );
-             }}
-           />
-         ));
-      })}
+      {/* Pending roads — Red, lowest priority */}
+      <RoadsLayer
+        features={pendingRoads}
+        color="#D32F2F"
+        weight={w}
+        onFeaturePress={onRoadPress}
+      />
+      {/* Completed roads — Green */}
+      <RoadsLayer
+        features={completedRoads}
+        color="#2E7D32"
+        weight={w + 0.5}
+        onFeaturePress={onRoadPress}
+      />
+      {/* Active roads — Yellow, highest priority */}
+      <RoadsLayer
+        features={activeRoads}
+        color="#FFD600"
+        weight={w + 0.75}
+        onFeaturePress={onRoadPress}
+      />
     </>
   );
 }, (prevProps, nextProps) => {
-  return prevProps.roads === nextProps.roads &&
-         prevProps.tasks === nextProps.tasks &&
+  return prevProps.pendingRoads === nextProps.pendingRoads &&
+         prevProps.activeRoads === nextProps.activeRoads &&
+         prevProps.completedRoads === nextProps.completedRoads &&
          prevProps.isZoomedOut === nextProps.isZoomedOut;
 });
 
@@ -471,6 +404,50 @@ export default function CommissionerDashboard({ navigation }) {
     }
   };
 
+  // Pre-classify all filtered roads into pending/active/completed buckets.
+  // useMemo ensures this only recalculates when data actually changes,
+  // and the result is passed as stable arrays to MemoizedRoadLayers.
+  const { pendingRoads, activeRoads, completedRoads } = useMemo(() => {
+    const filteredRoads = getFilteredRoads();
+    const taskMap = {};
+    tasks.forEach(t => {
+      if (t.line_id) taskMap[t.line_id.toString()] = t;
+    });
+
+    const pending = [];
+    const active = [];
+    const completed = [];
+
+    filteredRoads.forEach(road => {
+      const geom = road.parsedGeom;
+      if (!geom || (geom.type !== 'LineString' && geom.type !== 'MultiLineString')) return;
+
+      const props = road.properties || {};
+      const lineId = (props.Line_ID || props.line_id)?.toString();
+      const task = lineId ? taskMap[lineId] : null;
+      const entry = { geom, properties: props };
+
+      if (!task) {
+        pending.push(entry);
+      } else if (task.status === 'approved') {
+        completed.push(entry);
+      } else {
+        active.push(entry);
+      }
+    });
+
+    return { pendingRoads: pending, activeRoads: active, completedRoads: completed };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [infrastructure, tasks, selectedWardFilter]);
+
+  // Road press handler for map tap info
+  const handleRoadPress = (props) => {
+    const wardText = props.Ward_No ? `Ward ${props.Ward_No}` : 'Unknown Ward';
+    const rdName = props.Rd_Name || props.rd_name || 'Unnamed Road';
+    const lineId = props.Line_ID || props.line_id || 'N/A';
+    Alert.alert(rdName, `${wardText}\nLine ID: ${lineId}`);
+  };
+
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -625,11 +602,15 @@ export default function CommissionerDashboard({ navigation }) {
                 onWardPress={setSelectedWard}
               />
 
-              {/* Draw all QGIS infrastructure roads colored by task status (Memoized) */}
-              <MemoizedRoads
-                roads={getFilteredRoads()}
-                tasks={tasks}
+              {/* Draw all QGIS infrastructure roads colored by task status.
+                  Uses batched GeoJSON layers (3 operations) instead of individual
+                  Polylines (4,332+ operations) to fix the race condition on production. */}
+              <MemoizedRoadLayers
+                pendingRoads={pendingRoads}
+                activeRoads={activeRoads}
+                completedRoads={completedRoads}
                 isZoomedOut={isZoomedOut}
+                onRoadPress={handleRoadPress}
               />
 
               {/* Non-road infrastructure geometries (Memoized) */}
