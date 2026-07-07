@@ -54,6 +54,8 @@ router.get('/db-structure', async (req, res) => {
 router.get('/temp-check-prod-db', async (req, res) => {
   try {
     const db = require('../config/db');
+    
+    // 1. Basic counts
     const roadsCount = await db.query("SELECT COUNT(*) FROM infrastructure WHERE type = 'road'");
     const ward3PropsCount = await db.query("SELECT COUNT(*) FROM infrastructure WHERE type = 'road' AND (properties->>'Ward_No' = '3' OR properties->>'ward_no' = '3')");
     const intersectCount = await db.query(`
@@ -61,10 +63,39 @@ router.get('/temp-check-prod-db', async (req, res) => {
       FROM infrastructure r, infrastructure w 
       WHERE r.type = 'road' AND w.type = 'ward' AND w.name = 'Ward 3' AND ST_Intersects(r.geom, w.geom)
     `);
+
+    // 2. Geometry nullness checks
+    const nullGeomRes = await db.query("SELECT COUNT(*) FROM infrastructure WHERE type = 'road' AND geom IS NULL");
+    const nullSimpGeomRes = await db.query("SELECT COUNT(*) FROM infrastructure WHERE type = 'road' AND ST_Simplify(geom, 0.00003) IS NULL");
+    
+    // 3. Ward 3 specific nullness checks
+    const ward3NullGeomRes = await db.query("SELECT COUNT(*) FROM infrastructure WHERE type = 'road' AND (properties->>'Ward_No' = '3' OR properties->>'ward_no' = '3') AND geom IS NULL");
+    const ward3NullSimpRes = await db.query("SELECT COUNT(*) FROM infrastructure WHERE type = 'road' AND (properties->>'Ward_No' = '3' OR properties->>'ward_no' = '3') AND ST_Simplify(geom, 0.00003) IS NULL");
+    
+    // 4. Sample road properties
+    const sampleRoadsRes = await db.query("SELECT id, name, properties->>'Ward_No' as ward_no, properties->>'Line_ID' as line_id, ST_AsText(geom) as geom_wkt FROM infrastructure WHERE type = 'road' AND (properties->>'Ward_No' = '3' OR properties->>'ward_no' = '3') LIMIT 10");
+
+    // 5. Test of the query in getInfrastructure
+    const testInfraQueryRes = await db.query(`
+      SELECT COUNT(*) FROM (
+        SELECT id, name, type, properties,
+               ST_AsGeoJSON(ST_Simplify(geom, 0.00003)) as geom_json
+        FROM infrastructure
+        ORDER BY CASE WHEN type = 'road' THEN 0 WHEN type = 'row' THEN 1 ELSE 2 END ASC
+        LIMIT 6000
+      ) sub WHERE type = 'road' AND (properties->>'Ward_No' = '3' OR properties->>'ward_no' = '3') AND geom_json IS NOT NULL
+    `);
+
     res.json({
       total_roads: parseInt(roadsCount.rows[0].count),
       ward3_props_count: parseInt(ward3PropsCount.rows[0].count),
-      ward3_intersect_count: parseInt(intersectCount.rows[0].count)
+      ward3_intersect_count: parseInt(intersectCount.rows[0].count),
+      null_geom_count: parseInt(nullGeomRes.rows[0].count),
+      null_simplified_geom_count: parseInt(nullSimpGeomRes.rows[0].count),
+      ward3_null_geom_count: parseInt(ward3NullGeomRes.rows[0].count),
+      ward3_null_simplified_count: parseInt(ward3NullSimpRes.rows[0].count),
+      test_query_ward3_returned: parseInt(testInfraQueryRes.rows[0].count),
+      sample_roads: sampleRoadsRes.rows
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
