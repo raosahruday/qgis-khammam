@@ -85,7 +85,7 @@ exports.getInfrastructure = async (req, res) => {
             if (isJawan61) {
                 query = `
                     SELECT r.id, r.name, r.type, r.properties,
-                           ST_AsGeoJSON(ST_Simplify(r.geom, $2)) as geom_json
+                           ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json
                     FROM infrastructure r
                     WHERE 1=1 ${envCondition}
                       AND (
@@ -103,7 +103,7 @@ exports.getInfrastructure = async (req, res) => {
             } else {
                 query = `
                     SELECT r.id, r.name, r.type, r.properties,
-                           ST_AsGeoJSON(ST_Simplify(r.geom, $2)) as geom_json
+                           ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json
                     FROM infrastructure r
                     WHERE 1=1 ${envCondition}
                       AND (
@@ -159,7 +159,7 @@ exports.getInfrastructure = async (req, res) => {
                     SELECT geom FROM infrastructure WHERE type = 'ward' AND name = ANY($1)
                 )
                 SELECT r.id, r.name, r.type, r.properties,
-                       ST_AsGeoJSON(ST_Simplify(r.geom, $2)) as geom_json
+                       ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json
                 FROM infrastructure r
                 WHERE 1=1 ${envCondition}
                   AND (
@@ -193,7 +193,7 @@ exports.getInfrastructure = async (req, res) => {
             const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
             query = `
                 SELECT id, name, type, properties,
-                       ST_AsGeoJSON(ST_Simplify(geom, $${params.length + 1})) as geom_json
+                       ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom, $${params.length + 1})) as geom_json
                 FROM infrastructure
                 ${where}
                 ORDER BY CASE WHEN type = 'road' THEN 0 WHEN type = 'row' THEN 1 ELSE 2 END ASC

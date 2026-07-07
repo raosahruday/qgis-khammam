@@ -75,11 +75,22 @@ router.get('/temp-check-prod-db', async (req, res) => {
     // 4. Sample road properties
     const sampleRoadsRes = await db.query("SELECT id, name, properties->>'Ward_No' as ward_no, properties->>'Line_ID' as line_id, ST_AsText(geom) as geom_wkt FROM infrastructure WHERE type = 'road' AND (properties->>'Ward_No' = '3' OR properties->>'ward_no' = '3') LIMIT 10");
 
-    // 5. Test of the query in getInfrastructure
+    // 5. Test of the query in getInfrastructure (WITH ST_Simplify - old method, drops roads)
     const testInfraQueryRes = await db.query(`
       SELECT COUNT(*) FROM (
         SELECT id, name, type, properties,
                ST_AsGeoJSON(ST_Simplify(geom, 0.00003)) as geom_json
+        FROM infrastructure
+        ORDER BY CASE WHEN type = 'road' THEN 0 WHEN type = 'row' THEN 1 ELSE 2 END ASC
+        LIMIT 6000
+      ) sub WHERE type = 'road' AND (properties->>'Ward_No' = '3' OR properties->>'ward_no' = '3') AND geom_json IS NOT NULL
+    `);
+
+    // 6. Test with ST_SimplifyPreserveTopology (new method, never drops roads)
+    const testPreserveQueryRes = await db.query(`
+      SELECT COUNT(*) FROM (
+        SELECT id, name, type, properties,
+               ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom, 0.00003)) as geom_json
         FROM infrastructure
         ORDER BY CASE WHEN type = 'road' THEN 0 WHEN type = 'row' THEN 1 ELSE 2 END ASC
         LIMIT 6000
@@ -94,7 +105,8 @@ router.get('/temp-check-prod-db', async (req, res) => {
       null_simplified_geom_count: parseInt(nullSimpGeomRes.rows[0].count),
       ward3_null_geom_count: parseInt(ward3NullGeomRes.rows[0].count),
       ward3_null_simplified_count: parseInt(ward3NullSimpRes.rows[0].count),
-      test_query_ward3_returned: parseInt(testInfraQueryRes.rows[0].count),
+      test_query_ward3_with_ST_Simplify: parseInt(testInfraQueryRes.rows[0].count),
+      test_query_ward3_with_ST_SimplifyPreserveTopology: parseInt(testPreserveQueryRes.rows[0].count),
       sample_roads: sampleRoadsRes.rows
     });
   } catch (error) {
