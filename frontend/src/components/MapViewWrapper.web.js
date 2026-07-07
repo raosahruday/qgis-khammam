@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 
 // Context to share the Leaflet map instance with child layer components
 export const MapContext = createContext(null);
@@ -146,11 +146,40 @@ export const Geojson = ({ geojson, strokeColor, strokeWidth }) => {
 };
 Geojson.nativeName = 'Geojson';
 
-export default function MapView({ children, style, initialRegion, mapType }) {
+const MapView = forwardRef(({ children, style, initialRegion, mapType, onRegionChangeComplete }, ref) => {
   const mapRef = useRef(null);
   const containerRef = useRef(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const [mapInstance, setMapInstance] = useState(null);
+
+  // Expose imperative methods to parent refs
+  useImperativeHandle(ref, () => ({
+    animateToRegion: (region, duration) => {
+      if (mapRef.current) {
+        const delta = Math.max(region.latitudeDelta || 0, region.longitudeDelta || 0);
+        let zoom = mapRef.current.getZoom();
+        if (delta > 0) {
+          zoom = Math.round(Math.log2(360 / delta)) - 1;
+        }
+        zoom = Math.max(1, Math.min(19, zoom));
+        mapRef.current.flyTo([region.latitude, region.longitude], zoom, {
+          duration: (duration || 1000) / 1000
+        });
+      }
+    },
+    fitToCoordinates: (coordinates, options) => {
+      if (mapRef.current && coordinates && coordinates.length > 0) {
+        const latlngs = coordinates.map(c => [c.latitude, c.longitude]);
+        const animated = options?.animated !== false;
+        mapRef.current.fitBounds(latlngs, {
+          animate: animated,
+          padding: options?.edgePadding 
+            ? [options.edgePadding.top || 50, options.edgePadding.left || 50] 
+            : [50, 50]
+        });
+      }
+    }
+  }));
 
   // 1. Load Leaflet assets dynamically from CDN
   useEffect(() => {
@@ -202,6 +231,40 @@ export default function MapView({ children, style, initialRegion, mapType }) {
     };
   }, [leafletLoaded, mapType]);
 
+  // 3. Listen to region change events and call onRegionChangeComplete
+  useEffect(() => {
+    if (!mapInstance) return;
+
+    const handleMoveEnd = () => {
+      if (onRegionChangeComplete) {
+        const center = mapInstance.getCenter();
+        const bounds = mapInstance.getBounds();
+        
+        // Safety checks in case bounds are invalid/not ready
+        if (bounds && bounds.getNorth && bounds.getSouth && bounds.getEast && bounds.getWest) {
+          onRegionChangeComplete({
+            latitude: center.lat,
+            longitude: center.lng,
+            latitudeDelta: bounds.getNorth() - bounds.getSouth(),
+            longitudeDelta: bounds.getEast() - bounds.getWest()
+          });
+        }
+      }
+    };
+
+    mapInstance.on('moveend', handleMoveEnd);
+
+    // Initial trigger once Leaflet has completed setup & layout
+    mapInstance.whenReady(() => {
+      // Delay slightly to ensure browser has updated size and computed valid bounds
+      setTimeout(handleMoveEnd, 100);
+    });
+
+    return () => {
+      mapInstance.off('moveend', handleMoveEnd);
+    };
+  }, [mapInstance, onRegionChangeComplete]);
+
   return (
     <MapContext.Provider value={mapInstance}>
       <div 
@@ -221,4 +284,6 @@ export default function MapView({ children, style, initialRegion, mapType }) {
       {leafletLoaded && mapInstance && children}
     </MapContext.Provider>
   );
-}
+});
+
+export default MapView;

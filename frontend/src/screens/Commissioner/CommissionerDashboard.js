@@ -234,18 +234,64 @@ export default function CommissionerDashboard({ navigation }) {
     });
   };
 
+  const getRoadStats = (filteredRoads) => {
+    const taskMap = {};
+    tasks.forEach(t => {
+      if (t.line_id) {
+        taskMap[t.line_id.toString()] = t;
+      }
+    });
+
+    let completed = 0;
+    let active = 0;
+    let pending = 0;
+
+    filteredRoads.forEach(road => {
+      const props = road.properties || {};
+      const lineId = props.Line_ID || props.line_id;
+      const matchingTask = lineId ? taskMap[lineId.toString()] : null;
+
+      if (matchingTask) {
+        if (matchingTask.status === 'approved') {
+          completed++;
+        } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
+          active++;
+        } else {
+          pending++;
+        }
+      } else {
+        pending++;
+      }
+    });
+
+    return { completed, active, pending };
+  };
+
+  const getStatsForWard = (wardObj) => {
+    if (!wardObj) return { completed: 0, active: 0, pending: 0 };
+    
+    const match = wardObj.name?.match(/\d+/);
+    const wardNo = match ? match[0] : wardObj.name;
+    if (!wardNo) return { completed: 0, active: 0, pending: 0 };
+
+    const roads = infrastructure.filter(item => item.type === 'road');
+    const filteredRoads = roads.filter(road => {
+      const props = road.properties || {};
+      const roadWard = props.Ward_No || props.ward_no;
+      return roadWard && roadWard.toString().trim() === wardNo.toString().trim();
+    });
+
+    return getRoadStats(filteredRoads);
+  };
+
   const getStatsValues = () => {
     if (selectedWardFilter) {
       const selectedWardObj = wardStats.find(w => w.id === selectedWardFilter);
-      if (selectedWardObj) {
-        return {
-          completed: selectedWardObj.completed_tasks || 0,
-          active: selectedWardObj.active_tasks || 0,
-          pending: selectedWardObj.pending_tasks || 0,
-        };
-      }
+      return getStatsForWard(selectedWardObj);
     }
-    return totals;
+    
+    const roads = infrastructure.filter(item => item.type === 'road');
+    return getRoadStats(roads);
   };
 
   const handleWardSelect = (wardId) => {
@@ -304,6 +350,8 @@ export default function CommissionerDashboard({ navigation }) {
   const [isZoomedOut, setIsZoomedOut] = useState(true);
   const debounceTimer = useRef(null);
   const isFetchingRef = useRef(false);
+  const isFirstLoad = useRef(true);
+  const hasLoadedInfra = useRef(false);
 
   useEffect(() => {
     fetchData();
@@ -314,7 +362,7 @@ export default function CommissionerDashboard({ navigation }) {
   const fetchData = async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
-    if (tasks.length === 0) {
+    if (isFirstLoad.current) {
       setLoading(true);
     }
     try {
@@ -326,7 +374,7 @@ export default function CommissionerDashboard({ navigation }) {
         api.get('/registrations/pending')
       ];
 
-      const shouldFetchInfra = infrastructure.length === 0;
+      const shouldFetchInfra = !hasLoadedInfra.current;
       if (shouldFetchInfra) {
         promises.push(api.get('/infrastructure?limit=6000'));
       }
@@ -347,6 +395,7 @@ export default function CommissionerDashboard({ navigation }) {
           return item;
         });
         setInfrastructure(parsedInfra);
+        hasLoadedInfra.current = true;
       }
 
       const parsedWards = (statsRes.data || []).map(ward => {
@@ -366,6 +415,7 @@ export default function CommissionerDashboard({ navigation }) {
       setTotals(summaryRes.data);
       setPendingUsers(pendingRes.data || []);
       setPendingCount(pendingRes.data ? pendingRes.data.length : 0);
+      isFirstLoad.current = false;
     } catch (err) {
       console.warn('Failed to fetch data', err);
     } finally {
@@ -644,9 +694,9 @@ export default function CommissionerDashboard({ navigation }) {
                    
                    <View style={styles.progressRow}>
                      <Text style={styles.progressText}>
-                       Cleaned: <Text style={{color: '#2E7D32', fontWeight: 'bold'}}>{selectedWard.completed_tasks}</Text> | 
-                       Active: <Text style={{color: '#FBC02D', fontWeight: 'bold'}}>{selectedWard.active_tasks}</Text> | 
-                       Pending: <Text style={{color: '#C62828', fontWeight: 'bold'}}>{selectedWard.pending_tasks}</Text>
+                       Cleaned: <Text style={{color: '#2E7D32', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).completed}</Text> | 
+                       Active: <Text style={{color: '#FBC02D', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).active}</Text> | 
+                       Pending: <Text style={{color: '#C62828', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).pending}</Text>
                      </Text>
                    </View>
                  </View>

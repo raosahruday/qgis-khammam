@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import * as SecureStore from '../utils/storage';
 import api from '../api/axios';
 
@@ -13,7 +14,12 @@ export const AuthProvider = ({ children }) => {
       try {
         const userData = await SecureStore.getItemAsync('userData');
         if (userData) {
-          setUser(JSON.parse(userData));
+          const parsed = JSON.parse(userData);
+          if (parsed.role === 'commissioner' && Platform.OS !== 'web') {
+            await logout();
+          } else {
+            setUser(parsed);
+          }
         }
       } catch (e) {
         console.warn('Error restoring token', e);
@@ -43,6 +49,11 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/login', { email, password });
       const { token, user: userData } = response.data;
+      
+      if (userData.role === 'commissioner' && Platform.OS !== 'web') {
+        throw { response: { data: { error: 'Commissioner login is only allowed on the website.' } } };
+      }
+
       await SecureStore.setItemAsync('userToken', token);
       await SecureStore.setItemAsync('userData', JSON.stringify(userData));
       setUser(userData);
