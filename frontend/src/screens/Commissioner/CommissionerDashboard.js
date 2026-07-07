@@ -428,11 +428,17 @@ export default function CommissionerDashboard({ navigation }) {
       const entry = { geom, properties: props };
 
       if (!task) {
+        // No task assigned — road is pending
         pending.push(entry);
       } else if (task.status === 'approved') {
+        // SI approved — road is cleaned (green)
         completed.push(entry);
-      } else {
+      } else if (task.status === 'submitted' || task.status === 'in_progress') {
+        // Jawan submitted / actively working — road is active (yellow)
         active.push(entry);
+      } else {
+        // Task exists but status is 'pending' or unknown — still show as pending (red)
+        pending.push(entry);
       }
     });
 
