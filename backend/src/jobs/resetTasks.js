@@ -21,15 +21,15 @@ const resetCompletedTasks = async () => {
       await db.query('DELETE FROM photos');
     }
 
-    // 4. Reset tasks with status = 'approved' to status = 'pending'
+    // 4. Reset tasks with status IN ('approved', 'submitted', 'in_progress') to status = 'pending'
     const resetTasksRes = await db.query(`
       UPDATE tasks 
       SET status = 'pending', 
           last_point_reached = 0, 
           review_comment = NULL 
-      WHERE status = 'approved'
+      WHERE status IN ('approved', 'submitted', 'in_progress')
     `);
-    console.log(`[Cron Job] Reset ${resetTasksRes.rowCount} completed tasks to pending.`);
+    console.log(`[Cron Job] Reset ${resetTasksRes.rowCount} active/completed tasks to pending.`);
     
     console.log('[Cron Job] Daily task and photo reset completed successfully.');
   } catch (error) {

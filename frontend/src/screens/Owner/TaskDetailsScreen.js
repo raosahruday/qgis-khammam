@@ -8,6 +8,14 @@ import Colors from '../../constants/Colors';
 
 const API_BASE_URL = api.defaults.baseURL?.replace('/api', '') || 'http://192.168.1.103';
 
+const getImageUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  return `${API_BASE_URL}${url}`;
+};
+
 export default function TaskDetailsScreen({ route, navigation }) {
   const { taskId } = route.params;
   const [task, setTask] = useState(null);
@@ -328,7 +336,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
                       {photos.map((item) => (
                         <View key={item.id} style={styles.photoWrapper}>
-                          <Image source={{ uri: `${API_BASE_URL}${item.image_url}` }} style={styles.galleryImage} />
+                          <Image source={{ uri: getImageUrl(item.image_url) }} style={styles.galleryImage} />
                           <Text style={styles.photoDate}>{new Date(item.uploaded_at).toLocaleString()}</Text>
                         </View>
                       ))}
