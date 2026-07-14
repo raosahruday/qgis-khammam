@@ -62,8 +62,8 @@ export default function CapturePhotoScreen({ route, navigation }) {
         },
       });
 
-      Alert.alert('Success', 'Task submitted for review successfully!');
-      navigation.navigate('WorkerDashboard');
+      Alert.alert('Success', 'Photo proof uploaded successfully! Please swipe to complete the task.');
+      navigation.goBack();
     } catch (error) {
       console.error(error);
       Alert.alert('Upload Failed', error.response?.data?.error || 'Failed to upload photo and location');

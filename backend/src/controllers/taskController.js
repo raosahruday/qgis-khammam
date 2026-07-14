@@ -172,6 +172,13 @@ exports.swipeStatus = async (req, res) => {
       }
     }
 
+    if (type === 'complete') {
+      const photosCheck = await db.query('SELECT COUNT(*) FROM photos WHERE task_id = $1', [id]);
+      if (parseInt(photosCheck.rows[0].count) === 0) {
+        return res.status(400).json({ error: 'Please upload a photo proof first before completing the task.' });
+      }
+    }
+
     const newStatus = type === 'start' ? 'in_progress' : 'submitted';
     await db.query('UPDATE tasks SET status = $1 WHERE id = $2', [newStatus, id]);
     
@@ -622,7 +629,6 @@ exports.uploadPhoto = async (req, res) => {
       [id, req.user.id, imageUrl, latitude, longitude, publicId]
     );
 
-    await db.query("UPDATE tasks SET status = 'submitted' WHERE id = $1", [id]);
     res.status(201).json({ message: 'Photo uploaded successfully', image_url: imageUrl });
   } catch (error) {
     console.error('Upload photo error:', error);

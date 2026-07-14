@@ -77,6 +77,7 @@ export default function MapNavigationScreen({ route, navigation }) {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [liveTask, setLiveTask] = useState(task);
   const [tasks, setTasks] = useState([]);
+  const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(false);
   const locationSubscription = useRef(null);
   const mapRef = useRef(null);
@@ -149,12 +150,17 @@ export default function MapNavigationScreen({ route, navigation }) {
     fetchLatestTask();
     startLocationTracking();
 
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchLatestTask();
+    });
+
     return () => {
       if (locationSubscription.current) {
         locationSubscription.current.remove();
       }
+      unsubscribe();
     };
-  }, []);
+  }, [navigation]);
 
   useEffect(() => {
     if (mapRef.current && mappedPoints.length > 0) {
@@ -198,6 +204,13 @@ export default function MapNavigationScreen({ route, navigation }) {
         setInfrastructure(parsedData);
       })
       .catch(err => console.error('Failed to fetch infrastructure ward roads', err));
+
+    // 4. Fetch task photos
+    api.get(`/tasks/${task.id}/photos`)
+      .then(res => {
+        setPhotos(res.data || []);
+      })
+      .catch(err => console.error('Failed to fetch task photos', err));
   };
 
   const startLocationTracking = async () => {
@@ -610,10 +623,11 @@ export default function MapNavigationScreen({ route, navigation }) {
                 <Text style={styles.btnText}>📍 Re-Navigate to Start</Text>
              </TouchableOpacity>
                            <SwipeButton 
-                title="Swipe to Complete Task"
-                color="#009688"
-                onSwipeComplete={() => handleSwipeStatus('complete')}
-              />
+                 title={photos.length > 0 ? "Swipe to Complete Task" : "🔒 Upload Photo to Unlock Complete"}
+                 color={photos.length > 0 ? "#009688" : "#9E9E9E"}
+                 disabled={photos.length === 0}
+                 onSwipeComplete={() => handleSwipeStatus('complete')}
+               />
              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#007bff', marginTop: 10 }]} onPress={() => navigation.navigate('CapturePhoto', { task: liveTask })}>
                 <Text style={styles.btnText}>📷 Upload Photo Proof</Text>
              </TouchableOpacity>
