@@ -141,7 +141,7 @@ router.post('/tasks/live-progress', authorizeRole(['worker']), taskController.up
 router.get('/tasks/summary', authorizeRole(['owner', 'supervisor', 'commissioner']), taskController.getTaskSummary);
 router.get('/tasks/:id', taskController.getTaskById);
 router.put('/tasks/:id/assign', authorizeRole(['owner', 'supervisor']), taskController.assignTask);
-router.get('/tasks/:id/photos', authorizeRole(['owner', 'supervisor', 'commissioner']), taskController.getTaskPhotos);
+router.get('/tasks/:id/photos', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker']), taskController.getTaskPhotos);
 router.post('/tasks/:id/upload-photo', authorizeRole(['worker']), upload.single('photo'), taskController.uploadPhoto);
 router.put('/tasks/:id/status', authorizeRole(['owner', 'supervisor']), taskController.updateTaskStatus);
 router.put('/tasks/:id/reset', authorizeRole(['owner', 'supervisor']), taskController.resetTask);
