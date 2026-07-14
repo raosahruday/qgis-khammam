@@ -201,38 +201,60 @@ export default function MapNavigationScreen({ route, navigation }) {
   };
 
   const startLocationTracking = async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Error', 'Location permission is required.');
-      return;
-    }
-
-    let initialLoc = await Location.getCurrentPositionAsync({});
-    setCurrentLocation(initialLoc.coords);
-
-    // Watch position
-    locationSubscription.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        distanceInterval: 10, // Update every 10 meters
-      },
-      (location) => {
-        const { latitude, longitude } = location.coords;
-        setCurrentLocation(location.coords);
-        
-        // Report location to machine tracking if worker is linked to a machine
-        if (user.current_machine_id) {
-           api.post(`/machines/${user.current_machine_id}/location`, {
-             latitude,
-             longitude
-           }).catch(err => console.error('Machine location update failed', err));
-        }
-
-        if (liveTask.status === 'in_progress') {
-           checkAndNotifyProgress(latitude, longitude);
-        }
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Error', 'Location permission is required.');
+        return;
       }
-    );
+
+      // 1. Get last known location immediately
+      try {
+        let lastLoc = await Location.getLastKnownPositionAsync({});
+        if (lastLoc && lastLoc.coords) {
+          setCurrentLocation(lastLoc.coords);
+        }
+      } catch (err) {
+        console.warn('Error getting last known position:', err);
+      }
+
+      // 2. Start watching position immediately
+      locationSubscription.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          distanceInterval: 10,
+        },
+        (location) => {
+          if (location && location.coords) {
+            setCurrentLocation(location.coords);
+            const { latitude, longitude } = location.coords;
+            if (user && user.current_machine_id) {
+               api.post(`/machines/${user.current_machine_id}/location`, {
+                 latitude,
+                 longitude
+               }).catch(err => console.error('Machine location update failed', err));
+            }
+            if (liveTask && liveTask.status === 'in_progress') {
+               checkAndNotifyProgress(latitude, longitude);
+            }
+          }
+        }
+      );
+
+      // 3. Get fresh current location in the background
+      Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced
+      }).then(initialLoc => {
+        if (initialLoc && initialLoc.coords) {
+          setCurrentLocation(initialLoc.coords);
+        }
+      }).catch(err => {
+        console.warn('Error getting current position in background:', err);
+      });
+
+    } catch (e) {
+      console.error('Error starting location tracking:', e);
+    }
   };
 
   const checkAndNotifyProgress = async (lat, lon) => {
