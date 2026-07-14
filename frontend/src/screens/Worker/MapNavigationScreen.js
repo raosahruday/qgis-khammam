@@ -218,10 +218,9 @@ export default function MapNavigationScreen({ route, navigation }) {
         console.warn('Error getting last known position:', err);
       }
 
-      // 2. Start watching position immediately
       locationSubscription.current = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
+          accuracy: Location.Accuracy.Balanced,
           distanceInterval: 10,
         },
         (location) => {
@@ -359,8 +358,34 @@ export default function MapNavigationScreen({ route, navigation }) {
       return;
     }
 
+    let loc = currentLocation;
     if (type === 'start') {
-      if (!currentLocation) {
+      if (!loc) {
+        // 1. Try to get cached location on-demand
+        try {
+          const lastLoc = await Location.getLastKnownPositionAsync({});
+          if (lastLoc && lastLoc.coords) {
+            loc = lastLoc.coords;
+            setCurrentLocation(lastLoc.coords);
+          }
+        } catch (e) {}
+      }
+
+      if (!loc) {
+        // 2. Try to get fresh location on-demand with balanced accuracy and 3s timeout
+        try {
+          const freshLoc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+            timeout: 3000
+          });
+          if (freshLoc && freshLoc.coords) {
+            loc = freshLoc.coords;
+            setCurrentLocation(freshLoc.coords);
+          }
+        } catch (e) {}
+      }
+
+      if (!loc) {
         Alert.alert(
           'GPS Lock Required',
           'Could not determine your location. Please check your GPS settings and wait for a location lock to start the task.'
@@ -370,8 +395,8 @@ export default function MapNavigationScreen({ route, navigation }) {
 
       const targetPoint = mappedPoints[0];
       const dist = getDist(
-        currentLocation.latitude,
-        currentLocation.longitude,
+        loc.latitude,
+        loc.longitude,
         targetPoint.latitude,
         targetPoint.longitude
       );
@@ -389,8 +414,8 @@ export default function MapNavigationScreen({ route, navigation }) {
       setLoading(true);
       const res = await api.post(`/tasks/${liveTask.id}/swipe-status`, {
         type,
-        latitude: currentLocation ? currentLocation.latitude : 0,
-        longitude: currentLocation ? currentLocation.longitude : 0
+        latitude: loc ? loc.latitude : 0,
+        longitude: loc ? loc.longitude : 0
       });
       if (res.data.success) {
         Alert.alert('Success', `Task successfully ${type === 'start' ? 'started!' : 'submitted for approval!'}`);
