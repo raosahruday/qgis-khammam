@@ -448,112 +448,114 @@ const initDb = async () => {
     const tasksCount = parseInt(tasksCheck.rows[0].count);
     if (tasksCount === 0) {
       console.log('--- Tasks table is empty. Commencing automatic pending task generation... ---');
+      
+      // Fetch all workers and their wards
       const workersRes = await db.query(`
         SELECT u.id, u.name, u.ward_id, w.name as ward_name
         FROM users u
         LEFT JOIN wards w ON u.ward_id = w.id
-        WHERE u.role = 'worker' AND u.ward_id IS NOT NULL
+        WHERE u.role = 'worker'
       `);
+      const workers = workersRes.rows;
 
-      // Fetch duplicate Line_IDs globally
-      const dupRes = await db.query(
-        `SELECT properties->>'Line_ID' as line_id 
-         FROM infrastructure 
-         WHERE properties->>'Line_ID' IS NOT NULL 
-         GROUP BY properties->>'Line_ID' 
-         HAVING COUNT(*) > 1`
-      );
+      // Fetch all wards to resolve ward IDs by number
+      const wardsRes = await db.query(`SELECT id, name FROM wards`);
+      const wards = wardsRes.rows;
+
+      // Fetch all roads
+      console.log('Fetching roads...');
+      const roadsRes = await db.query(`
+        SELECT id, name, properties, geom, ST_AsGeoJSON(geom) as geom_json 
+        FROM infrastructure 
+        WHERE type = 'road'
+      `);
+      const roads = roadsRes.rows;
+      console.log(`Processing ${roads.length} roads for task assignment...`);
+
+      // Fetch duplicate Line_IDs globally in the database
+      const dupRes = await db.query(`
+        SELECT properties->>'Line_ID' as line_id 
+        FROM infrastructure 
+        WHERE properties->>'Line_ID' IS NOT NULL 
+        GROUP BY properties->>'Line_ID' 
+        HAVING COUNT(*) > 1
+      `);
       const duplicateLineIds = new Set(dupRes.rows.map(row => row.line_id));
 
-      // Get all active worker names
-      const activeWorkerNames = new Set(workersRes.rows.map(w => w.name));
-
       let totalTasksCreated = 0;
-      for (const worker of workersRes.rows) {
-        const workerId = worker.id;
-        const wardId = worker.ward_id;
-        const wardName = worker.ward_name;
-        const workerName = worker.name;
-        
-        let wardNum = '';
-        const match = wardName.match(/Ward\s+(\d+)/i);
-        if (match) {
-          wardNum = match[1];
-        }
-        
-        const isJawan61 = workerName.includes('61') || worker.name === 'jawan_61';
-        
-        let roadsRes;
-        if (isJawan61) {
-          roadsRes = await db.query(
-            `SELECT r.id, r.name, r.properties, ST_AsGeoJSON(r.geom) as geom_json, r.geom
-             FROM infrastructure r
-             WHERE r.type = 'road' AND (
-                 r.properties->>'Ward_No' = $1 
-                 OR LOWER(r.properties->>'JAWAN_NAME') = LOWER($2)
-             )`,
-            [wardNum, workerName]
-          );
-        } else {
-          roadsRes = await db.query(
-            `WITH worker_ward AS (
-                 SELECT geom FROM infrastructure WHERE type = 'ward' AND LOWER(name) = LOWER($1) LIMIT 1
-             )
-             SELECT r.id, r.name, r.properties, ST_AsGeoJSON(r.geom) as geom_json, r.geom
-             FROM infrastructure r
-             LEFT JOIN worker_ward w ON true
-             WHERE r.type = 'road' AND (
-                 r.properties->>'Ward_No' = $2 
-                 OR (w.geom IS NOT NULL AND ST_Intersects(r.geom, w.geom))
-                 OR LOWER(r.properties->>'JAWAN_NAME') = LOWER($3)
-             )`,
-            [wardName, wardNum, workerName]
-          );
-        }
 
-        for (const road of roadsRes.rows) {
-          const props = road.properties || {};
-          let lineId = props.Line_ID || props.line_id || `RD_${road.id}`;
-          const rdName = props.Rd_Name || props.rd_name || road.name || `Road ${road.id}`;
-          
-          if (isJawan61 && lineId && duplicateLineIds.has(lineId)) {
-            lineId = `${lineId}_${road.id}`;
+      for (const road of roads) {
+        const props = road.properties || {};
+        let lineId = props.Line_ID || props.line_id || `RD_${road.id}`;
+        const rdName = props.Rd_Name || props.rd_name || road.name || `Road ${road.id}`;
+
+        // Resolve ward
+        let wardId = null;
+        const wardNoStr = props.Ward_No || props.ward_no;
+        if (wardNoStr) {
+          const wardNum = parseInt(wardNoStr);
+          const matchedWard = wards.find(w => w.name.match(new RegExp(`Ward\\s+0*${wardNum}$`, 'i')) || w.name.match(new RegExp(`Ward\\s+0*${wardNum}\\b`, 'i')));
+          if (matchedWard) {
+            wardId = matchedWard.id;
           }
+        }
 
-          const jawanNameInProps = props.JAWAN_NAME || props.jawan_name;
-          if (jawanNameInProps && !isJawanMatch(jawanNameInProps, workerName)) {
-            if (hasActiveWorkerMatch(jawanNameInProps, activeWorkerNames)) {
-              // Assigned to another active worker - skip
-              continue;
+        // Resolve Jawan/Worker
+        let assignedWorkerId = null;
+        const jawanNameInProps = props.JAWAN_NAME || props.jawan_name;
+        
+        // 1. Try to find a worker matching the name explicitly
+        if (jawanNameInProps) {
+          const matchedWorker = workers.find(w => isJawanMatch(jawanNameInProps, w.name));
+          if (matchedWorker) {
+            assignedWorkerId = matchedWorker.id;
+            if (!wardId && matchedWorker.ward_id) {
+              wardId = matchedWorker.ward_id;
             }
           }
-
-          let areaGeojson = null;
-          if (road.geom_json) {
-            const parsed = JSON.parse(road.geom_json);
-            if (parsed.type === 'LineString') {
-              areaGeojson = parsed.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
-            } else if (parsed.type === 'MultiLineString') {
-              const aligned = sortAndAlignSegments(parsed.coordinates);
-              areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
-            } else if (parsed.type === 'Polygon') {
-              areaGeojson = parsed.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }));
-            } else if (parsed.type === 'MultiPolygon') {
-              areaGeojson = parsed.coordinates.flat(2).map(c => ({ longitude: c[0], latitude: c[1] }));
-            }
-          }
-
-          const sourceQr = `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-          const destinationQr = `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-
-          await db.query(
-            `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
-             VALUES ($1, $2, $3, $4, $5, $6, 'road', $7, $8, 'pending', $9, $10)`,
-            [rdName, `Clean ${rdName}`, JSON.stringify(areaGeojson), road.geom, workerId, wardId, sourceQr, destinationQr, lineId, rdName]
-          );
-          totalTasksCreated++;
         }
+
+        // 2. If not found by name, try to assign to a worker in the resolved ward
+        if (!assignedWorkerId && wardId) {
+          const wardWorkers = workers.filter(w => w.ward_id === wardId);
+          if (wardWorkers.length > 0) {
+            assignedWorkerId = wardWorkers[0].id;
+          }
+        }
+
+        // Format geom
+        let areaGeojson = null;
+        if (road.geom_json) {
+          const parsed = JSON.parse(road.geom_json);
+          if (parsed.type === 'LineString') {
+            areaGeojson = parsed.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
+          } else if (parsed.type === 'MultiLineString') {
+            const aligned = sortAndAlignSegments(parsed.coordinates);
+            areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
+          } else if (parsed.type === 'Polygon') {
+            areaGeojson = parsed.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }));
+          } else if (parsed.type === 'MultiPolygon') {
+            areaGeojson = parsed.coordinates.flat(2).map(c => ({ longitude: c[0], latitude: c[1] }));
+          }
+        }
+
+        // Suffix duplicate line ids for Jawan 61/Ward 61 (user Sahruday)
+        const isJawan61 = assignedWorkerId && workers.find(w => w.id === assignedWorkerId)?.name === 'Sahruday';
+        if (isJawan61 && lineId && duplicateLineIds.has(lineId)) {
+          lineId = `${lineId}_${road.id}`;
+        }
+
+        const sourceQr = `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+        const destinationQr = `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+        await db.query(
+          `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
+           VALUES ($1, $2, $3, $4, $5, $6, 'road', $7, $8, 'pending', $9, $10)`,
+          [rdName, `Clean ${rdName}`, JSON.stringify(areaGeojson), road.geom, assignedWorkerId, wardId, sourceQr, destinationQr, lineId, rdName]
+        );
+        totalTasksCreated++;
       }
+
       console.log(`✅ Seeded ${totalTasksCreated} pending road tasks for jawans.`);
     } else {
       console.log(`✅ Tasks already seeded (${tasksCount} tasks present).`);
