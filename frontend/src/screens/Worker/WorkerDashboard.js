@@ -238,9 +238,7 @@ export default function WorkerDashboard({ navigation }) {
       if (item.type !== 'road') return;
       if (geom.type !== 'LineString' && geom.type !== 'MultiLineString') return;
       
-      if (user?.email === 'jawan_61') {
-        if (!isAssignedRoad(item)) return;
-      }
+      if (!isAssignedRoad(item)) return;
       
       const props = item.properties || {};
       const lineId = props.Line_ID || props.line_id;

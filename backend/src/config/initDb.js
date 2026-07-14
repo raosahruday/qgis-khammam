@@ -549,9 +549,8 @@ const initDb = async () => {
           }
         }
 
-        // Suffix duplicate line ids for Jawan 61/Ward 61 (user Sahruday)
-        const isJawan61 = assignedWorkerId && workers.find(w => w.id === assignedWorkerId)?.name === 'Sahruday';
-        if (isJawan61 && lineId && duplicateLineIds.has(lineId)) {
+        // Suffix duplicate line ids globally to avoid ID collisions on the map
+        if (lineId && duplicateLineIds.has(lineId)) {
           lineId = `${lineId}_${road.id}`;
         }
 
