@@ -8,6 +8,23 @@ import { AuthContext } from '../../context/AuthContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 
+const MemoizedRoad = React.memo(({ geom, color, strokeWidth, onPress }) => {
+  const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+  return coords.map((cList, idx) => (
+    <Polyline
+      key={`cList-${idx}`}
+      coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
+      strokeColor={color}
+      strokeWidth={strokeWidth}
+      tappable={true}
+      onPress={onPress}
+      zIndex={11}
+    />
+  ));
+}, (prev, next) => {
+  return prev.color === next.color && prev.strokeWidth === next.strokeWidth && prev.geom === next.geom;
+});
+
 export default function WorkerDashboard({ navigation }) {
   const [tasks, setTasks] = useState([]);
   const [machines, setMachines] = useState([]);
@@ -380,41 +397,17 @@ export default function WorkerDashboard({ navigation }) {
           <Text style={styles.viewDetails}>Open Task →</Text>
         </View>
       </TouchableOpacity>
-    </View>
-  );
-
-  return (
+    return (
     <View style={styles.container}>
-      <Header />
+      <Header small={true} />
       <View style={styles.titleSection}>
         <View>
           <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
           <Text style={styles.subText}>{wardBoundary?.wardName ? wardBoundary.wardName : (user?.ward_id ? `Ward ${user.ward_id}` : 'Unassigned')}</Text>
         </View>
-        <View style={{flexDirection: 'row'}}>
-            <TouchableOpacity style={[styles.logoutButton, {marginRight: 10}]} onPress={fetchData}>
-              <Text style={{color: Colors.primary, fontWeight: 'bold'}}>Refresh</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-              <Text style={styles.logoutText}>Logout</Text>
-            </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.machineSelector}>
-        <Text style={styles.sectionTitle}>🚜 Your Tractor</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.machineList}>
-          {machines.map(m => (
-            <TouchableOpacity 
-              key={m.id} 
-              style={[styles.machineChip, user.current_machine_id === m.id && styles.machineChipActive]}
-              onPress={() => handleSelectMachine(m.id)}
-            >
-              <Text style={styles.machineEmoji}>🚜</Text>
-              <Text style={[styles.machineName, user.current_machine_id === m.id && styles.machineNameActive]}>{m.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.mapWrapper}>
@@ -447,20 +440,15 @@ export default function WorkerDashboard({ navigation }) {
           })()}
 
           {/* Grouped QGIS Infrastructure Roads */}
-          {roadList.map(({ id, geom, color, item, task }) => {
-             const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
-             return coords.map((cList, idx) => (
-               <Polyline
-                 key={`road-${id}-${idx}`}
-                 coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                 strokeColor={color}
-                 strokeWidth={task ? 4 : 2}
-                 tappable={true}
-                 onPress={() => handleRoadPress(item)}
-                 zIndex={11}
-               />
-             ));
-          })}
+          {roadList.map(({ id, geom, color, item, task }) => (
+             <MemoizedRoad
+               key={`road-${id}`}
+               geom={geom}
+               color={color}
+               strokeWidth={task ? 4 : 2}
+               onPress={() => handleRoadPress(item)}
+             />
+          ))}
 
           {/* Non-road Infrastructure (ROW and Ward Polygons) */}
           {nonRoadFeatures.map(item => {
@@ -536,50 +524,50 @@ const styles = StyleSheet.create({
   titleSection: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
-    paddingHorizontal: 20, 
-    paddingVertical: 15, 
+    paddingHorizontal: 15, 
+    paddingVertical: 6, 
     alignItems: 'center',
     backgroundColor: Colors.white,
-    marginBottom: 10
+    marginBottom: 5
   },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: Colors.primary },
-  logoutButton: { paddingVertical: 5, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.accent },
-  logoutText: { color: Colors.accent, fontWeight: '600' },
-  subHeader: { fontSize: 18, fontWeight: 'bold', marginHorizontal: 20, marginBottom: 15, color: Colors.text },
+  headerTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.primary },
+  logoutButton: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: Colors.accent },
+  logoutText: { color: Colors.accent, fontWeight: '600', fontSize: 12 },
+  subHeader: { fontSize: 14, fontWeight: 'bold', marginHorizontal: 15, marginBottom: 8, color: Colors.text },
   listContainer: { paddingBottom: 20 },
   taskCard: { 
     backgroundColor: Colors.white, 
-    padding: 16, 
+    padding: 12, 
     marginHorizontal: 15, 
-    marginBottom: 12, 
-    borderRadius: 15, 
+    marginBottom: 8, 
+    borderRadius: 10, 
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  taskTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.text, flex: 1, marginRight: 10 },
-  taskDesc: { color: Colors.textSecondary, marginBottom: 8, fontSize: 13, lineHeight: 18 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  taskTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.text, flex: 1, marginRight: 10 },
+  taskDesc: { color: Colors.textSecondary, marginBottom: 4, fontSize: 12, lineHeight: 16 },
   metaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 6,
+    marginBottom: 2,
     marginTop: -2,
   },
   metaText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
     marginRight: 10,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  statusBadge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 },
-  statusText: { color: Colors.white, fontSize: 10, fontWeight: 'bold' },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10 },
-  locationLabel: { color: Colors.primary, fontSize: 14, fontWeight: '500' },
-  viewDetails: { color: Colors.textSecondary, fontWeight: '600', fontSize: 14 },
-  mapWrapper: { position: 'relative', marginBottom: 10 },
+  statusBadge: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 4 },
+  statusText: { color: Colors.white, fontSize: 9, fontWeight: 'bold' },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 6 },
+  locationLabel: { color: Colors.primary, fontSize: 12, fontWeight: '500' },
+  viewDetails: { color: Colors.textSecondary, fontWeight: '600', fontSize: 12 },
+  mapWrapper: { position: 'relative', marginBottom: 5 },
   map: { width: Dimensions.get('window').width, height: 280 },
   legend: { 
     position: 'absolute', 

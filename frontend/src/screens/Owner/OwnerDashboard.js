@@ -8,6 +8,23 @@ import { AuthContext } from '../../context/AuthContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 
+const MemoizedRoad = React.memo(({ geom, color, strokeWidth, onPress }) => {
+  const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+  return coords.map((cList, idx) => (
+    <Polyline
+      key={`cList-${idx}`}
+      coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
+      strokeColor={color}
+      strokeWidth={strokeWidth}
+      tappable={true}
+      onPress={onPress}
+      zIndex={11}
+    />
+  ));
+}, (prev, next) => {
+  return prev.color === next.color && prev.strokeWidth === next.strokeWidth && prev.geom === next.geom;
+});
+
 export default function OwnerDashboard({ navigation }) {
   const [tasks, setTasks] = useState([]);
   const [infrastructure, setInfrastructure] = useState([]);
@@ -332,7 +349,7 @@ export default function OwnerDashboard({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Header />
+      <Header small={true} />
       <View style={styles.titleSection}>
         <View>
           <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
@@ -458,8 +475,14 @@ export default function OwnerDashboard({ navigation }) {
               {/* Draw Roads Colored by Task Status */}
               {getFilteredInfrastructure().filter(item => item.type === 'road').map(road => {
                 if (!road.geom_json) return null;
-                const geom = JSON.parse(road.geom_json);
-                if (geom.type !== 'LineString' && geom.type !== 'MultiLineString') return null;
+                
+                let geom;
+                try {
+                  geom = typeof road.geom_json === 'string' ? JSON.parse(road.geom_json) : road.geom_json;
+                } catch (e) {
+                  return null;
+                }
+                if (!geom || (geom.type !== 'LineString' && geom.type !== 'MultiLineString')) return null;
 
                 const props = road.properties || {};
                 const lineId = props.Line_ID || props.line_id;
@@ -480,14 +503,12 @@ export default function OwnerDashboard({ navigation }) {
                   }
                 }
 
-                const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
-                return coords.map((cList, idx) => (
-                  <Polyline
-                    key={`road-${road.id}-${idx}`}
-                    coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                    strokeColor={roadColor}
+                return (
+                  <MemoizedRoad
+                    key={`road-${road.id}`}
+                    geom={geom}
+                    color={roadColor}
                     strokeWidth={matchingTask ? 3.5 : 1.5}
-                    tappable={true}
                     onPress={() => {
                       if (matchingTask) {
                         navigation.navigate('TaskDetails', { taskId: matchingTask.id });
@@ -496,7 +517,7 @@ export default function OwnerDashboard({ navigation }) {
                       }
                     }}
                   />
-                ));
+                );
               })}
             </MapView>
           </View>
@@ -523,22 +544,22 @@ const styles = StyleSheet.create({
   titleSection: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
-    paddingHorizontal: 20, 
-    paddingVertical: 15, 
+    paddingHorizontal: 15, 
+    paddingVertical: 6, 
     alignItems: 'center',
     backgroundColor: Colors.white,
-    marginBottom: 10
+    marginBottom: 5
   },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: Colors.primary },
-  logoutButton: { paddingVertical: 5, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.accent },
-  logoutText: { color: Colors.accent, fontWeight: '600' },
-  subText: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  buttonRow: { flexDirection: 'row', paddingHorizontal: 15, marginBottom: 15 },
+  headerTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.primary },
+  logoutButton: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: Colors.accent },
+  logoutText: { color: Colors.accent, fontWeight: '600', fontSize: 12 },
+  subText: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  buttonRow: { flexDirection: 'row', paddingHorizontal: 15, marginBottom: 8 },
   createButton: { 
     flex: 2,
     backgroundColor: Colors.primary, 
-    padding: 18, 
-    borderRadius: 12, 
+    padding: 12, 
+    borderRadius: 8, 
     alignItems: 'center',
     marginRight: 10,
     elevation: 4,
@@ -550,8 +571,8 @@ const styles = StyleSheet.create({
   deleteAllBtn: {
     flex: 1,
     backgroundColor: '#D32F2F',
-    padding: 18,
-    borderRadius: 12,
+    padding: 12,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -562,13 +583,13 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   deleteAllText: { color: Colors.white, fontSize: 12, fontWeight: 'bold', marginLeft: 5 },
-  createButtonText: { color: Colors.white, fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
+  createButtonText: { color: Colors.white, fontSize: 14, fontWeight: 'bold', letterSpacing: 1 },
   listContainer: { paddingBottom: 20 },
   taskCard: { 
     backgroundColor: Colors.white, 
     marginHorizontal: 15, 
-    marginBottom: 12, 
-    borderRadius: 15, 
+    marginBottom: 8, 
+    borderRadius: 10, 
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -576,26 +597,26 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     overflow: 'hidden'
   },
-  taskCardMain: { padding: 16 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  taskTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.text, flex: 1, marginRight: 10 },
-  statusBadge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 },
-  statusText: { color: Colors.white, fontSize: 10, fontWeight: 'bold' },
+  taskCardMain: { padding: 10 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  taskTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.text, flex: 1, marginRight: 10 },
+  statusBadge: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 4 },
+  statusText: { color: Colors.white, fontSize: 9, fontWeight: 'bold' },
   metaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 12,
+    marginBottom: 4,
     marginTop: -4,
   },
   metaText: {
-    fontSize: 13,
+    fontSize: 11,
     color: '#666',
     marginRight: 15,
     fontWeight: '600',
   },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10 },
-  workerName: { color: Colors.textSecondary, fontSize: 14 },
-  viewDetails: { color: Colors.primary, fontWeight: '600', fontSize: 14 },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 6 },
+  workerName: { color: Colors.textSecondary, fontSize: 12 },
+  viewDetails: { color: Colors.primary, fontWeight: '600', fontSize: 12 },
   actionRow: { 
     flexDirection: 'row', 
     borderTopWidth: 1, 
@@ -616,7 +637,7 @@ const styles = StyleSheet.create({
   mapWrapper: {
     height: 280,
     marginHorizontal: 15,
-    marginBottom: 15,
+    marginBottom: 8,
     borderRadius: 15,
     overflow: 'hidden',
     elevation: 3,
@@ -629,17 +650,17 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   filterContainer: {
-    marginBottom: 10,
+    marginBottom: 5,
   },
   filterScroll: {
     paddingHorizontal: 15,
-    paddingVertical: 5,
+    paddingVertical: 3,
     alignItems: 'center',
   },
   filterChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 15,
     backgroundColor: '#ECEFF1',
     marginRight: 8,
     borderWidth: 1,
@@ -652,7 +673,7 @@ const styles = StyleSheet.create({
   filterChipText: {
     color: '#455A64',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 12,
   },
   filterChipTextActive: {
     color: Colors.white,
@@ -661,12 +682,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 15,
-    marginBottom: 15,
+    marginBottom: 8,
   },
   statBox: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 4,
@@ -677,13 +698,13 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   statVal: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#666',
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: 0,
   },
 });

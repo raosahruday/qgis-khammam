@@ -2,19 +2,19 @@ import React from 'react';
 import { View, Image, StyleSheet, SafeAreaView, Platform, StatusBar } from 'react-native';
 import Colors from '../constants/Colors';
 
-const Header = () => {
+const Header = ({ small }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <View style={[styles.container, small && styles.containerSmall]}>
         <Image
           source={require('../../assets/logo_telangana.jpeg')}
-          style={styles.logo}
+          style={[styles.logo, small && styles.logoSmall]}
           resizeMode="contain"
         />
         <View style={styles.spacer} />
         <Image
           source={require('../../assets/logo_khammam.jpeg')}
-          style={styles.logo}
+          style={[styles.logo, small && styles.logoSmall]}
           resizeMode="contain"
         />
       </View>
@@ -42,9 +42,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
+  containerSmall: {
+    paddingVertical: 5,
+    paddingHorizontal: 15,
+  },
   logo: {
     width: 60,
     height: 60,
+  },
+  logoSmall: {
+    width: 40,
+    height: 40,
   },
   spacer: {
     flex: 1,
