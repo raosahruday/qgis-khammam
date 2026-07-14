@@ -2,10 +2,8 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import * as SecureStore from '../utils/storage';
 
-// Replace with your local machine's IP address (e.g., 192.168.1.X) if testing on physical device
-// Use 10.0.2.2 for Android Emulator, or localhost for iOS simulator
-const API_URL = Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hostname === 'localhost'
-  ? 'http://localhost:5000/api'
+const API_URL = __DEV__
+  ? 'http://192.168.1.16:5000/api'
   : 'https://qgis-khammam.onrender.com/api';
 
 const api = axios.create({
