@@ -541,18 +541,18 @@ export default function MapNavigationScreen({ route, navigation }) {
               coordinates={mappedPoints} 
               fillColor={
                 liveTask.status === 'approved' ? 'rgba(46, 125, 50, 0.25)' :
-                liveTask.status === 'submitted' ? 'rgba(255, 214, 0, 0.25)' :
+                (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? 'rgba(255, 214, 0, 0.25)' :
                 'rgba(211, 47, 47, 0.25)'
               } 
               strokeColor={
                 liveTask.status === 'approved' ? '#2E7D32' :
-                liveTask.status === 'submitted' ? '#FFD600' :
+                (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? '#FFD600' :
                 '#D32F2F'
               }
               strokeWidth={2}
               zIndex={20}
             />
-         )}
+          )}
 
           {!isArea && mappedPoints.length > 0 && (
             <Polyline 
@@ -560,13 +560,13 @@ export default function MapNavigationScreen({ route, navigation }) {
               coordinates={mappedPoints} 
               strokeColor={
                 liveTask.status === 'approved' ? '#2E7D32' :
-                liveTask.status === 'submitted' ? '#FFD600' :
+                (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? '#FFD600' :
                 '#D32F2F'
               } 
               strokeWidth={3.5} 
               zIndex={20} 
             />
-         )}
+          )}
 
          {mappedPoints.length > 0 && (
             <Marker 
