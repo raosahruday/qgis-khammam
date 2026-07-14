@@ -504,22 +504,32 @@ const initDb = async () => {
         let assignedWorkerId = null;
         const jawanNameInProps = props.JAWAN_NAME || props.jawan_name;
         
-        // 1. Try to find a worker matching the name explicitly
-        if (jawanNameInProps) {
+        if (wardId) {
+          const wardWorkers = workers.filter(w => w.ward_id === wardId);
+          if (wardWorkers.length === 1) {
+            assignedWorkerId = wardWorkers[0].id;
+          } else if (wardWorkers.length > 1) {
+            if (jawanNameInProps) {
+              const matchedWorker = wardWorkers.find(w => isJawanMatch(jawanNameInProps, w.name));
+              if (matchedWorker) {
+                assignedWorkerId = matchedWorker.id;
+              } else {
+                assignedWorkerId = wardWorkers[0].id;
+              }
+            } else {
+              assignedWorkerId = wardWorkers[0].id;
+            }
+          }
+        }
+
+        // Fallback: match by name globally if not matched by ward (skip Ward 0)
+        if (!assignedWorkerId && jawanNameInProps && wardNoStr !== '0') {
           const matchedWorker = workers.find(w => isJawanMatch(jawanNameInProps, w.name));
           if (matchedWorker) {
             assignedWorkerId = matchedWorker.id;
             if (!wardId && matchedWorker.ward_id) {
               wardId = matchedWorker.ward_id;
             }
-          }
-        }
-
-        // 2. If not found by name, try to assign to a worker in the resolved ward
-        if (!assignedWorkerId && wardId) {
-          const wardWorkers = workers.filter(w => w.ward_id === wardId);
-          if (wardWorkers.length > 0) {
-            assignedWorkerId = wardWorkers[0].id;
           }
         }
 
