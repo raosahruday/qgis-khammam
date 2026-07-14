@@ -76,6 +76,7 @@ export default function MapNavigationScreen({ route, navigation }) {
   const { user } = useContext(AuthContext);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [liveTask, setLiveTask] = useState(task);
+  const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const locationSubscription = useRef(null);
   const mapRef = useRef(null);
@@ -113,14 +114,30 @@ export default function MapNavigationScreen({ route, navigation }) {
       if (item.type !== 'road') return;
       if (geom.type !== 'LineString' && geom.type !== 'MultiLineString') return;
       
+      const props = item.properties || {};
+      const lineId = props.Line_ID || props.line_id;
+      const rdName = props.Rd_Name || props.rd_name || item.name;
+
+      const isAssigned = tasks.some(t => {
+        if (lineId && t.line_id) {
+          return t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase();
+        }
+        return (rdName && t.rd_name === rdName) || (t.title === rdName);
+      }) || (liveTask && (
+        (lineId && liveTask.line_id === lineId) ||
+        (rdName && liveTask.rd_name === rdName)
+      ));
+
+      if (!isAssigned) return;
+
       roads.push({
         id: item.id,
         geom,
-        properties: item.properties || {}
+        item
       });
     });
     return roads;
-  }, [infrastructure]);
+  }, [infrastructure, tasks, liveTask]);
 
   const nonRoadFeatures = useMemo(() => {
     return infrastructure.filter(item => item.type !== 'road');
@@ -192,8 +209,12 @@ export default function MapNavigationScreen({ route, navigation }) {
 
   const fetchLatestTask = async () => {
     try {
-      const response = await api.get(`/tasks/${task.id}`);
+      const [response, allTasksRes] = await Promise.all([
+        api.get(`/tasks/${task.id}`),
+        api.get('/tasks')
+      ]);
       setLiveTask(response.data);
+      setTasks(allTasksRes.data || []);
     } catch (err) {
       console.error('Failed to refresh task', err);
     } finally {
@@ -283,6 +304,21 @@ export default function MapNavigationScreen({ route, navigation }) {
     const props = item.properties || {};
     const lineId = props.Line_ID || props.line_id;
     const rdName = props.Rd_Name || props.rd_name || item.name;
+
+    let matchingTask = null;
+    if (lineId) {
+      matchingTask = tasks.find(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase());
+    } else {
+      matchingTask = tasks.find(t => 
+        (rdName && t.rd_name === rdName) || 
+        (t.title === rdName)
+      );
+    }
+
+    if (matchingTask) {
+      if (matchingTask.status === 'approved') return '#2E7D32';
+      if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') return '#FFD600';
+    }
 
     if (liveTask && (
       (lineId && liveTask.line_id === lineId) || 
@@ -398,13 +434,14 @@ export default function MapNavigationScreen({ route, navigation }) {
         followsUserLocation={false}
       >
         {/* Grouped QGIS Infrastructure Roads */}
-        {roadFeatures.map(({ id, geom }) => {
+        {roadFeatures.map(({ id, geom, item }) => {
            const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+           const color = getRoadColor(item);
            return coords.map((cList, idx) => (
              <Polyline
                key={`road-${id}-${idx}`}
                coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
-               strokeColor="#1A73E8"
+               strokeColor={color}
                strokeWidth={2}
                zIndex={11}
              />
