@@ -37,6 +37,7 @@ export default function OwnerDashboard({ navigation }) {
     longitudeDelta: 0.05,
   });
   const mapRef = useRef(null);
+  const hasCenteredMapRef = useRef(false);
   const isFocused = useIsFocused();
   const { user, logout } = useContext(AuthContext);
 
@@ -186,10 +187,11 @@ export default function OwnerDashboard({ navigation }) {
         setInfrastructure(infraData);
       }
 
-      // Auto-center map around supervisor's wards
+      // Auto-center map around supervisor's wards (only on first load)
       const wardFeatures = infraData.filter(item => item.type === 'ward');
-      if (wardFeatures.length > 0) {
+      if (wardFeatures.length > 0 && !hasCenteredMapRef.current) {
         animateToWards(wardFeatures);
+        hasCenteredMapRef.current = true;
       }
     } catch (error) {
       console.warn('Error fetching dashboard data:', error.response ? error.response.data : error.message);
