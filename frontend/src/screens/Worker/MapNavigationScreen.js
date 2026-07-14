@@ -337,36 +337,12 @@ export default function MapNavigationScreen({ route, navigation }) {
       return;
     }
 
-    if (!currentLocation) {
-      Alert.alert(
-        'GPS Lock Required',
-        'Could not determine your location. Please check your GPS settings and wait for a location lock.'
-      );
-      return;
-    }
-
-    const targetPoint = type === 'start' ? mappedPoints[0] : mappedPoints[mappedPoints.length - 1];
-    const dist = getDist(
-      currentLocation.latitude,
-      currentLocation.longitude,
-      targetPoint.latitude,
-      targetPoint.longitude
-    );
-
-    if (dist > 150) {
-      Alert.alert(
-        'Too Far Away!',
-        `You are currently ${Math.round(dist)}m away from the ${type === 'start' ? 'Start' : 'End'} Point of the road. You must be within 150 meters to swipe.`
-      );
-      return;
-    }
-
     try {
       setLoading(true);
       const res = await api.post(`/tasks/${liveTask.id}/swipe-status`, {
         type,
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude
+        latitude: currentLocation ? currentLocation.latitude : 0,
+        longitude: currentLocation ? currentLocation.longitude : 0
       });
       if (res.data.success) {
         Alert.alert('Success', `Task successfully ${type === 'start' ? 'started!' : 'submitted for approval!'}`);

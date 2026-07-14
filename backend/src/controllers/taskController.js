@@ -156,21 +156,7 @@ exports.swipeStatus = async (req, res) => {
       return res.status(400).json({ error: 'Task coordinates are missing.' });
     }
 
-    const targetPoint = type === 'start' ? points[0] : points[points.length - 1];
-    
-    // Calculate distance in meters
-    const dist = getDistanceFromLatLonInM(
-      parseFloat(latitude), 
-      parseFloat(longitude), 
-      parseFloat(targetPoint.latitude), 
-      parseFloat(targetPoint.longitude)
-    );
-
-    if (dist > 150) {
-      return res.status(400).json({ 
-        error: `Too far away. You are ${Math.round(dist)}m away from the ${type === 'start' ? 'Start' : 'End'} Point. You must be within 150m.` 
-      });
-    }
+    // Distance constraint bypassed per user request
 
     const newStatus = type === 'start' ? 'in_progress' : 'submitted';
     await db.query('UPDATE tasks SET status = $1 WHERE id = $2', [newStatus, id]);
