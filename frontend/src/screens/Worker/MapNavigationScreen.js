@@ -164,12 +164,15 @@ export default function MapNavigationScreen({ route, navigation }) {
 
   useEffect(() => {
     if (mapRef.current && mappedPoints.length > 0) {
-      setTimeout(() => {
-        mapRef.current.fitToCoordinates(mappedPoints, {
-          edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
-          animated: true,
-        });
+      const timer = setTimeout(() => {
+        if (mapRef.current) {
+          mapRef.current.fitToCoordinates(mappedPoints, {
+            edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
+            animated: true,
+          });
+        }
       }, 500);
+      return () => clearTimeout(timer);
     }
   }, [mappedPoints.length]);
 
