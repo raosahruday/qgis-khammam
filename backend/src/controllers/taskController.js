@@ -309,12 +309,14 @@ exports.getTasks = async (req, res) => {
 
         // 4. Fetch existing tasks for this worker
         const existingTasksRes = await db.query(
-          `SELECT line_id, rd_name FROM tasks WHERE assigned_worker_id = $1`,
+          `SELECT line_id, rd_name, area_geojson FROM tasks WHERE assigned_worker_id = $1`,
           [user.id]
         );
-        const existingKeys = new Set(
-          existingTasksRes.rows.map(t => `${t.line_id || ''}_${t.rd_name || ''}`)
-        );
+        const existingTasksMap = new Map();
+        existingTasksRes.rows.forEach(t => {
+          const key = `${t.line_id || ''}_${t.rd_name || ''}`;
+          existingTasksMap.set(key, t);
+        });
 
         // Fetch duplicate Line_IDs globally in the database
         const dupRes = await db.query(
@@ -349,22 +351,24 @@ exports.getTasks = async (req, res) => {
             continue;
           }
 
-          let areaGeojson = null;
-          if (road.geom_json) {
-            const parsed = JSON.parse(road.geom_json);
-            if (parsed.type === 'LineString') {
-              areaGeojson = parsed.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
-            } else if (parsed.type === 'MultiLineString') {
-              const aligned = sortAndAlignSegments(parsed.coordinates);
-              areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
-            } else if (parsed.type === 'Polygon') {
-              areaGeojson = parsed.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }));
-            } else if (parsed.type === 'MultiPolygon') {
-              areaGeojson = parsed.coordinates.flat(2).map(c => ({ longitude: c[0], latitude: c[1] }));
-            }
-          }
+          const existingTask = existingTasksMap.get(key);
 
-          if (!existingKeys.has(key)) {
+          if (!existingTask) {
+            let areaGeojson = null;
+            if (road.geom_json) {
+              const parsed = JSON.parse(road.geom_json);
+              if (parsed.type === 'LineString') {
+                areaGeojson = parsed.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
+              } else if (parsed.type === 'MultiLineString') {
+                const aligned = sortAndAlignSegments(parsed.coordinates);
+                areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
+              } else if (parsed.type === 'Polygon') {
+                areaGeojson = parsed.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }));
+              } else if (parsed.type === 'MultiPolygon') {
+                areaGeojson = parsed.coordinates.flat(2).map(c => ({ longitude: c[0], latitude: c[1] }));
+              }
+            }
+
             const sourceQr = `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
             const destinationQr = `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
@@ -373,14 +377,29 @@ exports.getTasks = async (req, res) => {
                VALUES ($1, $2, $3, $4, $5, $6, 'road', $7, $8, 'pending', $9, $10)`,
               [rdName, `Clean ${rdName}`, JSON.stringify(areaGeojson), road.geom, user.id, wardId, sourceQr, destinationQr, lineId, rdName]
             );
-            existingKeys.add(key);
-          } else {
-            // Update existing task if area_geojson is null
+            existingTasksMap.set(key, { line_id: lineId, rd_name: rdName, area_geojson: areaGeojson });
+          } else if (!existingTask.area_geojson) {
+            let areaGeojson = null;
+            if (road.geom_json) {
+              const parsed = JSON.parse(road.geom_json);
+              if (parsed.type === 'LineString') {
+                areaGeojson = parsed.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
+              } else if (parsed.type === 'MultiLineString') {
+                const aligned = sortAndAlignSegments(parsed.coordinates);
+                areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
+              } else if (parsed.type === 'Polygon') {
+                areaGeojson = parsed.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }));
+              } else if (parsed.type === 'MultiPolygon') {
+                areaGeojson = parsed.coordinates.flat(2).map(c => ({ longitude: c[0], latitude: c[1] }));
+              }
+            }
+
             await db.query(
               `UPDATE tasks SET area_geojson = $1
                WHERE assigned_worker_id = $2 AND line_id = $3 AND rd_name = $4 AND area_geojson IS NULL`,
               [JSON.stringify(areaGeojson), user.id, lineId, rdName]
             );
+            existingTask.area_geojson = areaGeojson;
           }
         }
       }
