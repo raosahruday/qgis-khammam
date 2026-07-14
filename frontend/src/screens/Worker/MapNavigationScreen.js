@@ -9,7 +9,7 @@ import Colors from '../../constants/Colors';
 function SwipeButton({ onSwipeComplete, title, disabled, color = '#3F51B5' }) {
   const pan = useRef(new Animated.ValueXY()).current;
   const [width, setWidth] = useState(0);
-  const buttonWidth = 48;
+  const buttonWidth = 42;
 
   const panResponder = useRef(
     PanResponder.create({
@@ -569,21 +569,33 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  footer: { padding: 12, backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  title: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  metaText: { fontSize: 12, color: '#666', marginTop: 2, fontWeight: '600' },
-  ward: { color: '#666', fontSize: 12 },
+  footer: { 
+    paddingHorizontal: 15, 
+    paddingTop: 10, 
+    paddingBottom: Platform.OS === 'ios' ? 30 : 25, 
+    backgroundColor: '#fff', 
+    borderTopLeftRadius: 20, 
+    borderTopRightRadius: 20, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: -2 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 8, 
+    elevation: 5 
+  },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  title: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  metaText: { fontSize: 11, color: '#666', marginTop: 1, fontWeight: '600' },
+  ward: { color: '#666', fontSize: 11 },
   badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   badgeText: { fontSize: 10, fontWeight: 'bold' },
-  qrBtn: { backgroundColor: '#3F51B5', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 6 },
-  actionBtn: { backgroundColor: '#28a745', padding: 12, borderRadius: 8, alignItems: 'center' },
-  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
-  approvedBox: { backgroundColor: '#E8F5E9', padding: 12, borderRadius: 8, alignItems: 'center' },
-  approvedText: { color: '#2E7D32', fontWeight: 'bold', fontSize: 14 },
+  qrBtn: { backgroundColor: '#3F51B5', padding: 10, borderRadius: 8, alignItems: 'center', marginBottom: 6 },
+  actionBtn: { backgroundColor: '#28a745', padding: 10, borderRadius: 8, alignItems: 'center' },
+  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+  approvedBox: { backgroundColor: '#E8F5E9', padding: 10, borderRadius: 8, alignItems: 'center' },
+  approvedText: { color: '#2E7D32', fontWeight: 'bold', fontSize: 13 },
   swipeContainer: {
-    height: 48,
-    borderRadius: 24,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
@@ -596,9 +608,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
-    width: 48,
-    height: 46,
-    borderRadius: 23,
+    width: 42,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
@@ -609,11 +621,11 @@ const styles = StyleSheet.create({
   },
   swipeHandleText: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   swipeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
   }
 });
