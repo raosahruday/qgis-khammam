@@ -143,47 +143,7 @@ export default function MapNavigationScreen({ route, navigation }) {
     return infrastructure.filter(item => item.type !== 'road');
   }, [infrastructure]);
 
-  const debounceTimer = useRef(null);
 
-  const fetchInfrastructure = async (activeRegion) => {
-    try {
-      const { latitude, longitude, latitudeDelta, longitudeDelta } = activeRegion;
-      
-      // GIS Zoom optimization: if zoomed out too far, don't load detailed overlays
-      if (latitudeDelta > 0.02) {
-         setInfrastructure([]);
-         return;
-      }
-
-      const minLat = latitude - latitudeDelta / 2;
-      const maxLat = latitude + latitudeDelta / 2;
-      const minLng = longitude - longitudeDelta / 2;
-      const maxLng = longitude + longitudeDelta / 2;
-
-      const res = await api.get(
-        `/infrastructure?minLat=${minLat}&maxLat=${maxLat}&minLng=${minLng}&maxLng=${maxLng}&latDelta=${latitudeDelta}&limit=500`
-      );
-      
-      const parsedData = (res.data || []).map(item => {
-         try {
-            item.parsedGeom = item.geom_json
-              ? (typeof item.geom_json === 'string' ? JSON.parse(item.geom_json) : item.geom_json)
-              : null;
-         } catch (e) {
-            item.parsedGeom = null;
-         }
-         return item;
-      });
-      setInfrastructure(parsedData);
-    } catch (err) {
-      console.error('Failed to fetch infrastructure', err);
-    }
-  };
-
-  const onRegionChangeComplete = (newRegion) => {
-     if (debounceTimer.current) clearTimeout(debounceTimer.current);
-     debounceTimer.current = setTimeout(() => fetchInfrastructure(newRegion), 400);
-  };
 
   useEffect(() => {
     fetchLatestTask();
@@ -209,12 +169,25 @@ export default function MapNavigationScreen({ route, navigation }) {
 
   const fetchLatestTask = async () => {
     try {
-      const [response, allTasksRes] = await Promise.all([
+      const [response, allTasksRes, infraRes] = await Promise.all([
         api.get(`/tasks/${task.id}`),
-        api.get('/tasks')
+        api.get('/tasks'),
+        api.get('/infrastructure?limit=1000')
       ]);
       setLiveTask(response.data);
       setTasks(allTasksRes.data || []);
+
+      const parsedData = (infraRes.data || []).map(item => {
+         try {
+            item.parsedGeom = item.geom_json
+              ? (typeof item.geom_json === 'string' ? JSON.parse(item.geom_json) : item.geom_json)
+              : null;
+         } catch (e) {
+            item.parsedGeom = null;
+         }
+         return item;
+      });
+      setInfrastructure(parsedData);
     } catch (err) {
       console.error('Failed to refresh task', err);
     } finally {
@@ -429,7 +402,6 @@ export default function MapNavigationScreen({ route, navigation }) {
         style={styles.map}
         mapType="satellite"
         initialRegion={initialRegion}
-        onRegionChangeComplete={onRegionChangeComplete}
         showsUserLocation={true}
         followsUserLocation={false}
       >
