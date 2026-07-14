@@ -397,7 +397,10 @@ export default function WorkerDashboard({ navigation }) {
           <Text style={styles.viewDetails}>Open Task →</Text>
         </View>
       </TouchableOpacity>
-    return (
+    </View>
+  );
+
+  return (
     <View style={styles.container}>
       <Header small={true} />
       <View style={styles.titleSection}>
