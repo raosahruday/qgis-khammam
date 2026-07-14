@@ -199,11 +199,8 @@ export default function WorkerDashboard({ navigation }) {
     let task = null;
     if (lineId) {
       task = tasks.find(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase());
-    } else {
-      task = tasks.find(t => 
-        (rdName && t.rd_name === rdName) || 
-        (t.title === rdName)
-      );
+    } else if (rdName) {
+      task = tasks.find(t => t.rd_name && t.rd_name.toString().toLowerCase() === rdName.toString().toLowerCase());
     }
 
     if (task) {
@@ -221,12 +218,10 @@ export default function WorkerDashboard({ navigation }) {
 
     if (lineId) {
       return tasks.some(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase());
-    } else {
-      return tasks.some(t => 
-        (rdName && t.rd_name === rdName) || 
-        (t.title === rdName)
-      );
+    } else if (rdName) {
+      return tasks.some(t => t.rd_name && t.rd_name.toString().toLowerCase() === rdName.toString().toLowerCase());
     }
+    return false;
   };
 
   const roadList = useMemo(() => {
@@ -248,8 +243,8 @@ export default function WorkerDashboard({ navigation }) {
       let task = null;
       if (lineId) {
         task = tasks.find(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase());
-      } else {
-        task = tasks.find(t => (rdName && t.rd_name === rdName) || (t.title === rdName));
+      } else if (rdName) {
+        task = tasks.find(t => t.rd_name && t.rd_name.toString().toLowerCase() === rdName.toString().toLowerCase());
       }
       if (task) status = task.status;
       

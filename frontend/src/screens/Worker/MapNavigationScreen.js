@@ -119,15 +119,12 @@ export default function MapNavigationScreen({ route, navigation }) {
       const lineId = props.Line_ID || props.line_id;
       const rdName = props.Rd_Name || props.rd_name || item.name;
 
-      const isAssigned = tasks.some(t => {
-        if (lineId && t.line_id) {
-          return t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase();
-        }
-        return (rdName && t.rd_name === rdName) || (t.title === rdName);
-      }) || (liveTask && (
-        (lineId && liveTask.line_id === lineId) ||
-        (rdName && liveTask.rd_name === rdName)
-      ));
+      const isAssigned = (lineId && tasks.some(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase())) ||
+                         (rdName && tasks.some(t => t.rd_name && t.rd_name.toString().toLowerCase() === rdName.toString().toLowerCase())) ||
+                         (liveTask && (
+                           (lineId && liveTask.line_id && liveTask.line_id.toString().toLowerCase() === lineId.toString().toLowerCase()) ||
+                           (rdName && liveTask.rd_name && liveTask.rd_name.toString().toLowerCase() === rdName.toString().toLowerCase())
+                         ));
 
       if (!isAssigned) return;
 
@@ -323,11 +320,8 @@ export default function MapNavigationScreen({ route, navigation }) {
     let matchingTask = null;
     if (lineId) {
       matchingTask = tasks.find(t => t.line_id && t.line_id.toString().toLowerCase() === lineId.toString().toLowerCase());
-    } else {
-      matchingTask = tasks.find(t => 
-        (rdName && t.rd_name === rdName) || 
-        (t.title === rdName)
-      );
+    } else if (rdName) {
+      matchingTask = tasks.find(t => t.rd_name && t.rd_name.toString().toLowerCase() === rdName.toString().toLowerCase());
     }
 
     if (matchingTask) {
@@ -336,8 +330,8 @@ export default function MapNavigationScreen({ route, navigation }) {
     }
 
     if (liveTask && (
-      (lineId && liveTask.line_id === lineId) || 
-      (rdName && liveTask.rd_name === rdName)
+      (lineId && liveTask.line_id && liveTask.line_id.toString().toLowerCase() === lineId.toString().toLowerCase()) || 
+      (rdName && liveTask.rd_name && liveTask.rd_name.toString().toLowerCase() === rdName.toString().toLowerCase())
     )) {
       if (liveTask.status === 'approved') return '#2E7D32';
       if (liveTask.status === 'submitted' || liveTask.status === 'in_progress') return '#FFD600';
