@@ -625,12 +625,22 @@ export default function MapNavigationScreen({ route, navigation }) {
              <TouchableOpacity style={[styles.qrBtn, { backgroundColor: '#FF5722', marginBottom: 10 }]} onPress={handleNavigateToStart}>
                 <Text style={styles.btnText}>📍 Re-Navigate to Start</Text>
              </TouchableOpacity>
-                           <SwipeButton 
-                 title={photos.length > 0 ? "Swipe to Complete Task" : "🔒 Upload Photo to Unlock Complete"}
-                 color={photos.length > 0 ? "#009688" : "#9E9E9E"}
-                 disabled={photos.length === 0}
-                 onSwipeComplete={() => handleSwipeStatus('complete')}
-               />
+                                         <TouchableOpacity 
+                style={[
+                  styles.actionBtn, 
+                  { 
+                    backgroundColor: photos.length > 0 ? '#009688' : '#9E9E9E',
+                    paddingVertical: 12,
+                    marginBottom: 10
+                  }
+                ]}
+                disabled={photos.length === 0}
+                onPress={() => handleSwipeStatus('complete')}
+              >
+                <Text style={styles.btnText}>
+                  {photos.length > 0 ? "✅ Complete Task" : "🔒 Upload Photo to Unlock Complete"}
+                </Text>
+              </TouchableOpacity>
              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#007bff', marginTop: 10 }]} onPress={() => navigation.navigate('CapturePhoto', { task: liveTask })}>
                 <Text style={styles.btnText}>📷 Upload Photo Proof</Text>
              </TouchableOpacity>
