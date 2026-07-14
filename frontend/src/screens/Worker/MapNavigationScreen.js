@@ -648,9 +648,9 @@ export default function MapNavigationScreen({ route, navigation }) {
         )}
 
         {liveTask.status === 'submitted' && (
-           <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('CapturePhoto', { task: liveTask })}>
-              <Text style={styles.btnText}>Capture Final Proof for Supervisor</Text>
-           </TouchableOpacity>
+           <View style={styles.submittedBox}>
+              <Text style={styles.submittedText}>⏳ Task Submitted. Pending Supervisor Approval.</Text>
+           </View>
         )}
         
         {liveTask.status === 'approved' && (
@@ -691,6 +691,8 @@ const styles = StyleSheet.create({
   btnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   approvedBox: { backgroundColor: '#E8F5E9', padding: 10, borderRadius: 8, alignItems: 'center' },
   approvedText: { color: '#2E7D32', fontWeight: 'bold', fontSize: 13 },
+  submittedBox: { backgroundColor: '#FFFDE7', padding: 10, borderRadius: 8, alignItems: 'center' },
+  submittedText: { color: '#F57F17', fontWeight: 'bold', fontSize: 13 },
   swipeContainer: {
     height: 42,
     borderRadius: 21,
