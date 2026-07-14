@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Alert, useWindowDimensions } from 'react-native';
 import MapView, { Polygon, Polyline, Marker, Geojson, RoadsLayer } from '../../components/MapViewWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
@@ -107,6 +107,8 @@ const MemoizedRows = React.memo(({ rows, isZoomedOut }) => {
 });
 
 export default function CommissionerDashboard({ navigation }) {
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
   const [wardStats, setWardStats] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [machines, setMachines] = useState([]);
@@ -470,6 +472,296 @@ export default function CommissionerDashboard({ navigation }) {
           default: return '#D32F2F'; // Red
       }
   };
+
+  if (isLargeScreen) {
+    return (
+      <View style={styles.largeMainContainer}>
+        {/* Sidebar */}
+        <View style={styles.sidebar}>
+          <Header />
+          
+          <View style={styles.sidebarHeader}>
+            <Text style={styles.headerTitle}>Khammam Progress</Text>
+            <TouchableOpacity style={styles.logout} onPress={logout}>
+              <Text style={styles.logoutText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.tabsContainer}>
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === 'map' && styles.activeTabButton]}
+              onPress={() => setActiveTab('map')}
+            >
+              <Ionicons name="map-outline" size={18} color={activeTab === 'map' ? Colors.primary : '#666'} />
+              <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>Overview Map</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === 'registrations' && styles.activeTabButton]}
+              onPress={() => setActiveTab('registrations')}
+            >
+              <Ionicons name="people-outline" size={18} color={activeTab === 'registrations' ? Colors.primary : '#666'} />
+              <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>New Registrations</Text>
+              {pendingCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{pendingCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {activeTab === 'map' ? (
+            <View style={{ flex: 1 }}>
+              {/* Dropdown Division Selector */}
+              <View style={styles.dropdownContainer}>
+                <TouchableOpacity 
+                  style={styles.dropdownButton} 
+                  onPress={() => setShowDropdown(!showDropdown)}
+                >
+                  <View style={styles.dropdownButtonContent}>
+                    <Ionicons name="filter-outline" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
+                    <Text style={styles.dropdownButtonText}>
+                      {selectedWardFilter 
+                        ? `Division: ${wardStats.find(w => w.id === selectedWardFilter)?.name}` 
+                        : 'Select Division (All)'}
+                    </Text>
+                  </View>
+                  <Ionicons 
+                    name={showDropdown ? "chevron-up" : "chevron-down"} 
+                    size={18} 
+                    color="#666" 
+                  />
+                </TouchableOpacity>
+
+                {showDropdown && (
+                  <View style={styles.dropdownMenu}>
+                    <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled={true}>
+                      <TouchableOpacity
+                        style={[
+                          styles.dropdownOption,
+                          !selectedWardFilter && styles.dropdownOptionSelected
+                        ]}
+                        onPress={() => {
+                          handleWardSelect(null);
+                          setShowDropdown(false);
+                        }}
+                      >
+                        <Text style={[
+                          styles.dropdownOptionText,
+                          !selectedWardFilter && styles.dropdownOptionTextSelected
+                        ]}>
+                          All Divisions
+                        </Text>
+                      </TouchableOpacity>
+
+                      {getDivisionList().map(ward => (
+                        <TouchableOpacity
+                          key={`dropdown-ward-${ward.id}`}
+                          style={[
+                            styles.dropdownOption,
+                            selectedWardFilter === ward.id && styles.dropdownOptionSelected
+                          ]}
+                          onPress={() => {
+                            handleWardSelect(ward.id);
+                            setShowDropdown(false);
+                          }}
+                        >
+                          <Text style={[
+                            styles.dropdownOptionText,
+                            selectedWardFilter === ward.id && styles.dropdownOptionTextSelected
+                          ]}>
+                            {ward.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.sidebarStatsContainer}>
+                  <View style={[styles.sidebarStatBox, { backgroundColor: '#E8F5E9' }]}>
+                    <Text style={[styles.statVal, { color: '#2E7D32' }]}>{getStatsValues().completed}</Text>
+                    <Text style={styles.statLabel}>Cleaned</Text>
+                  </View>
+                  <View style={[styles.sidebarStatBox, { backgroundColor: '#FFFDE7' }]}>
+                    <Text style={[styles.statVal, { color: '#FBC02D' }]}>{getStatsValues().active}</Text>
+                    <Text style={styles.statLabel}>Active</Text>
+                  </View>
+                  <View style={[styles.sidebarStatBox, { backgroundColor: '#FFEBEE' }]}>
+                    <Text style={[styles.statVal, { color: '#C62828' }]}>{getStatsValues().pending}</Text>
+                    <Text style={styles.statLabel}>Pending</Text>
+                  </View>
+                  <View style={[styles.sidebarStatBox, { backgroundColor: '#E3F2FD' }]}>
+                    <Text style={[styles.statVal, { color: '#1565C0' }]}>{machines.length}</Text>
+                    <Text style={styles.statLabel}>Trucks</Text>
+                  </View>
+              </View>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={styles.registrationsList}>
+              {pendingUsers.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="checkmark-circle-outline" size={60} color="#999" />
+                  <Text style={styles.emptyText}>No pending registrations to approve</Text>
+                </View>
+              ) : (
+                pendingUsers.map(u => (
+                  <View key={u.id} style={styles.regCard}>
+                    <View style={styles.regHeader}>
+                      <Text style={styles.regName}>{u.name}</Text>
+                      <View style={[
+                        styles.regRoleTag, 
+                        { backgroundColor: u.role === 'worker' ? '#E3F2FD' : '#EDE7F6' }
+                      ]}>
+                        <Text style={[
+                          styles.regRoleText, 
+                          { color: u.role === 'worker' ? '#1565C0' : '#5E35B1' }
+                        ]}>
+                          {u.role === 'worker' ? 'Jawan' : 'Sanitary Inspector'}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.regDetailRow}>
+                      <Ionicons name="call-outline" size={16} color="#666" style={{ marginRight: 8 }} />
+                      <Text style={styles.regDetailText}>{u.phone || 'No mobile listed'}</Text>
+                    </View>
+                    
+                    <View style={styles.regDetailRow}>
+                      <Ionicons name="grid-outline" size={16} color="#666" style={{ marginRight: 8 }} />
+                      <Text style={styles.regDetailText}>
+                        {u.role === 'worker' ? `Division: ${u.divisions}` : `Divisions: ${u.divisions}`}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.regActions}>
+                      <TouchableOpacity 
+                        style={[styles.regBtn, styles.approveBtn]} 
+                        onPress={() => handleApprove(u.id)}
+                      >
+                        <Text style={styles.regBtnText}>Approve</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.regBtn, styles.rejectBtn]} 
+                        onPress={() => handleReject(u.id)}
+                      >
+                        <Text style={styles.regBtnText}>Reject</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* Map on the Right, taking full screen */}
+        <View style={styles.largeMapWrapper}>
+          <MapView
+            ref={mapRef}
+            style={styles.map}
+            mapType="satellite"
+            initialRegion={regionRef.current}
+            onRegionChangeComplete={onRegionChangeComplete}
+          >
+            {/* Ward Boundaries (Memoized to prevent UI thread lag) */}
+            <MemoizedWards
+              wardStats={getFilteredWards()}
+              selectedWardId={selectedWard ? selectedWard.id : null}
+              onWardPress={setSelectedWard}
+            />
+
+            {/* Draw all QGIS infrastructure roads colored by task status. */}
+            <MemoizedRoadLayers
+              pendingRoads={pendingRoads}
+              activeRoads={activeRoads}
+              completedRoads={completedRoads}
+              isZoomedOut={isZoomedOut}
+              onRoadPress={handleRoadPress}
+            />
+
+            {/* Non-road infrastructure geometries (Memoized) */}
+            <MemoizedRows
+              rows={getFilteredRows()}
+              isZoomedOut={isZoomedOut}
+            />
+
+            {machines.map(m => (
+               <Marker
+                 key={m.id}
+                 coordinate={{ latitude: parseFloat(m.current_lat), longitude: parseFloat(m.current_lng) }}
+                 title={m.name}
+                 description={`Last updated: ${new Date(m.last_updated).toLocaleTimeString()}`}
+                 tracksViewChanges={false}
+               >
+                  <View style={styles.machineMarkerContainer}>
+                     <View style={styles.truckIconWrapper}>
+                        <Text style={{fontSize: 24}}>🚜</Text>
+                        <View style={styles.statusDot} />
+                     </View>
+                     <View style={styles.labelBubble}>
+                        <Text style={styles.labelText}>{m.name}</Text>
+                     </View>
+                  </View>
+               </Marker>
+            ))}
+          </MapView>
+          
+           {/* Map Legend */}
+           <View style={styles.legend}>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#2E7D32' }]} /><Text style={styles.legendText}>Cleaned</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#FFD600' }]} /><Text style={styles.legendText}>Active</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#D32F2F' }]} /><Text style={styles.legendText}>Pending</Text></View>
+           </View>
+
+           {/* Selected Ward Info Hover Overlay */}
+           {selectedWard && (
+             <View style={styles.hoverBox}>
+               <View style={styles.hoverHeader}>
+                 <Text style={styles.hoverTitle}>{selectedWard.name}</Text>
+                 <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn}>
+                   <Text style={styles.closeText}>✕</Text>
+                 </TouchableOpacity>
+               </View>
+               <View style={styles.hoverContent}>
+                 <Text style={styles.hoverSubtitle}>👷 Assigned Jawans:</Text>
+                 {selectedWard.jawans && selectedWard.jawans.length > 0 ? (
+                   selectedWard.jawans.map((jawan, idx) => (
+                     <View key={idx} style={styles.jawanRow}>
+                       <Text style={styles.jawanName}>• {jawan.name || 'Unknown'}</Text>
+                       {jawan.phone ? (
+                         <Text style={styles.jawanPhone}>📞 {jawan.phone}</Text>
+                       ) : (
+                         <Text style={styles.jawanPhoneNo}>No mobile listed</Text>
+                       )}
+                     </View>
+                   ))
+                 ) : (
+                   <Text style={styles.noJawanText}>No jawans assigned to this ward</Text>
+                 )}
+                 
+                 <View style={styles.progressRow}>
+                   <Text style={styles.progressText}>
+                     Cleaned: <Text style={{color: '#2E7D32', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).completed}</Text> | 
+                     Active: <Text style={{color: '#FBC02D', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).active}</Text> | 
+                     Pending: <Text style={{color: '#C62828', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).pending}</Text>
+                   </Text>
+                 </View>
+               </View>
+             </View>
+           )}
+
+           {/* Zoom suggestion hint */}
+           {isZoomedOut && (
+             <View style={styles.zoomHintBox}>
+               <Text style={styles.zoomHintText}>🔍 Zoom in to view detailed road networks</Text>
+             </View>
+           )}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -1117,5 +1409,86 @@ const styles = StyleSheet.create({
   dropdownOptionTextSelected: {
     color: '#2E7D32',
     fontWeight: 'bold',
+  },
+  largeMainContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#F5F5F5',
+    height: '100%',
+    width: '100%',
+  },
+  sidebar: {
+    width: 360,
+    height: '100%',
+    backgroundColor: '#FFF',
+    borderRightWidth: 1,
+    borderRightColor: '#E0E0E0',
+    display: 'flex',
+    flexDirection: 'column',
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 10,
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  logout: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    backgroundColor: '#FFEBEE',
+  },
+  logoutText: {
+    fontSize: 12,
+    color: '#C62828',
+    fontWeight: 'bold',
+  },
+  sidebarStatsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 15,
+    justifyContent: 'space-between',
+  },
+  sidebarStatBox: {
+    width: '47%',
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginBottom: 15,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  statVal: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  largeMapWrapper: {
+    flex: 1,
+    height: '100%',
+    position: 'relative',
   },
 });
