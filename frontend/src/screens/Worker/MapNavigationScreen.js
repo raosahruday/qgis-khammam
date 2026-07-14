@@ -77,7 +77,7 @@ export default function MapNavigationScreen({ route, navigation }) {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [liveTask, setLiveTask] = useState(task);
   const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const locationSubscription = useRef(null);
   const mapRef = useRef(null);
 
@@ -168,31 +168,36 @@ export default function MapNavigationScreen({ route, navigation }) {
   }, [mappedPoints.length]);
 
   const fetchLatestTask = async () => {
-    try {
-      const [response, allTasksRes, infraRes] = await Promise.all([
-        api.get(`/tasks/${task.id}`),
-        api.get('/tasks'),
-        api.get('/infrastructure?limit=1000')
-      ]);
-      setLiveTask(response.data);
-      setTasks(allTasksRes.data || []);
+    // 1. Fetch live task details in background
+    api.get(`/tasks/${task.id}`)
+      .then(res => {
+        setLiveTask(res.data);
+      })
+      .catch(err => console.error('Failed to refresh live task details', err));
 
-      const parsedData = (infraRes.data || []).map(item => {
-         try {
-            item.parsedGeom = item.geom_json
-              ? (typeof item.geom_json === 'string' ? JSON.parse(item.geom_json) : item.geom_json)
-              : null;
-         } catch (e) {
-            item.parsedGeom = null;
-         }
-         return item;
-      });
-      setInfrastructure(parsedData);
-    } catch (err) {
-      console.error('Failed to refresh task', err);
-    } finally {
-      setLoading(false);
-    }
+    // 2. Fetch all worker tasks status in background
+    api.get('/tasks')
+      .then(res => {
+        setTasks(res.data || []);
+      })
+      .catch(err => console.error('Failed to refresh tasks status list', err));
+
+    // 3. Fetch background infrastructure ward roads in background (takes the longest)
+    api.get('/infrastructure?limit=1000')
+      .then(res => {
+        const parsedData = (res.data || []).map(item => {
+           try {
+              item.parsedGeom = item.geom_json
+                ? (typeof item.geom_json === 'string' ? JSON.parse(item.geom_json) : item.geom_json)
+                : null;
+           } catch (e) {
+              item.parsedGeom = null;
+           }
+           return item;
+        });
+        setInfrastructure(parsedData);
+      })
+      .catch(err => console.error('Failed to fetch infrastructure ward roads', err));
   };
 
   const startLocationTracking = async () => {
