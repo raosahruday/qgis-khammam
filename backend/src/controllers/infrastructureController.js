@@ -25,7 +25,7 @@ exports.getInfrastructure = async (req, res) => {
         let workerWardName = null;
         let workerWardNum = null;
 
-        if (req.user && req.user.role === 'worker') {
+        if (req.user && (req.user.role === 'worker' || req.user.role === 'park_jawan')) {
             const userRes = await db.query(
                 `SELECT u.ward_id, w.name as ward_name
                  FROM users u
@@ -62,7 +62,7 @@ exports.getInfrastructure = async (req, res) => {
         let query = "";
         let params = [];
 
-        if (req.user && req.user.role === 'worker' && workerWardName) {
+        if (req.user && (req.user.role === 'worker' || req.user.role === 'park_jawan') && workerWardName) {
             let envCondition = "";
             params.push(workerWardName); // $1
             params.push(tolerance); // $2
@@ -78,11 +78,21 @@ exports.getInfrastructure = async (req, res) => {
             params.push(workerWardNum || ""); // $nextIdx
             params.push(parseInt(limit)); // $nextIdx + 1
 
+            const isParkJawan = req.user.role === 'park_jawan';
             const isJawan61 = req.user.email === 'jawan_61';
 
             // Workers should only see their own ward boundary and roads/rows within it
-            // For Jawan 61, restrict roads strictly by Ward_No to exclude adjacent roads. Other jawans retain the fallback.
-            if (isJawan61) {
+            // For Park Jawans, return ONLY the ward boundary.
+            if (isParkJawan) {
+                query = `
+                    SELECT r.id, r.name, r.type, r.properties,
+                           ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json
+                    FROM infrastructure r
+                    WHERE 1=1 ${envCondition}
+                      AND (r.type = 'ward' AND LOWER(r.name) = LOWER($1))
+                    LIMIT $${nextIdx + 1}
+                `;
+            } else if (isJawan61) {
                 query = `
                     SELECT r.id, r.name, r.type, r.properties,
                            ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json

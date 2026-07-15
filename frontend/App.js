@@ -21,6 +21,11 @@ import WorkerDashboard from './src/screens/Worker/WorkerDashboard';
 import MapNavigationScreen from './src/screens/Worker/MapNavigationScreen';
 import CapturePhotoScreen from './src/screens/Worker/CapturePhotoScreen';
 
+// Park Jawan Screens
+import ParkWorkerDashboard from './src/screens/ParkWorker/ParkWorkerDashboard';
+import ParkMapNavigationScreen from './src/screens/ParkWorker/ParkMapNavigationScreen';
+import ParkCapturePhotoScreen from './src/screens/ParkWorker/ParkCapturePhotoScreen';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -67,7 +72,13 @@ const AppNavigator = () => {
           <Stack.Screen name="OwnerDashboard" component={OwnerDashboard} options={{ title: 'Dashboard' }} />
           <Stack.Screen name="MapTaskCreation" component={MapTaskCreationScreen} options={{ title: 'Create Task' }} />
           <Stack.Screen name="TaskDetails" component={TaskDetailsScreen} options={{ title: 'Task Details' }} />
-          
+        </>
+      ) : user.role === 'park_jawan' ? (
+        // Park Worker Flow
+        <>
+          <Stack.Screen name="ParkWorkerDashboard" component={ParkWorkerDashboard} options={{ headerShown: false }} />
+          <Stack.Screen name="ParkMapNavigation" component={ParkMapNavigationScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ParkCapturePhoto" component={ParkCapturePhotoScreen} options={{ headerShown: false }} />
         </>
       ) : (
         // Worker Flow
@@ -75,7 +86,6 @@ const AppNavigator = () => {
           <Stack.Screen name="WorkerDashboard" component={WorkerDashboard} options={{ title: 'My Assignments' }} />
           <Stack.Screen name="MapNavigation" component={MapNavigationScreen} options={{ title: 'Task Location' }} />
           <Stack.Screen name="CapturePhoto" component={CapturePhotoScreen} options={{ title: 'Upload Proof' }} />
-          
         </>
       )}
     </Stack.Navigator>

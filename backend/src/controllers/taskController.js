@@ -157,18 +157,21 @@ exports.swipeStatus = async (req, res) => {
     }
 
     if (type === 'start') {
-      const targetPoint = points[0];
-      const dist = getDistanceFromLatLonInM(
-        parseFloat(latitude), 
-        parseFloat(longitude), 
-        parseFloat(targetPoint.latitude), 
-        parseFloat(targetPoint.longitude)
-      );
+      const isPark = task.task_type === 'park';
+      if (!isPark) {
+        const targetPoint = points[0];
+        const dist = getDistanceFromLatLonInM(
+          parseFloat(latitude), 
+          parseFloat(longitude), 
+          parseFloat(targetPoint.latitude), 
+          parseFloat(targetPoint.longitude)
+        );
 
-      if (dist > 150) {
-        return res.status(400).json({ 
-          error: `Too far away. You are ${Math.round(dist)}m away from the Start Point. You must be within 150m to start the task.` 
-        });
+        if (dist > 150) {
+          return res.status(400).json({ 
+            error: `Too far away. You are ${Math.round(dist)}m away from the Start Point. You must be within 150m to start the task.` 
+          });
+        }
       }
 
       // Clear any old photo proofs so worker has to upload a new one for redo/restart
@@ -176,9 +179,17 @@ exports.swipeStatus = async (req, res) => {
     }
 
     if (type === 'complete') {
+      const isPark = task.task_type === 'park';
+      const minPhotosRequired = isPark ? 4 : 1;
       const photosCheck = await db.query('SELECT COUNT(*) FROM photos WHERE task_id = $1', [id]);
-      if (parseInt(photosCheck.rows[0].count) === 0) {
-        return res.status(400).json({ error: 'Please upload a photo proof first before completing the task.' });
+      const currentCount = parseInt(photosCheck.rows[0].count);
+      
+      if (currentCount < minPhotosRequired) {
+        return res.status(400).json({ 
+          error: isPark 
+            ? `Please upload at least 4 photo proofs (current: ${currentCount}/4) first before completing the task.`
+            : 'Please upload a photo proof first before completing the task.' 
+        });
       }
     }
 
