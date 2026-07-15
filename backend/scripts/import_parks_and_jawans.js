@@ -3,7 +3,7 @@ const path = require('path');
 const db = require('../src/config/db');
 
 // Pre-hashed 'password123'
-const PASSWORD_HASH = '$2b$10$Xm3h.S/Qy97S9x9kF9z57.CxzpTo0n6S5sWJXZkG.x7rC8Z8w7t8m';
+const PASSWORD_HASH = '$2b$10$iTuUYuWvHq4Wyx4FjoG0nuXzWzJ6Cz2nkOUjv9wQIWbGOZCFHW4I6';
 
 const JAWAN_MAPPINGS = {
   'P.Ravi': { email: 'ravi@kmc.com', phone: '8000000001' },
