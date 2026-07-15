@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef, useContext, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Dimensions, Linking, Platform, PanResponder, Animated } from 'react-native';
-import MapView, { Polygon, Polyline, Marker, Geojson } from '../../components/MapViewWrapper';
+import MapView, { Polygon, Polyline, Marker } from '../../components/MapViewWrapper';
 import * as Location from 'expo-location';
 import api from '../../api/axios';
 import { AuthContext } from '../../context/AuthContext';
 import Colors from '../../constants/Colors';
+import { Ionicons } from '@expo/vector-icons';
 
-function SwipeButton({ onSwipeComplete, title, disabled, color = '#3F51B5' }) {
+function SwipeButton({ onSwipeComplete, title, disabled, color = '#1B5E20' }) {
   const pan = useRef(new Animated.ValueXY()).current;
   const [width, setWidth] = useState(0);
-  const buttonWidth = 42;
+  const buttonWidth = 50;
 
   const panResponder = useRef(
     PanResponder.create({
@@ -48,7 +49,10 @@ function SwipeButton({ onSwipeComplete, title, disabled, color = '#3F51B5' }) {
     <View 
       style={[
         styles.swipeContainer, 
-        { backgroundColor: disabled ? '#F5F5F5' : `${color}15`, borderColor: disabled ? '#E0E0E0' : color }
+        { 
+          backgroundColor: disabled ? '#F1F5F9' : `${color}08`, 
+          borderColor: disabled ? '#E2E8F0' : `${color}30` 
+        }
       ]}
       onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
     >
@@ -57,14 +61,14 @@ function SwipeButton({ onSwipeComplete, title, disabled, color = '#3F51B5' }) {
           styles.swipeHandle,
           {
             transform: [{ translateX: pan.x }],
-            backgroundColor: disabled ? '#BDBDBD' : color,
+            backgroundColor: disabled ? '#94A3B8' : color,
           },
         ]}
         {...panResponder.panHandlers}
       >
-        <Text style={styles.swipeHandleText}>➔</Text>
+        <Ionicons name="arrow-forward-outline" size={18} color={Colors.white} />
       </Animated.View>
-      <Text style={[styles.swipeText, { color: disabled ? '#9E9E9E' : '#333' }]} pointerEvents="none">
+      <Text style={[styles.swipeText, { color: disabled ? '#94A3B8' : Colors.text }]} pointerEvents="none">
         {title}
       </Text>
     </View>
@@ -147,8 +151,6 @@ export default function MapNavigationScreen({ route, navigation }) {
     return infrastructure.filter(item => item.type !== 'road');
   }, [infrastructure]);
 
-
-
   useEffect(() => {
     fetchLatestTask();
     startLocationTracking();
@@ -180,21 +182,18 @@ export default function MapNavigationScreen({ route, navigation }) {
   }, [mappedPoints.length]);
 
   const fetchLatestTask = async () => {
-    // 1. Fetch live task details in background
     api.get(`/tasks/${task.id}`)
       .then(res => {
         setLiveTask(res.data);
       })
       .catch(err => console.error('Failed to refresh live task details', err));
 
-    // 2. Fetch all worker tasks status in background
     api.get('/tasks')
       .then(res => {
         setTasks(res.data || []);
       })
       .catch(err => console.error('Failed to refresh tasks status list', err));
 
-    // 3. Fetch background infrastructure ward roads in background (takes the longest)
     api.get('/infrastructure?limit=1000')
       .then(res => {
         const parsedData = (res.data || []).map(item => {
@@ -211,7 +210,6 @@ export default function MapNavigationScreen({ route, navigation }) {
       })
       .catch(err => console.error('Failed to fetch infrastructure ward roads', err));
 
-    // 4. Fetch task photos
     api.get(`/tasks/${task.id}/photos`)
       .then(res => {
         setPhotos(res.data || []);
@@ -227,7 +225,6 @@ export default function MapNavigationScreen({ route, navigation }) {
         return;
       }
 
-      // 1. Get last known location immediately
       try {
         let lastLoc = await Location.getLastKnownPositionAsync({});
         if (lastLoc && lastLoc.coords) {
@@ -259,7 +256,6 @@ export default function MapNavigationScreen({ route, navigation }) {
         }
       );
 
-      // 3. Get fresh current location in the background
       Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced
       }).then(initialLoc => {
@@ -279,14 +275,12 @@ export default function MapNavigationScreen({ route, navigation }) {
     const points = typeof liveTask.area_geojson === 'string' ? JSON.parse(liveTask.area_geojson) : liveTask.area_geojson;
     if (!points || points.length === 0) return;
 
-    // Simplified: Find the nearest point in the polyline that hasn't been reached yet
     let nearestIndex = liveTask.last_point_reached || 0;
     
-    // Check points after the current last_point_reached
     for (let i = nearestIndex + 1; i < points.length; i++) {
         const p = points[i];
         const dist = getDist(lat, lon, parseFloat(p.latitude), parseFloat(p.longitude));
-        if (dist < 30) { // Within 30 meters of a path node
+        if (dist < 30) {
             nearestIndex = i;
             updateBackendProgress(i, lat, lon);
             break;
@@ -302,7 +296,6 @@ export default function MapNavigationScreen({ route, navigation }) {
         longitude: lon,
         pointIndex: index
       });
-      // Update local state to reflect progress immediately
       setLiveTask(prev => ({ ...prev, last_point_reached: index }));
     } catch (err) {
       console.error('Failed to update progress', err);
@@ -318,7 +311,7 @@ export default function MapNavigationScreen({ route, navigation }) {
   };
 
   const getRoadColor = (item) => {
-    if (item.type !== 'road') return 'rgba(211,47,47,0.5)';
+    if (item.type !== 'road') return 'rgba(198,40,40,0.5)';
     const props = item.properties || {};
     const lineId = props.Line_ID || props.line_id;
     const rdName = props.Rd_Name || props.rd_name || item.name;
@@ -331,8 +324,8 @@ export default function MapNavigationScreen({ route, navigation }) {
     }
 
     if (matchingTask) {
-      if (matchingTask.status === 'approved') return '#2E7D32';
-      if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') return '#FFD600';
+      if (matchingTask.status === 'approved') return Colors.success;
+      if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') return Colors.warning;
     }
 
     const matchesLive = liveTask && (
@@ -344,24 +337,21 @@ export default function MapNavigationScreen({ route, navigation }) {
     );
 
     if (matchesLive) {
-      if (liveTask.status === 'approved') return '#2E7D32';
-      if (liveTask.status === 'submitted' || liveTask.status === 'in_progress') return '#FFD600';
+      if (liveTask.status === 'approved') return Colors.success;
+      if (liveTask.status === 'submitted' || liveTask.status === 'in_progress') return Colors.warning;
     }
-    return '#D32F2F';
+    return Colors.accent;
   };
 
   if (loading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text>Initializing Navigation...</Text>
+        <Text style={styles.loadingText}>Initializing Navigation...</Text>
       </View>
     );
   }
 
-  
-  
-  // Split points for live color conversion
   const lastReached = liveTask.last_point_reached || 0;
   const completedPath = mappedPoints.slice(0, lastReached + 1);
   const remainingPath = mappedPoints.slice(lastReached);
@@ -382,7 +372,6 @@ export default function MapNavigationScreen({ route, navigation }) {
     let loc = currentLocation;
     if (type === 'start') {
       if (!loc) {
-        // 1. Try to get cached location on-demand
         try {
           const lastLoc = await Location.getLastKnownPositionAsync({});
           if (lastLoc && lastLoc.coords) {
@@ -393,7 +382,6 @@ export default function MapNavigationScreen({ route, navigation }) {
       }
 
       if (!loc) {
-        // 2. Try to get fresh location on-demand with balanced accuracy and 3s timeout
         try {
           const freshLoc = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Balanced,
@@ -457,10 +445,7 @@ export default function MapNavigationScreen({ route, navigation }) {
     const lat = startPoint.latitude;
     const lon = startPoint.longitude;
     
-    // Construct Google Maps URL (works on both Android and iOS if app installed)
     const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
-    
-    // Fallback for iOS Apple Maps
     const appleUrl = `http://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`;
 
     Linking.canOpenURL(url).then(supported => {
@@ -477,6 +462,17 @@ export default function MapNavigationScreen({ route, navigation }) {
 
   const geom = liveTask.geom_json ? (typeof liveTask.geom_json === 'string' ? JSON.parse(liveTask.geom_json) : liveTask.geom_json) : null;
   const isArea = geom ? (geom.type === 'Polygon' || geom.type === 'MultiPolygon') : (liveTask.task_type === 'area');
+
+  const getStatusBadgeColors = (status) => {
+    switch (status) {
+      case 'approved': return { bg: Colors.successBg, text: Colors.successText };
+      case 'submitted': return { bg: Colors.warningBg, text: Colors.warningText };
+      case 'in_progress': return { bg: Colors.infoBg, text: Colors.infoText };
+      default: return { bg: Colors.errorBg, text: Colors.errorText };
+    }
+  };
+
+  const badgeColors = getStatusBadgeColors(liveTask.status);
 
   return (
     <View style={styles.container}>
@@ -543,124 +539,156 @@ export default function MapNavigationScreen({ route, navigation }) {
            return null;
         })}
 
-                          {isArea && mappedPoints.length > 0 && (
-            <Polygon 
-              key={`task-poly-${liveTask.id}-${mappedPoints.length}`}
-              coordinates={mappedPoints} 
-              fillColor={
-                liveTask.status === 'approved' ? 'rgba(46, 125, 50, 0.25)' :
-                (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? 'rgba(255, 214, 0, 0.25)' :
-                'rgba(211, 47, 47, 0.25)'
-              } 
-              strokeColor={
-                liveTask.status === 'approved' ? '#2E7D32' :
-                (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? '#FFD600' :
-                '#D32F2F'
-              }
-              strokeWidth={2}
-              zIndex={20}
-            />
-          )}
+        {isArea && mappedPoints.length > 0 && (
+          <Polygon 
+            key={`task-poly-${liveTask.id}-${mappedPoints.length}`}
+            coordinates={mappedPoints} 
+            fillColor={
+              liveTask.status === 'approved' ? 'rgba(16, 185, 129, 0.25)' :
+              (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? 'rgba(245, 158, 11, 0.25)' :
+              'rgba(239, 68, 68, 0.25)'
+            } 
+            strokeColor={
+              liveTask.status === 'approved' ? Colors.success :
+              (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? Colors.warning :
+              Colors.accent
+            }
+            strokeWidth={2.5}
+            zIndex={20}
+          />
+        )}
 
-          {!isArea && mappedPoints.length > 0 && (
-            <Polyline 
-              key={`task-line-${liveTask.id}`}
-              coordinates={mappedPoints} 
-              strokeColor={
-                liveTask.status === 'approved' ? '#2E7D32' :
-                (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? '#FFD600' :
-                '#D32F2F'
-              } 
-              strokeWidth={3.5} 
-              zIndex={20} 
-            />
-          )}
+        {!isArea && mappedPoints.length > 0 && (
+          <Polyline 
+            key={`task-line-${liveTask.id}`}
+            coordinates={mappedPoints} 
+            strokeColor={
+              liveTask.status === 'approved' ? Colors.success :
+              (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? Colors.warning :
+              Colors.accent
+            } 
+            strokeWidth={4.5} 
+            zIndex={20} 
+          />
+        )}
 
-         {mappedPoints.length > 0 && (
-            <Marker 
-              key="start-pin"
-              coordinate={mappedPoints[0]} 
-              title="Start Point" 
-              description="Start cleaning here"
-              pinColor="red" 
-              zIndex={22} 
-            />
-         )}
+        {mappedPoints.length > 0 && (
+          <Marker 
+            key="start-pin"
+            coordinate={mappedPoints[0]} 
+            title="Start Point" 
+            description="Start cleaning here"
+            pinColor="red" 
+            zIndex={22} 
+          />
+        )}
 
-         {mappedPoints.length > 0 && (
-            <Marker 
-              key="end-pin"
-              coordinate={mappedPoints[mappedPoints.length - 1]} 
-              title="End Point" 
-              description="End cleaning here"
-              pinColor="green" 
-              zIndex={22} 
-            />
-         )}
+        {mappedPoints.length > 0 && (
+          <Marker 
+            key="end-pin"
+            coordinate={mappedPoints[mappedPoints.length - 1]} 
+            title="End Point" 
+            description="End cleaning here"
+            pinColor="green" 
+            zIndex={22} 
+          />
+        )}
       </MapView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, Colors.shadowHigh]}>
         <View style={styles.infoRow}>
            <View style={{ flex: 1 }}>
              <Text style={styles.title}>{liveTask.title}</Text>
-             {liveTask.line_id ? <Text style={styles.metaText}>🔗 Line ID: {liveTask.line_id}</Text> : null}
-             {liveTask.rd_name ? <Text style={styles.metaText}>🛣️ Road Name: {liveTask.rd_name}</Text> : null}
-             <Text style={styles.ward}>{liveTask.ward_name || 'Ward Area'}</Text>
+             <View style={styles.metaBadgeRow}>
+               {liveTask.line_id ? (
+                 <View style={styles.metaBadge}>
+                   <Text style={styles.metaBadgeText}>🔗 ID: {liveTask.line_id}</Text>
+                 </View>
+               ) : null}
+               {liveTask.rd_name ? (
+                 <View style={styles.metaBadge}>
+                   <Text style={styles.metaBadgeText}>🛣️ Road: {liveTask.rd_name}</Text>
+                 </View>
+               ) : null}
+               <View style={[styles.metaBadge, { backgroundColor: '#F1F5F9' }]}>
+                 <Text style={[styles.metaBadgeText, { color: Colors.textSecondary }]}>
+                   📍 {liveTask.ward_name || 'Ward Area'}
+                 </Text>
+               </View>
+             </View>
            </View>
-           <View style={[styles.badge, { backgroundColor: liveTask.status === 'in_progress' ? '#FFC107' : '#E0E0E0' }]}>
-             <Text style={styles.badgeText}>{liveTask.status.replace('_', ' ').toUpperCase()}</Text>
+           <View style={[styles.statusBadge, { backgroundColor: badgeColors.bg }]}>
+             <Text style={[styles.statusText, { color: badgeColors.text }]}>
+               {liveTask.status.replace('_', ' ').toUpperCase()}
+             </Text>
            </View>
         </View>
 
         {liveTask.status === 'pending' && (
-           <>
-             <TouchableOpacity style={[styles.qrBtn, { backgroundColor: '#FF5722', marginBottom: 10 }]} onPress={handleNavigateToStart}>
-                <Text style={styles.btnText}>📍 Navigate to Start Point</Text>
+           <View style={styles.actionContainer}>
+             <TouchableOpacity style={[styles.navBtn, Colors.shadowLow]} onPress={handleNavigateToStart} activeOpacity={0.8}>
+                <Ionicons name="location-outline" size={18} color={Colors.white} />
+                <Text style={styles.btnText}>Navigate to Start</Text>
              </TouchableOpacity>
              <SwipeButton 
                 title="Swipe to Start Task"
-                color="#3F51B5"
+                color={Colors.primary}
                 onSwipeComplete={() => handleSwipeStatus('start')}
               />
-           </>
+           </View>
         )}
 
         {liveTask.status === 'in_progress' && (
-           <>
-             <TouchableOpacity style={[styles.qrBtn, { backgroundColor: '#FF5722', marginBottom: 10 }]} onPress={handleNavigateToStart}>
-                <Text style={styles.btnText}>📍 Re-Navigate to Start</Text>
+           <View style={styles.actionContainer}>
+             <TouchableOpacity style={[styles.navBtn, { backgroundColor: '#E2E8F0', borderOpacity: 0.1 }, Colors.shadowLow]} onPress={handleNavigateToStart} activeOpacity={0.8}>
+                <Ionicons name="location-outline" size={18} color={Colors.text} />
+                <Text style={[styles.btnText, { color: Colors.text }]}>Re-Navigate to Start</Text>
              </TouchableOpacity>
-                                         <TouchableOpacity 
-                style={[
-                  styles.actionBtn, 
-                  { 
-                    backgroundColor: photos.length > 0 ? '#009688' : '#9E9E9E',
-                    paddingVertical: 12,
-                    marginBottom: 10
-                  }
-                ]}
-                disabled={photos.length === 0}
-                onPress={() => handleSwipeStatus('complete')}
-              >
-                <Text style={styles.btnText}>
-                  {photos.length > 0 ? "✅ Complete Task" : "🔒 Upload Photo to Unlock Complete"}
-                </Text>
-              </TouchableOpacity>
-             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#007bff', marginTop: 10 }]} onPress={() => navigation.navigate('CapturePhoto', { task: liveTask })}>
-                <Text style={styles.btnText}>📷 Upload Photo Proof</Text>
-             </TouchableOpacity>
-           </>
+             
+             <View style={styles.actionButtonsRow}>
+               <TouchableOpacity 
+                 style={[styles.cameraBtn, Colors.shadowLow]} 
+                 onPress={() => navigation.navigate('CapturePhoto', { task: liveTask })}
+                 activeOpacity={0.8}
+               >
+                  <Ionicons name="camera-outline" size={18} color={Colors.white} />
+                  <Text style={styles.btnText}>Photo Proof</Text>
+               </TouchableOpacity>
+
+               <TouchableOpacity 
+                  style={[
+                    styles.completeBtn, 
+                    photos.length === 0 && styles.completeBtnDisabled,
+                    Colors.shadowLow
+                  ]}
+                  disabled={photos.length === 0}
+                  onPress={() => handleSwipeStatus('complete')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={18} color={Colors.white} />
+                  <Text style={styles.btnText}>
+                    {photos.length > 0 ? "Complete Task" : "Locked (Need Photo)"}
+                  </Text>
+               </TouchableOpacity>
+             </View>
+           </View>
         )}
 
         {liveTask.status === 'submitted' && (
-           <View style={styles.submittedBox}>
-              <Text style={styles.submittedText}>⏳ Task Submitted. Pending Supervisor Approval.</Text>
+           <View style={[styles.statusMessageBox, { backgroundColor: Colors.warningBg, borderColor: Colors.warning }]}>
+              <Ionicons name="time-outline" size={20} color={Colors.warningText} />
+              <Text style={[styles.statusMessageText, { color: Colors.warningText }]}>
+                Submitted. Pending Supervisor Approval.
+              </Text>
            </View>
         )}
         
         {liveTask.status === 'approved' && (
-           <View style={styles.approvedBox}>
-              <Text style={styles.approvedText}>✅ Task Completed & Approved</Text>
+           <View style={[styles.statusMessageBox, { backgroundColor: Colors.successBg, borderColor: Colors.success }]}>
+              <Ionicons name="checkmark-done-circle" size={20} color={Colors.successText} />
+              <Text style={[styles.statusMessageText, { color: Colors.successText }]}>
+                Task Completed & Approved! Excellent work.
+              </Text>
            </View>
         )}
       </View>
@@ -671,36 +699,88 @@ export default function MapNavigationScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
+  loadingText: { marginTop: 10, color: Colors.textSecondary, fontWeight: '600' },
   footer: { 
-    paddingHorizontal: 15, 
-    paddingTop: 10, 
-    paddingBottom: Platform.OS === 'ios' ? 30 : 50, 
-    backgroundColor: '#fff', 
-    borderTopLeftRadius: 20, 
-    borderTopRightRadius: 20, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: -2 }, 
-    shadowOpacity: 0.1, 
-    shadowRadius: 8, 
-    elevation: 5 
+    paddingHorizontal: 20, 
+    paddingTop: 16, 
+    paddingBottom: Platform.OS === 'ios' ? 30 : 24, 
+    backgroundColor: Colors.card, 
+    borderTopLeftRadius: Colors.radiusLarge, 
+    borderTopRightRadius: Colors.radiusLarge, 
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  title: { fontSize: 16, fontWeight: 'bold', color: '#333' },
-  metaText: { fontSize: 11, color: '#666', marginTop: 1, fontWeight: '600' },
-  ward: { color: '#666', fontSize: 11 },
-  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  badgeText: { fontSize: 10, fontWeight: 'bold' },
-  qrBtn: { backgroundColor: '#3F51B5', padding: 10, borderRadius: 8, alignItems: 'center', marginBottom: 6 },
-  actionBtn: { backgroundColor: '#28a745', padding: 10, borderRadius: 8, alignItems: 'center' },
-  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
-  approvedBox: { backgroundColor: '#E8F5E9', padding: 10, borderRadius: 8, alignItems: 'center' },
-  approvedText: { color: '#2E7D32', fontWeight: 'bold', fontSize: 13 },
-  submittedBox: { backgroundColor: '#FFFDE7', padding: 10, borderRadius: 8, alignItems: 'center' },
-  submittedText: { color: '#F57F17', fontWeight: 'bold', fontSize: 13 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15 },
+  title: { fontSize: 18, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  
+  metaBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 6, marginHorizontal: -2 },
+  metaBadge: { 
+    backgroundColor: `${Colors.primary}08`, 
+    paddingHorizontal: 8, 
+    paddingVertical: 3, 
+    borderRadius: 6, 
+    marginHorizontal: 2,
+    marginVertical: 2,
+    borderWidth: 0.5,
+    borderColor: `${Colors.primary}20`,
+  },
+  metaBadgeText: { fontSize: 11, color: Colors.primary, fontWeight: '700' },
+
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.2 },
+  
+  actionContainer: { marginTop: 5 },
+  navBtn: { 
+    backgroundColor: '#FF6B35', 
+    paddingVertical: 12, 
+    borderRadius: 12, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginBottom: 10 
+  },
+  btnText: { color: Colors.white, fontWeight: '700', fontSize: 14, marginLeft: 6 },
+  
+  actionButtonsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
+  cameraBtn: { 
+    backgroundColor: Colors.blue, 
+    flex: 1, 
+    paddingVertical: 12, 
+    borderRadius: 12, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginRight: 6 
+  },
+  completeBtn: { 
+    backgroundColor: Colors.success, 
+    flex: 1.3, 
+    paddingVertical: 12, 
+    borderRadius: 12, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginLeft: 6 
+  },
+  completeBtnDisabled: { 
+    backgroundColor: Colors.placeholder, 
+  },
+
+  statusMessageBox: { 
+    flexDirection: 'row',
+    alignItems: 'center', 
+    justifyContent: 'center',
+    padding: 14, 
+    borderRadius: 12, 
+    borderWidth: 1,
+    marginTop: 5,
+  },
+  statusMessageText: { fontWeight: '700', fontSize: 13, marginLeft: 8 },
+
   swipeContainer: {
-    height: 42,
-    borderRadius: 21,
+    height: 50,
+    borderRadius: 25,
     borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
@@ -713,24 +793,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
-    width: 42,
-    height: 40,
-    borderRadius: 20,
+    width: 50,
+    height: 47,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 2,
-  },
-  swipeHandleText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   swipeText: {
     fontSize: 13,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   }
 });

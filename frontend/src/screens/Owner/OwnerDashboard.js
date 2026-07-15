@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Polyline, Polygon } from '../../components/MapViewWrapper';
 import api from '../../api/axios';
@@ -173,28 +173,23 @@ export default function OwnerDashboard({ navigation }) {
       setLoading(true);
     }
     try {
-      console.log('Fetching tasks from /tasks in OwnerDashboard...');
       const response = await api.get('/tasks');
-      console.log('Received tasks length:', response.data?.length);
       setTasks(response.data || []);
 
-      // Fetch supervisor's wards & roads only if not already loaded
       let infraData = infrastructure;
       if (infrastructure.length === 0) {
-        console.log('Fetching supervisor infrastructure...');
         const infraResponse = await api.get('/infrastructure?limit=1500');
         infraData = infraResponse.data || [];
         setInfrastructure(infraData);
       }
 
-      // Auto-center map around supervisor's wards (only on first load)
       const wardFeatures = infraData.filter(item => item.type === 'ward');
       if (wardFeatures.length > 0 && !hasCenteredMapRef.current) {
         animateToWards(wardFeatures);
         hasCenteredMapRef.current = true;
       }
     } catch (error) {
-      console.warn('Error fetching dashboard data:', error.response ? error.response.data : error.message);
+      console.warn('Error fetching dashboard data:', error.message);
     } finally {
       setLoading(false);
     }
@@ -206,8 +201,6 @@ export default function OwnerDashboard({ navigation }) {
     }
   }, [isFocused]);
 
-
-
   const handleDeleteAll = async () => {
     Alert.alert(
       "🧨 DANGER AREA",
@@ -215,16 +208,16 @@ export default function OwnerDashboard({ navigation }) {
       [
         { text: "Cancel", style: "cancel" },
         { 
-          text: "YES, DELETE EVERYTHING", 
+          text: "YES, PURGE EVERYTHING", 
           style: "destructive",
           onPress: () => {
             Alert.alert(
               "Final Confirmation",
-              "Type 'DELETE' is not possible here, but are you absolutely 100% sure?",
+              "Are you absolutely sure you want to delete all tasks?",
               [
-                { text: "Stop", style: "cancel" },
+                { text: "Cancel", style: "cancel" },
                 {
-                  text: "PROCEED WITH PURGE",
+                  text: "PURGE ALL",
                   style: "destructive",
                   onPress: async () => {
                     try {
@@ -248,10 +241,8 @@ export default function OwnerDashboard({ navigation }) {
     const filteredInfra = getFilteredInfrastructure();
     const filteredRoads = filteredInfra.filter(item => item.type === 'road');
 
-    // Filter database tasks by selected ward
     const filteredDbTasks = tasks.filter(t => {
       if (!selectedWardFilter) return true;
-      // Look up this task's road in the main infrastructure list to see if its Ward matches
       const road = infrastructure.find(r => {
         if (r.type !== 'road') return false;
         const props = r.properties || {};
@@ -308,56 +299,88 @@ export default function OwnerDashboard({ navigation }) {
     return { completed, active, pending };
   };
 
-  const renderTask = ({ item }) => (
-    <View style={styles.taskCard}>
-      <TouchableOpacity
-        style={styles.taskCardMain}
-        onPress={() => navigation.navigate('TaskDetails', { taskId: item.id })}
-      >
-        <View style={styles.cardHeader}>
-          <Text style={styles.taskTitle}>{item.title}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-            <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
-          </View>
-        </View>
-
-        {/* Render Line ID and Road Name if they exist */}
-        {(item.line_id || item.rd_name) ? (
-          <View style={styles.metaRow}>
-            {item.line_id ? <Text style={styles.metaText}>🔗 Line ID: {item.line_id}</Text> : null}
-            {item.rd_name ? <Text style={styles.metaText}>🛣️ Road Name: {item.rd_name}</Text> : null}
-          </View>
-        ) : null}
-
-        <View style={styles.cardFooter}>
-          <Text style={styles.workerName}>Worker: {item.worker_name || 'Unassigned'}</Text>
-          <Text style={styles.viewDetails}>View Details →</Text>
-        </View>
-      </TouchableOpacity>
-      
-
-    </View>
-  );
-
-  const getStatusColor = (status) => {
+  const getBadgeStyle = (status) => {
     switch (status) {
-      case 'pending': return '#D32F2F'; // Red
-      case 'submitted': return '#FFD600'; // Yellow
-      case 'approved': return '#2E7D32'; // Green
-      case 'rejected': return '#D32F2F'; // Red
-      default: return Colors.textSecondary;
+      case 'approved': return { bg: Colors.successBg, text: Colors.successText };
+      case 'submitted':
+      case 'in_progress':
+        return { bg: Colors.warningBg, text: Colors.warningText };
+      default: return { bg: Colors.errorBg, text: Colors.errorText };
     }
+  };
+
+  const getUserInitials = (name) => {
+    if (!name) return 'SI';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const renderTask = ({ item }) => {
+    const badge = getBadgeStyle(item.status);
+    return (
+      <View style={[styles.taskCard, Colors.shadowLow]}>
+        <TouchableOpacity
+          style={styles.taskCardMain}
+          onPress={() => navigation.navigate('TaskDetails', { taskId: item.id })}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardHeader}>
+            <Text style={styles.taskTitle}>{item.title}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
+              <Text style={[styles.statusText, { color: badge.text }]}>
+                {item.status.replace('_', ' ').toUpperCase()}
+              </Text>
+            </View>
+          </View>
+
+          {(item.line_id || item.rd_name) ? (
+            <View style={styles.metaRow}>
+              {item.line_id ? (
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>🔗 Line: {item.line_id}</Text>
+                </View>
+              ) : null}
+              {item.rd_name ? (
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>🛣️ Road: {item.rd_name}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          <View style={styles.cardFooter}>
+            <View style={styles.workerContainer}>
+              <Ionicons name="construct-outline" size={14} color={Colors.textSecondary} />
+              <Text style={styles.workerName}>Jawan: {item.worker_name || 'Unassigned'}</Text>
+            </View>
+            <Text style={styles.viewDetails}>View Details ➔</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   return (
     <View style={styles.container}>
       <Header small={true} />
-      <View style={styles.titleSection}>
-        <View>
-          <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
-          <Text style={styles.subText}>{tasks.length} Assigned / {getCombinedTasks().length} Total Road Segments</Text>
+      
+      <View style={[styles.titleSection, Colors.shadowLow]}>
+        <View style={styles.profileRow}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{getUserInitials(user?.name)}</Text>
+          </View>
+          <View style={styles.profileText}>
+            <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
+            <Text style={styles.subText}>
+              🛡️ Inspector • {tasks.length} Assigned / {getCombinedTasks().length} Road Segments
+            </Text>
+          </View>
         </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+        <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
+          <Ionicons name="log-out-outline" size={16} color={Colors.accent} />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
       </View>
@@ -365,18 +388,21 @@ export default function OwnerDashboard({ navigation }) {
       {user?.role !== 'supervisor' && (
         <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={styles.createButton}
+            style={[styles.createButton, Colors.shadowLow]}
             onPress={() => navigation.navigate('MapTaskCreation')}
+            activeOpacity={0.8}
           >
-            <Text style={styles.createButtonText}>+ CREATE TASK</Text>
+            <Ionicons name="add-circle-outline" size={20} color={Colors.white} />
+            <Text style={styles.createButtonText}>CREATE ROAD TASK</Text>
           </TouchableOpacity>
 
           {tasks.length > 0 && (
             <TouchableOpacity
-              style={styles.deleteAllBtn}
+              style={[styles.deleteAllBtn, Colors.shadowLow]}
               onPress={handleDeleteAll}
+              activeOpacity={0.8}
             >
-              <Ionicons name="flash" size={20} color="#fff" />
+              <Ionicons name="trash-outline" size={18} color={Colors.white} />
               <Text style={styles.deleteAllText}>PURGE ALL</Text>
             </TouchableOpacity>
           )}
@@ -384,21 +410,24 @@ export default function OwnerDashboard({ navigation }) {
       )}
 
       {loading ? (
-        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 30 }} />
       ) : (
         <>
           {/* Stats Summary Cards Row */}
           <View style={styles.statsContainer}>
-            <View style={[styles.statBox, { backgroundColor: '#E8F5E9' }]}>
-              <Text style={[styles.statVal, { color: '#2E7D32' }]}>{getRoadStats().completed}</Text>
+            <View style={[styles.statBox, { backgroundColor: Colors.successBg }, Colors.shadowLow]}>
+              <Ionicons name="checkbox-outline" size={18} color={Colors.success} />
+              <Text style={[styles.statVal, { color: Colors.success }]}>{getRoadStats().completed}</Text>
               <Text style={styles.statLabel}>Cleaned</Text>
             </View>
-            <View style={[styles.statBox, { backgroundColor: '#FFFDE7' }]}>
-              <Text style={[styles.statVal, { color: '#FBC02D' }]}>{getRoadStats().active}</Text>
+            <View style={[styles.statBox, { backgroundColor: Colors.warningBg }, Colors.shadowLow]}>
+              <Ionicons name="hourglass-outline" size={18} color={Colors.warning} />
+              <Text style={[styles.statVal, { color: Colors.warning }]}>{getRoadStats().active}</Text>
               <Text style={styles.statLabel}>Active</Text>
             </View>
-            <View style={[styles.statBox, { backgroundColor: '#FFEBEE' }]}>
-              <Text style={[styles.statVal, { color: '#C62828' }]}>{getRoadStats().pending}</Text>
+            <View style={[styles.statBox, { backgroundColor: Colors.errorBg }, Colors.shadowLow]}>
+              <Ionicons name="alert-circle-outline" size={18} color={Colors.accent} />
+              <Text style={[styles.statVal, { color: Colors.accent }]}>{getRoadStats().pending}</Text>
               <Text style={styles.statLabel}>Pending</Text>
             </View>
           </View>
@@ -417,6 +446,7 @@ export default function OwnerDashboard({ navigation }) {
                     selectedWardFilter === null && styles.filterChipActive
                   ]}
                   onPress={() => handleWardSelect(null)}
+                  activeOpacity={0.8}
                 >
                   <Text
                     style={[
@@ -436,6 +466,7 @@ export default function OwnerDashboard({ navigation }) {
                       selectedWardFilter === wardNo && styles.filterChipActive
                     ]}
                     onPress={() => handleWardSelect(wardNo)}
+                    activeOpacity={0.8}
                   >
                     <Text
                       style={[
@@ -451,77 +482,76 @@ export default function OwnerDashboard({ navigation }) {
             </View>
           )}
 
-          <View style={styles.mapWrapper}>
-            <MapView
-              ref={mapRef}
-              style={styles.map}
-              mapType="satellite"
-              initialRegion={region}
-            >
-              {/* Draw Wards Assigned to Supervisor */}
-              {getFilteredInfrastructure().filter(item => item.type === 'ward').map(ward => {
-                if (!ward.geom_json) return null;
-                const geom = JSON.parse(ward.geom_json);
-                if (!geom.coordinates || !geom.coordinates[0]) return null;
-                return (
-                  <Polygon
-                    key={`ward-${ward.id}`}
-                    coordinates={geom.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }))}
-                    fillColor="rgba(255, 255, 255, 0.03)"
-                    strokeColor="#FFFFFF"
-                    strokeWidth={2}
-                  />
-                );
-              })}
+          <View style={styles.mapContainer}>
+            <View style={[styles.mapWrapper, Colors.shadowMedium]}>
+              <MapView
+                ref={mapRef}
+                style={styles.map}
+                mapType="satellite"
+                initialRegion={region}
+              >
+                {/* Draw Wards Assigned to Supervisor */}
+                {getFilteredInfrastructure().filter(item => item.type === 'ward').map(ward => {
+                  if (!ward.geom_json) return null;
+                  const geom = JSON.parse(ward.geom_json);
+                  if (!geom.coordinates || !geom.coordinates[0]) return null;
+                  return (
+                    <Polygon
+                      key={`ward-${ward.id}`}
+                      coordinates={geom.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }))}
+                      fillColor="rgba(255, 255, 255, 0.03)"
+                      strokeColor="#FFFFFF"
+                      strokeWidth={2}
+                    />
+                  );
+                })}
 
-              {/* Draw Roads Colored by Task Status */}
-              {getFilteredInfrastructure().filter(item => item.type === 'road').map(road => {
-                if (!road.geom_json) return null;
-                
-                let geom;
-                try {
-                  geom = typeof road.geom_json === 'string' ? JSON.parse(road.geom_json) : road.geom_json;
-                } catch (e) {
-                  return null;
-                }
-                if (!geom || (geom.type !== 'LineString' && geom.type !== 'MultiLineString')) return null;
-
-                const props = road.properties || {};
-                const lineId = props.Line_ID || props.line_id;
-                const rdName = props.Rd_Name || props.rd_name || road.name;
-                
-                // Find matching task for status coloring using Line ID strictly
-                const matchingTask = tasks.find(t => 
-                  lineId && t.line_id === lineId.toString()
-                );
-
-                // Status coloring: green for approved, yellow for submitted/active, red for pending/unstarted
-                let roadColor = '#D32F2F'; // Default: Pending/Unstarted (Red)
-                if (matchingTask) {
-                  if (matchingTask.status === 'approved') {
-                    roadColor = '#2E7D32'; // Completed (Green)
-                  } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
-                    roadColor = '#FFD600'; // Active/Submitted (Yellow)
+                {/* Draw Roads Colored by Task Status */}
+                {getFilteredInfrastructure().filter(item => item.type === 'road').map(road => {
+                  if (!road.geom_json) return null;
+                  
+                  let geom;
+                  try {
+                    geom = typeof road.geom_json === 'string' ? JSON.parse(road.geom_json) : road.geom_json;
+                  } catch (e) {
+                    return null;
                   }
-                }
+                  if (!geom || (geom.type !== 'LineString' && geom.type !== 'MultiLineString')) return null;
 
-                return (
-                  <MemoizedRoad
-                    key={`road-${road.id}`}
-                    geom={geom}
-                    color={roadColor}
-                    strokeWidth={matchingTask ? 3.5 : 1.5}
-                    onPress={() => {
-                      if (matchingTask) {
-                        navigation.navigate('TaskDetails', { taskId: matchingTask.id });
-                      } else {
-                        navigation.navigate('TaskDetails', { taskId: `virtual-${road.id}` });
-                      }
-                    }}
-                  />
-                );
-              })}
-            </MapView>
+                  const props = road.properties || {};
+                  const lineId = props.Line_ID || props.line_id;
+                  
+                  const matchingTask = tasks.find(t => 
+                    lineId && t.line_id === lineId.toString()
+                  );
+
+                  let roadColor = Colors.accent; // Default: Pending (Red)
+                  if (matchingTask) {
+                    if (matchingTask.status === 'approved') {
+                      roadColor = Colors.success; // Completed (Green)
+                    } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
+                      roadColor = Colors.warning; // Active/Submitted (Yellow)
+                    }
+                  }
+
+                  return (
+                    <MemoizedRoad
+                      key={`road-${road.id}`}
+                      geom={geom}
+                      color={roadColor}
+                      strokeWidth={matchingTask ? 3.5 : 1.5}
+                      onPress={() => {
+                        if (matchingTask) {
+                          navigation.navigate('TaskDetails', { taskId: matchingTask.id });
+                        } else {
+                          navigation.navigate('TaskDetails', { taskId: `virtual-${road.id}` });
+                        }
+                      }}
+                    />
+                  );
+                })}
+              </MapView>
+            </View>
           </View>
 
           <FlatList
@@ -531,7 +561,8 @@ export default function OwnerDashboard({ navigation }) {
             contentContainerStyle={styles.listContainer}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No tasks found</Text>
+                <Ionicons name="file-tray-outline" size={40} color={Colors.textSecondary} />
+                <Text style={styles.emptyText}>No tasks found in this area</Text>
               </View>
             }
           />
@@ -546,167 +577,188 @@ const styles = StyleSheet.create({
   titleSection: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
-    paddingHorizontal: 15, 
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
+    alignItems: 'center',
+    backgroundColor: Colors.card,
+    borderBottomWidth: 1,
+    borderColor: Colors.border,
+  },
+  profileRow: { flexDirection: 'row', alignItems: 'center' },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: `${Colors.primary}12`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}30`,
+  },
+  avatarText: { color: Colors.primary, fontWeight: '700', fontSize: 16 },
+  profileText: { justifyContent: 'center' },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  subText: { fontSize: 11, color: Colors.textSecondary, marginTop: 2, fontWeight: '600' },
+  logoutButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
     paddingVertical: 6, 
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    marginBottom: 5
+    paddingHorizontal: 12, 
+    borderRadius: 10, 
+    borderWidth: 1, 
+    borderColor: `${Colors.accent}30`,
+    backgroundColor: `${Colors.accent}08`
   },
-  headerTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.primary },
-  logoutButton: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: Colors.accent },
-  logoutText: { color: Colors.accent, fontWeight: '600', fontSize: 12 },
-  subText: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
-  buttonRow: { flexDirection: 'row', paddingHorizontal: 15, marginBottom: 8 },
+  logoutText: { color: Colors.accent, fontWeight: '700', fontSize: 11, marginLeft: 4 },
+  
+  buttonRow: { flexDirection: 'row', paddingHorizontal: 15, marginVertical: 10 },
   createButton: { 
-    flex: 2,
+    flex: 2.2,
     backgroundColor: Colors.primary, 
-    padding: 12, 
-    borderRadius: 8, 
+    padding: 14, 
+    borderRadius: 12, 
     alignItems: 'center',
-    marginRight: 10,
-    elevation: 4,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    justifyContent: 'center',
+    marginRight: 8,
+    flexDirection: 'row',
   },
+  createButtonText: { color: Colors.white, fontSize: 13, fontWeight: '700', letterSpacing: 0.5, marginLeft: 6 },
   deleteAllBtn: {
     flex: 1,
-    backgroundColor: '#D32F2F',
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: Colors.accent,
+    padding: 14,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    elevation: 4,
-    shadowColor: '#D32F2F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
   },
-  deleteAllText: { color: Colors.white, fontSize: 12, fontWeight: 'bold', marginLeft: 5 },
-  createButtonText: { color: Colors.white, fontSize: 14, fontWeight: 'bold', letterSpacing: 1 },
-  listContainer: { paddingBottom: 20 },
+  deleteAllText: { color: Colors.white, fontSize: 13, fontWeight: '700', marginLeft: 4 },
+  
+  listContainer: { paddingBottom: 30, paddingHorizontal: 5 },
   taskCard: { 
-    backgroundColor: Colors.white, 
+    backgroundColor: Colors.card, 
     marginHorizontal: 15, 
-    marginBottom: 8, 
-    borderRadius: 10, 
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    marginBottom: 10, 
+    borderRadius: Colors.radiusMedium, 
+    borderWidth: 1,
+    borderColor: Colors.border,
     overflow: 'hidden'
   },
-  taskCardMain: { padding: 10 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  taskTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.text, flex: 1, marginRight: 10 },
-  statusBadge: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 4 },
-  statusText: { color: Colors.white, fontSize: 9, fontWeight: 'bold' },
+  taskCardMain: { padding: 16 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
+  taskTitle: { fontSize: 15, fontWeight: '800', color: Colors.text, flex: 1, marginRight: 10, letterSpacing: -0.1, lineHeight: 20 },
+  statusBadge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8 },
+  statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.2 },
+  
   metaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 4,
-    marginTop: -4,
+    marginBottom: 10,
+    marginHorizontal: -2,
   },
-  metaText: {
+  metaChip: {
+    backgroundColor: Colors.background,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginHorizontal: 2,
+    marginVertical: 2,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+  },
+  metaChipText: {
     fontSize: 11,
-    color: '#666',
-    marginRight: 15,
-    fontWeight: '600',
+    color: Colors.textSecondary,
+    fontWeight: '700',
   },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 6 },
-  workerName: { color: Colors.textSecondary, fontSize: 12 },
-  viewDetails: { color: Colors.primary, fontWeight: '600', fontSize: 12 },
-  actionRow: { 
+
+  cardFooter: { 
     flexDirection: 'row', 
-    borderTopWidth: 1, 
-    borderTopColor: '#F0F0F0',
-    backgroundColor: '#FAFAFA',
-    padding: 8
-  },
-  actionBtn: { 
-    flex: 1, 
-    flexDirection: 'row', 
+    justifyContent: 'space-between', 
     alignItems: 'center', 
-    justifyContent: 'center',
-    paddingVertical: 5
+    borderTopWidth: 1, 
+    borderTopColor: Colors.border, 
+    paddingTop: 12,
+    marginTop: 2,
   },
-  actionText: { marginLeft: 8, fontSize: 14, fontWeight: '600', color: Colors.primary },
-  emptyContainer: { alignItems: 'center', marginTop: 50 },
-  emptyText: { color: Colors.textSecondary, fontSize: 16 },
+  workerContainer: { flexDirection: 'row', alignItems: 'center' },
+  workerName: { color: Colors.textSecondary, fontSize: 13, fontWeight: '600', marginLeft: 4 },
+  viewDetails: { color: Colors.primary, fontWeight: '700', fontSize: 13 },
+  
+  emptyContainer: { alignItems: 'center', marginTop: 40, padding: 20 },
+  emptyText: { color: Colors.textSecondary, fontSize: 15, fontWeight: '700', marginTop: 10 },
+  
+  mapContainer: {
+    paddingHorizontal: 15,
+    marginBottom: 12,
+  },
   mapWrapper: {
-    height: 280,
-    marginHorizontal: 15,
-    marginBottom: 8,
-    borderRadius: 15,
+    height: 250,
+    borderRadius: Colors.radiusMedium,
     overflow: 'hidden',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   map: {
     ...StyleSheet.absoluteFillObject,
   },
+  
   filterContainer: {
-    marginBottom: 5,
+    marginBottom: 10,
   },
   filterScroll: {
     paddingHorizontal: 15,
-    paddingVertical: 3,
+    paddingVertical: 4,
     alignItems: 'center',
   },
   filterChip: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 15,
-    backgroundColor: '#ECEFF1',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: Colors.card,
     marginRight: 8,
     borderWidth: 1,
-    borderColor: '#CFD8DC',
+    borderColor: Colors.border,
   },
   filterChipActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
   filterChipText: {
-    color: '#455A64',
-    fontWeight: '600',
+    color: Colors.textSecondary,
+    fontWeight: '700',
     fontSize: 12,
   },
   filterChipTextActive: {
     color: Colors.white,
   },
+  
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 15,
-    marginBottom: 8,
+    marginVertical: 12,
   },
   statBox: {
     flex: 1,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingVertical: 10,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 4,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   statVal: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 4,
   },
   statLabel: {
-    fontSize: 10,
-    color: '#666',
-    fontWeight: '600',
-    marginTop: 0,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    fontWeight: '700',
+    marginTop: 2,
   },
 });

@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicat
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import api from '../../api/axios';
+import Colors from '../../constants/Colors';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function CapturePhotoScreen({ route, navigation }) {
   const { task } = route.params;
@@ -10,7 +12,6 @@ export default function CapturePhotoScreen({ route, navigation }) {
   const [uploading, setUploading] = useState(false);
 
   const takePhoto = async () => {
-    // Request permission
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     if (permissionResult.granted === false) {
       Alert.alert("Permission to access camera is required!");
@@ -27,8 +28,6 @@ export default function CapturePhotoScreen({ route, navigation }) {
     }
   };
 
-
-
   const submitWork = async () => {
     if (!photo) {
       Alert.alert("Error", "Please take a photo first.");
@@ -37,7 +36,6 @@ export default function CapturePhotoScreen({ route, navigation }) {
 
     setUploading(true);
     try {
-      // Get current location strictly at upload time
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Error', 'Location permission is required to verify task completion.');
@@ -46,7 +44,6 @@ export default function CapturePhotoScreen({ route, navigation }) {
       }
       let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
 
-      // Create FormData
       const formData = new FormData();
       formData.append('photo', {
         uri: photo.uri,
@@ -74,38 +71,106 @@ export default function CapturePhotoScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      {photo ? (
-        <Image source={{ uri: photo.uri }} style={styles.preview} />
-      ) : (
-        <View style={styles.placeholder}>
-          <Text>No Photo Captured</Text>
-        </View>
-      )}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Upload Photo Proof</Text>
+        <Text style={styles.headerSubtitle}>Capture clear evidence of the completed road cleanup.</Text>
+      </View>
 
-      <TouchableOpacity style={styles.cameraBtn} onPress={takePhoto}>
-        <Text style={styles.btnText}>📷 Take Photo</Text>
-      </TouchableOpacity>
+      <View style={[styles.previewContainer, Colors.shadowMedium]}>
+        {photo ? (
+          <Image source={{ uri: photo.uri }} style={styles.preview} />
+        ) : (
+          <View style={styles.placeholder}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="camera-outline" size={48} color={Colors.textSecondary} />
+            </View>
+            <Text style={styles.placeholderText}>Camera Ready</Text>
+            <Text style={styles.placeholderSubtext}>Tap the button below to take a picture.</Text>
+          </View>
+        )}
+      </View>
 
-
-
-      {photo && (
-        <TouchableOpacity style={styles.submitBtn} onPress={submitWork} disabled={uploading}>
-          {uploading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.btnText}>Submit Work</Text>
-          )}
+      <View style={styles.buttonRow}>
+        <TouchableOpacity style={[styles.cameraBtn, Colors.shadowLow]} onPress={takePhoto} activeOpacity={0.8}>
+          <Ionicons name="camera" size={20} color={Colors.white} />
+          <Text style={styles.btnText}>Take Photo</Text>
         </TouchableOpacity>
-      )}
+
+        {photo && (
+          <TouchableOpacity 
+            style={[styles.submitBtn, Colors.shadowLow]} 
+            onPress={submitWork} 
+            disabled={uploading}
+            activeOpacity={0.8}
+          >
+            {uploading ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <>
+                <Ionicons name="cloud-upload-outline" size={20} color={Colors.white} />
+                <Text style={styles.btnText}>Upload Proof</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  preview: { width: 300, height: 350, borderRadius: 10, marginBottom: 15 },
-  placeholder: { width: 300, height: 350, backgroundColor: '#eee', borderRadius: 10, marginBottom: 15, justifyContent: 'center', alignItems: 'center' },
-  cameraBtn: { backgroundColor: '#007bff', padding: 15, borderRadius: 10, width: '100%', alignItems: 'center', marginBottom: 10 },
-  submitBtn: { backgroundColor: '#28a745', padding: 15, borderRadius: 10, width: '100%', alignItems: 'center' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
+  container: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.background },
+  header: { alignItems: 'center', marginTop: 20 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  headerSubtitle: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18, paddingHorizontal: 10 },
+  
+  previewContainer: {
+    width: '100%',
+    aspectRatio: 0.85,
+    backgroundColor: Colors.card,
+    borderRadius: Colors.radiusLarge,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  preview: { width: '100%', height: '100%', resizeMode: 'cover' },
+  placeholder: { justifyContent: 'center', alignItems: 'center', padding: 20 },
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+  },
+  placeholderText: { fontSize: 16, fontWeight: '800', color: Colors.text },
+  placeholderSubtext: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 6 },
+
+  buttonRow: { width: '100%', marginBottom: 15 },
+  cameraBtn: { 
+    backgroundColor: Colors.blue, 
+    padding: 16, 
+    borderRadius: 14, 
+    width: '100%', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    flexDirection: 'row',
+    marginBottom: 12 
+  },
+  submitBtn: { 
+    backgroundColor: Colors.success, 
+    padding: 16, 
+    borderRadius: 14, 
+    width: '100%', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  btnText: { color: Colors.white, fontSize: 15, fontWeight: '700', marginLeft: 8 }
 });

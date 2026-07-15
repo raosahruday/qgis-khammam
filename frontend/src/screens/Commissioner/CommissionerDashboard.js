@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Alert, useWindowDimensions } from 'react-native';
-import MapView, { Polygon, Polyline, Marker, Geojson, RoadsLayer } from '../../components/MapViewWrapper';
+import MapView, { Polygon, Polyline, Marker, RoadsLayer } from '../../components/MapViewWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
 import Header from '../../components/Header';
@@ -20,8 +20,8 @@ const MemoizedWards = React.memo(({ wardStats, selectedWardId, onWardPress }) =>
            <Polygon
              key={`ward-${ward.id}`}
              coordinates={geom.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }))}
-             fillColor={isSelected ? "rgba(255, 214, 0, 0.12)" : "rgba(255, 255, 255, 0.05)"}
-             strokeColor={isSelected ? "#FFD600" : "rgba(255, 255, 255, 0.65)"}
+             fillColor={isSelected ? "rgba(255, 214, 0, 0.08)" : "rgba(255, 255, 255, 0.03)"}
+             strokeColor={isSelected ? Colors.warning : "rgba(255, 255, 255, 0.55)"}
              strokeWidth={isSelected ? 2 : 0.75}
              lineDashPattern={isSelected ? null : [10, 10]}
              tappable={true}
@@ -37,8 +37,6 @@ const MemoizedWards = React.memo(({ wardStats, selectedWardId, onWardPress }) =>
 });
 
 // --- Batched road layer: renders all roads of one status as a SINGLE GeoJSON layer ---
-// This prevents the race condition of 4,332+ simultaneous Leaflet useEffect calls
-// that caused most roads to be invisible on production.
 const MemoizedRoadLayers = React.memo(({ pendingRoads, activeRoads, completedRoads, isZoomedOut, onRoadPress }) => {
   const w = isZoomedOut ? 1.0 : 1.75;
   return (
@@ -46,21 +44,21 @@ const MemoizedRoadLayers = React.memo(({ pendingRoads, activeRoads, completedRoa
       {/* Pending roads — Red, lowest priority */}
       <RoadsLayer
         features={pendingRoads}
-        color="#D32F2F"
+        color={Colors.accent}
         weight={w}
         onFeaturePress={onRoadPress}
       />
       {/* Completed roads — Green */}
       <RoadsLayer
         features={completedRoads}
-        color="#2E7D32"
+        color={Colors.success}
         weight={w + 0.5}
         onFeaturePress={onRoadPress}
       />
       {/* Active roads — Yellow, highest priority */}
       <RoadsLayer
         features={activeRoads}
-        color="#FFD600"
+        color={Colors.warning}
         weight={w + 0.75}
         onFeaturePress={onRoadPress}
       />
@@ -89,8 +87,8 @@ const MemoizedRows = React.memo(({ rows, isZoomedOut }) => {
                  <Polygon 
                    key={`infra-poly-${item.id}-${idx}`}
                    coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                   fillColor="rgba(255, 152, 0, 0.15)"
-                   strokeColor="rgba(255, 152, 0, 0.6)"
+                   fillColor="rgba(255, 152, 0, 0.12)"
+                   strokeColor="rgba(255, 152, 0, 0.5)"
                    strokeWidth={1.5}
                    zIndex={5}
                  />
@@ -283,7 +281,6 @@ export default function CommissionerDashboard({ navigation }) {
     longitudeDelta: 0.08,
   });
   const [isZoomedOut, setIsZoomedOut] = useState(true);
-  const debounceTimer = useRef(null);
   const isFetchingRef = useRef(false);
   const isFirstLoad = useRef(true);
   const hasLoadedInfra = useRef(false);
@@ -406,9 +403,6 @@ export default function CommissionerDashboard({ navigation }) {
     }
   };
 
-  // Pre-classify all filtered roads into pending/active/completed buckets.
-  // useMemo ensures this only recalculates when data actually changes,
-  // and the result is passed as stable arrays to MemoizedRoadLayers.
   const { pendingRoads, activeRoads, completedRoads } = useMemo(() => {
     const filteredRoads = getFilteredRoads();
     const taskMap = {};
@@ -430,16 +424,12 @@ export default function CommissionerDashboard({ navigation }) {
       const entry = { geom, properties: props };
 
       if (!task) {
-        // No task assigned — road is pending
         pending.push(entry);
       } else if (task.status === 'approved') {
-        // SI approved — road is cleaned (green)
         completed.push(entry);
       } else if (task.status === 'submitted' || task.status === 'in_progress') {
-        // Jawan submitted / actively working — road is active (yellow)
         active.push(entry);
       } else {
-        // Task exists but status is 'pending' or unknown — still show as pending (red)
         pending.push(entry);
       }
     });
@@ -448,7 +438,6 @@ export default function CommissionerDashboard({ navigation }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [infrastructure, tasks, selectedWardFilter]);
 
-  // Road press handler for map tap info
   const handleRoadPress = (props) => {
     const wardText = props.Ward_No ? `Ward ${props.Ward_No}` : 'Unknown Ward';
     const rdName = props.Rd_Name || props.rd_name || 'Unnamed Road';
@@ -460,17 +449,103 @@ export default function CommissionerDashboard({ navigation }) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text>Loading Municipal Overview...</Text>
+        <Text style={styles.loadingText}>Loading Municipal Overview...</Text>
       </View>
     );
   }
 
-  const getTaskColor = (status) => {
-      switch(status) {
-          case 'approved': return '#2E7D32'; // Green
-          case 'submitted': return '#FFD600'; // Yellow
-          default: return '#D32F2F'; // Red
-      }
+  const renderRegistrationRequests = () => {
+    if (pendingUsers.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="people-outline" size={48} color={Colors.textSecondary} />
+          </View>
+          <Text style={styles.emptyText}>All Caught Up!</Text>
+          <Text style={styles.emptySubtext}>No pending user accounts currently require your approval.</Text>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView contentContainerStyle={styles.registrationsList} showsVerticalScrollIndicator={false}>
+        {pendingUsers.map(u => (
+          <View key={u.id} style={[styles.regCard, Colors.shadowLow]}>
+            <View style={styles.regHeader}>
+              <View>
+                <Text style={styles.regName}>{u.name}</Text>
+                <Text style={styles.regPhone}>{u.phone || 'No mobile listed'}</Text>
+              </View>
+              <View style={[
+                styles.regRoleTag, 
+                { backgroundColor: u.role === 'worker' ? `${Colors.primary}12` : `${Colors.blue}12` }
+              ]}>
+                <Text style={[
+                  styles.regRoleText, 
+                  { color: u.role === 'worker' ? Colors.primary : Colors.blue }
+                ]}>
+                  {u.role === 'worker' ? 'Jawan' : 'Inspector'}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.regDetailRow}>
+              <Ionicons name="grid-outline" size={16} color={Colors.textSecondary} />
+              <Text style={styles.regDetailText}>
+                {u.role === 'worker' ? `Assigned Division: ${u.divisions}` : `Divisions List: ${u.divisions}`}
+              </Text>
+            </View>
+            
+            <View style={styles.regActions}>
+              <TouchableOpacity 
+                style={[styles.regBtn, styles.rejectBtn, Colors.shadowLow]} 
+                onPress={() => handleReject(u.id)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close-circle-outline" size={16} color={Colors.white} />
+                <Text style={styles.regBtnText}>Reject</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.regBtn, styles.approveBtn, Colors.shadowLow]} 
+                onPress={() => handleApprove(u.id)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="checkmark-circle-outline" size={16} color={Colors.white} />
+                <Text style={styles.regBtnText}>Approve</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+    );
+  };
+
+  const renderLargeSidebarStats = () => {
+    const statsValues = getStatsValues();
+    return (
+      <View style={styles.sidebarStatsContainer}>
+          <View style={[styles.sidebarStatBox, { backgroundColor: Colors.successBg }, Colors.shadowLow]}>
+            <Ionicons name="checkbox-outline" size={20} color={Colors.success} />
+            <Text style={[styles.statVal, { color: Colors.success }]}>{statsValues.completed}</Text>
+            <Text style={styles.statLabel}>Cleaned</Text>
+          </View>
+          <View style={[styles.sidebarStatBox, { backgroundColor: Colors.warningBg }, Colors.shadowLow]}>
+            <Ionicons name="hourglass-outline" size={20} color={Colors.warning} />
+            <Text style={[styles.statVal, { color: Colors.warning }]}>{statsValues.active}</Text>
+            <Text style={styles.statLabel}>Active</Text>
+          </View>
+          <View style={[styles.sidebarStatBox, { backgroundColor: Colors.errorBg }, Colors.shadowLow]}>
+            <Ionicons name="alert-circle-outline" size={20} color={Colors.accent} />
+            <Text style={[styles.statVal, { color: Colors.accent }]}>{statsValues.pending}</Text>
+            <Text style={styles.statLabel}>Pending</Text>
+          </View>
+          <View style={[styles.sidebarStatBox, { backgroundColor: `${Colors.blue}10` }, Colors.shadowLow]}>
+            <Ionicons name="bus-outline" size={20} color={Colors.blue} />
+            <Text style={[styles.statVal, { color: Colors.blue }]}>{machines.length}</Text>
+            <Text style={styles.statLabel}>Trucks</Text>
+          </View>
+      </View>
+    );
   };
 
   if (isLargeScreen) {
@@ -478,11 +553,15 @@ export default function CommissionerDashboard({ navigation }) {
       <View style={styles.largeMainContainer}>
         {/* Sidebar */}
         <View style={styles.sidebar}>
-          <Header />
+          <Header small={true} />
           
           <View style={styles.sidebarHeader}>
-            <Text style={styles.headerTitle}>Khammam Progress</Text>
-            <TouchableOpacity style={styles.logout} onPress={logout}>
+            <View>
+              <Text style={styles.headerTitle}>Municipal Control</Text>
+              <Text style={styles.headerRole}>Commissioner panel</Text>
+            </View>
+            <TouchableOpacity style={styles.logout} onPress={logout} activeOpacity={0.8}>
+              <Ionicons name="log-out-outline" size={16} color={Colors.accent} />
               <Text style={styles.logoutText}>Logout</Text>
             </TouchableOpacity>
           </View>
@@ -491,17 +570,19 @@ export default function CommissionerDashboard({ navigation }) {
             <TouchableOpacity 
               style={[styles.tabButton, activeTab === 'map' && styles.activeTabButton]}
               onPress={() => setActiveTab('map')}
+              activeOpacity={0.8}
             >
-              <Ionicons name="map-outline" size={18} color={activeTab === 'map' ? Colors.primary : '#666'} />
+              <Ionicons name="map-outline" size={18} color={activeTab === 'map' ? Colors.primary : Colors.textSecondary} />
               <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>Overview Map</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={[styles.tabButton, activeTab === 'registrations' && styles.activeTabButton]}
               onPress={() => setActiveTab('registrations')}
+              activeOpacity={0.8}
             >
-              <Ionicons name="people-outline" size={18} color={activeTab === 'registrations' ? Colors.primary : '#666'} />
-              <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>New Registrations</Text>
+              <Ionicons name="people-outline" size={18} color={activeTab === 'registrations' ? Colors.primary : Colors.textSecondary} />
+              <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>Pending</Text>
               {pendingCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{pendingCount}</Text>
@@ -515,26 +596,27 @@ export default function CommissionerDashboard({ navigation }) {
               {/* Dropdown Division Selector */}
               <View style={styles.dropdownContainer}>
                 <TouchableOpacity 
-                  style={styles.dropdownButton} 
+                  style={[styles.dropdownButton, Colors.shadowLow]} 
                   onPress={() => setShowDropdown(!showDropdown)}
+                  activeOpacity={0.8}
                 >
                   <View style={styles.dropdownButtonContent}>
                     <Ionicons name="filter-outline" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
                     <Text style={styles.dropdownButtonText}>
                       {selectedWardFilter 
                         ? `Division: ${wardStats.find(w => w.id === selectedWardFilter)?.name}` 
-                        : 'Select Division (All)'}
+                        : 'All Wards / Divisions'}
                     </Text>
                   </View>
                   <Ionicons 
                     name={showDropdown ? "chevron-up" : "chevron-down"} 
                     size={18} 
-                    color="#666" 
+                    color={Colors.textSecondary} 
                   />
                 </TouchableOpacity>
 
                 {showDropdown && (
-                  <View style={styles.dropdownMenu}>
+                  <View style={[styles.dropdownMenu, Colors.shadowMedium]}>
                     <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled={true}>
                       <TouchableOpacity
                         style={[
@@ -579,80 +661,10 @@ export default function CommissionerDashboard({ navigation }) {
                 )}
               </View>
 
-              <View style={styles.sidebarStatsContainer}>
-                  <View style={[styles.sidebarStatBox, { backgroundColor: '#E8F5E9' }]}>
-                    <Text style={[styles.statVal, { color: '#2E7D32' }]}>{getStatsValues().completed}</Text>
-                    <Text style={styles.statLabel}>Cleaned</Text>
-                  </View>
-                  <View style={[styles.sidebarStatBox, { backgroundColor: '#FFFDE7' }]}>
-                    <Text style={[styles.statVal, { color: '#FBC02D' }]}>{getStatsValues().active}</Text>
-                    <Text style={styles.statLabel}>Active</Text>
-                  </View>
-                  <View style={[styles.sidebarStatBox, { backgroundColor: '#FFEBEE' }]}>
-                    <Text style={[styles.statVal, { color: '#C62828' }]}>{getStatsValues().pending}</Text>
-                    <Text style={styles.statLabel}>Pending</Text>
-                  </View>
-                  <View style={[styles.sidebarStatBox, { backgroundColor: '#E3F2FD' }]}>
-                    <Text style={[styles.statVal, { color: '#1565C0' }]}>{machines.length}</Text>
-                    <Text style={styles.statLabel}>Trucks</Text>
-                  </View>
-              </View>
+              {renderLargeSidebarStats()}
             </View>
           ) : (
-            <ScrollView contentContainerStyle={styles.registrationsList}>
-              {pendingUsers.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Ionicons name="checkmark-circle-outline" size={60} color="#999" />
-                  <Text style={styles.emptyText}>No pending registrations to approve</Text>
-                </View>
-              ) : (
-                pendingUsers.map(u => (
-                  <View key={u.id} style={styles.regCard}>
-                    <View style={styles.regHeader}>
-                      <Text style={styles.regName}>{u.name}</Text>
-                      <View style={[
-                        styles.regRoleTag, 
-                        { backgroundColor: u.role === 'worker' ? '#E3F2FD' : '#EDE7F6' }
-                      ]}>
-                        <Text style={[
-                          styles.regRoleText, 
-                          { color: u.role === 'worker' ? '#1565C0' : '#5E35B1' }
-                        ]}>
-                          {u.role === 'worker' ? 'Jawan' : 'Sanitary Inspector'}
-                        </Text>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.regDetailRow}>
-                      <Ionicons name="call-outline" size={16} color="#666" style={{ marginRight: 8 }} />
-                      <Text style={styles.regDetailText}>{u.phone || 'No mobile listed'}</Text>
-                    </View>
-                    
-                    <View style={styles.regDetailRow}>
-                      <Ionicons name="grid-outline" size={16} color="#666" style={{ marginRight: 8 }} />
-                      <Text style={styles.regDetailText}>
-                        {u.role === 'worker' ? `Division: ${u.divisions}` : `Divisions: ${u.divisions}`}
-                      </Text>
-                    </View>
-                    
-                    <View style={styles.regActions}>
-                      <TouchableOpacity 
-                        style={[styles.regBtn, styles.approveBtn]} 
-                        onPress={() => handleApprove(u.id)}
-                      >
-                        <Text style={styles.regBtnText}>Approve</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.regBtn, styles.rejectBtn]} 
-                        onPress={() => handleReject(u.id)}
-                      >
-                        <Text style={styles.regBtnText}>Reject</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
+            renderRegistrationRequests()
           )}
         </View>
 
@@ -665,14 +677,12 @@ export default function CommissionerDashboard({ navigation }) {
             initialRegion={regionRef.current}
             onRegionChangeComplete={onRegionChangeComplete}
           >
-            {/* Ward Boundaries (Memoized to prevent UI thread lag) */}
             <MemoizedWards
               wardStats={getFilteredWards()}
               selectedWardId={selectedWard ? selectedWard.id : null}
               onWardPress={setSelectedWard}
             />
 
-            {/* Draw all QGIS infrastructure roads colored by task status. */}
             <MemoizedRoadLayers
               pendingRoads={pendingRoads}
               activeRoads={activeRoads}
@@ -681,7 +691,6 @@ export default function CommissionerDashboard({ navigation }) {
               onRoadPress={handleRoadPress}
             />
 
-            {/* Non-road infrastructure geometries (Memoized) */}
             <MemoizedRows
               rows={getFilteredRows()}
               isZoomedOut={isZoomedOut}
@@ -697,7 +706,7 @@ export default function CommissionerDashboard({ navigation }) {
                >
                   <View style={styles.machineMarkerContainer}>
                      <View style={styles.truckIconWrapper}>
-                        <Text style={{fontSize: 24}}>🚜</Text>
+                        <Text style={{fontSize: 22}}>🚜</Text>
                         <View style={styles.statusDot} />
                      </View>
                      <View style={styles.labelBubble}>
@@ -709,19 +718,19 @@ export default function CommissionerDashboard({ navigation }) {
           </MapView>
           
            {/* Map Legend */}
-           <View style={styles.legend}>
-              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#2E7D32' }]} /><Text style={styles.legendText}>Cleaned</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#FFD600' }]} /><Text style={styles.legendText}>Active</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#D32F2F' }]} /><Text style={styles.legendText}>Pending</Text></View>
+           <View style={[styles.legend, Colors.shadowMedium]}>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.success }]} /><Text style={styles.legendText}>Cleaned</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.warning }]} /><Text style={styles.legendText}>Active</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.accent }]} /><Text style={styles.legendText}>Pending</Text></View>
            </View>
 
            {/* Selected Ward Info Hover Overlay */}
            {selectedWard && (
-             <View style={styles.hoverBox}>
+             <View style={[styles.hoverBox, Colors.shadowMedium]}>
                <View style={styles.hoverHeader}>
                  <Text style={styles.hoverTitle}>{selectedWard.name}</Text>
-                 <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn}>
-                   <Text style={styles.closeText}>✕</Text>
+                 <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn} activeOpacity={0.8}>
+                   <Ionicons name="close" size={14} color={Colors.textSecondary} />
                  </TouchableOpacity>
                </View>
                <View style={styles.hoverContent}>
@@ -743,16 +752,15 @@ export default function CommissionerDashboard({ navigation }) {
                  
                  <View style={styles.progressRow}>
                    <Text style={styles.progressText}>
-                     Cleaned: <Text style={{color: '#2E7D32', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).completed}</Text> | 
-                     Active: <Text style={{color: '#FBC02D', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).active}</Text> | 
-                     Pending: <Text style={{color: '#C62828', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).pending}</Text>
+                     Cleaned: <Text style={{color: Colors.success, fontWeight: '800'}}>{getStatsForWard(selectedWard).completed}</Text> | 
+                     Active: <Text style={{color: Colors.warning, fontWeight: '800'}}>{getStatsForWard(selectedWard).active}</Text> | 
+                     Pending: <Text style={{color: Colors.accent, fontWeight: '800'}}>{getStatsForWard(selectedWard).pending}</Text>
                    </Text>
                  </View>
                </View>
              </View>
            )}
 
-           {/* Zoom suggestion hint */}
            {isZoomedOut && (
              <View style={styles.zoomHintBox}>
                <Text style={styles.zoomHintText}>🔍 Zoom in to view detailed road networks</Text>
@@ -763,13 +771,18 @@ export default function CommissionerDashboard({ navigation }) {
     );
   }
 
+  // Mobile layout
   return (
     <View style={styles.container}>
-      <Header />
+      <Header small={true} />
       
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Khammam Progress</Text>
-        <TouchableOpacity style={styles.logout} onPress={logout}>
+      <View style={[styles.header, Colors.shadowLow]}>
+        <View>
+          <Text style={styles.headerTitle}>Municipal Control</Text>
+          <Text style={styles.headerRole}>Commissioner Panel</Text>
+        </View>
+        <TouchableOpacity style={styles.logout} onPress={logout} activeOpacity={0.8}>
+          <Ionicons name="log-out-outline" size={16} color={Colors.accent} />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
       </View>
@@ -778,17 +791,19 @@ export default function CommissionerDashboard({ navigation }) {
         <TouchableOpacity 
           style={[styles.tabButton, activeTab === 'map' && styles.activeTabButton]}
           onPress={() => setActiveTab('map')}
+          activeOpacity={0.8}
         >
-          <Ionicons name="map-outline" size={18} color={activeTab === 'map' ? Colors.primary : '#666'} />
+          <Ionicons name="map-outline" size={18} color={activeTab === 'map' ? Colors.primary : Colors.textSecondary} />
           <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>Overview Map</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
           style={[styles.tabButton, activeTab === 'registrations' && styles.activeTabButton]}
           onPress={() => setActiveTab('registrations')}
+          activeOpacity={0.8}
         >
-          <Ionicons name="people-outline" size={18} color={activeTab === 'registrations' ? Colors.primary : '#666'} />
-          <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>New Registrations</Text>
+          <Ionicons name="people-outline" size={18} color={activeTab === 'registrations' ? Colors.primary : Colors.textSecondary} />
+          <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>Pending</Text>
           {pendingCount > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{pendingCount}</Text>
@@ -802,8 +817,9 @@ export default function CommissionerDashboard({ navigation }) {
           {/* Dropdown Division Selector */}
           <View style={styles.dropdownContainer}>
             <TouchableOpacity 
-              style={styles.dropdownButton} 
+              style={[styles.dropdownButton, Colors.shadowLow]} 
               onPress={() => setShowDropdown(!showDropdown)}
+              activeOpacity={0.8}
             >
               <View style={styles.dropdownButtonContent}>
                 <Ionicons name="filter-outline" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
@@ -816,12 +832,12 @@ export default function CommissionerDashboard({ navigation }) {
               <Ionicons 
                 name={showDropdown ? "chevron-up" : "chevron-down"} 
                 size={18} 
-                color="#666" 
+                color={Colors.textSecondary} 
               />
             </TouchableOpacity>
 
             {showDropdown && (
-              <View style={styles.dropdownMenu}>
+              <View style={[styles.dropdownMenu, Colors.shadowMedium]}>
                 <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled={true}>
                   <TouchableOpacity
                     style={[
@@ -867,20 +883,20 @@ export default function CommissionerDashboard({ navigation }) {
           </View>
 
           <View style={styles.statsContainer}>
-              <View style={[styles.statBox, { backgroundColor: '#E8F5E9' }]}>
-                <Text style={[styles.statVal, { color: '#2E7D32' }]}>{getStatsValues().completed}</Text>
+              <View style={[styles.statBox, { backgroundColor: Colors.successBg }, Colors.shadowLow]}>
+                <Text style={[styles.statVal, { color: Colors.success }]}>{getStatsValues().completed}</Text>
                 <Text style={styles.statLabel}>Cleaned</Text>
               </View>
-              <View style={[styles.statBox, { backgroundColor: '#FFFDE7' }]}>
-                <Text style={[styles.statVal, { color: '#FBC02D' }]}>{getStatsValues().active}</Text>
+              <View style={[styles.statBox, { backgroundColor: Colors.warningBg }, Colors.shadowLow]}>
+                <Text style={[styles.statVal, { color: Colors.warning }]}>{getStatsValues().active}</Text>
                 <Text style={styles.statLabel}>Active</Text>
               </View>
-              <View style={[styles.statBox, { backgroundColor: '#FFEBEE' }]}>
-                <Text style={[styles.statVal, { color: '#C62828' }]}>{getStatsValues().pending}</Text>
+              <View style={[styles.statBox, { backgroundColor: Colors.errorBg }, Colors.shadowLow]}>
+                <Text style={[styles.statVal, { color: Colors.accent }]}>{getStatsValues().pending}</Text>
                 <Text style={styles.statLabel}>Pending</Text>
               </View>
-              <View style={[styles.statBox, { backgroundColor: '#E3F2FD' }]}>
-                <Text style={[styles.statVal, { color: '#1565C0' }]}>{machines.length}</Text>
+              <View style={[styles.statBox, { backgroundColor: `${Colors.blue}10` }, Colors.shadowLow]}>
+                <Text style={[styles.statVal, { color: Colors.blue }]}>{machines.length}</Text>
                 <Text style={styles.statLabel}>Trucks</Text>
               </View>
           </View>
@@ -893,16 +909,12 @@ export default function CommissionerDashboard({ navigation }) {
               initialRegion={regionRef.current}
               onRegionChangeComplete={onRegionChangeComplete}
             >
-              {/* Ward Boundaries (Memoized to prevent UI thread lag) */}
               <MemoizedWards
                 wardStats={getFilteredWards()}
                 selectedWardId={selectedWard ? selectedWard.id : null}
                 onWardPress={setSelectedWard}
               />
 
-              {/* Draw all QGIS infrastructure roads colored by task status.
-                  Uses batched GeoJSON layers (3 operations) instead of individual
-                  Polylines (4,332+ operations) to fix the race condition on production. */}
               <MemoizedRoadLayers
                 pendingRoads={pendingRoads}
                 activeRoads={activeRoads}
@@ -911,7 +923,6 @@ export default function CommissionerDashboard({ navigation }) {
                 onRoadPress={handleRoadPress}
               />
 
-              {/* Non-road infrastructure geometries (Memoized) */}
               <MemoizedRows
                 rows={getFilteredRows()}
                 isZoomedOut={isZoomedOut}
@@ -927,7 +938,7 @@ export default function CommissionerDashboard({ navigation }) {
                  >
                     <View style={styles.machineMarkerContainer}>
                        <View style={styles.truckIconWrapper}>
-                          <Text style={{fontSize: 24}}>🚜</Text>
+                          <Text style={{fontSize: 22}}>🚜</Text>
                           <View style={styles.statusDot} />
                        </View>
                        <View style={styles.labelBubble}>
@@ -939,19 +950,19 @@ export default function CommissionerDashboard({ navigation }) {
             </MapView>
             
              {/* Map Legend */}
-             <View style={styles.legend}>
-                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#2E7D32' }]} /><Text style={styles.legendText}>Cleaned</Text></View>
-                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#FFD600' }]} /><Text style={styles.legendText}>Active</Text></View>
-                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#D32F2F' }]} /><Text style={styles.legendText}>Pending</Text></View>
+             <View style={[styles.legend, Colors.shadowMedium]}>
+                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.success }]} /><Text style={styles.legendText}>Cleaned</Text></View>
+                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.warning }]} /><Text style={styles.legendText}>Active</Text></View>
+                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.accent }]} /><Text style={styles.legendText}>Pending</Text></View>
              </View>
 
              {/* Selected Ward Info Hover Overlay */}
              {selectedWard && (
-               <View style={styles.hoverBox}>
+               <View style={[styles.hoverBox, Colors.shadowMedium]}>
                  <View style={styles.hoverHeader}>
                    <Text style={styles.hoverTitle}>{selectedWard.name}</Text>
-                   <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn}>
-                     <Text style={styles.closeText}>✕</Text>
+                   <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn} activeOpacity={0.8}>
+                     <Ionicons name="close" size={14} color={Colors.textSecondary} />
                    </TouchableOpacity>
                  </View>
                  <View style={styles.hoverContent}>
@@ -973,16 +984,15 @@ export default function CommissionerDashboard({ navigation }) {
                    
                    <View style={styles.progressRow}>
                      <Text style={styles.progressText}>
-                       Cleaned: <Text style={{color: '#2E7D32', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).completed}</Text> | 
-                       Active: <Text style={{color: '#FBC02D', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).active}</Text> | 
-                       Pending: <Text style={{color: '#C62828', fontWeight: 'bold'}}>{getStatsForWard(selectedWard).pending}</Text>
+                       Cleaned: <Text style={{color: Colors.success, fontWeight: '800'}}>{getStatsForWard(selectedWard).completed}</Text> | 
+                       Active: <Text style={{color: Colors.warning, fontWeight: '800'}}>{getStatsForWard(selectedWard).active}</Text> | 
+                       Pending: <Text style={{color: Colors.accent, fontWeight: '800'}}>{getStatsForWard(selectedWard).pending}</Text>
                      </Text>
                    </View>
                  </View>
                </View>
              )}
 
-             {/* Zoom suggestion hint */}
              {isZoomedOut && (
                <View style={styles.zoomHintBox}>
                  <Text style={styles.zoomHintText}>🔍 Zoom in to view detailed road networks</Text>
@@ -991,144 +1001,114 @@ export default function CommissionerDashboard({ navigation }) {
           </View>
         </>
       ) : (
-        <ScrollView contentContainerStyle={styles.registrationsList}>
-          {pendingUsers.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="checkmark-circle-outline" size={60} color="#999" />
-              <Text style={styles.emptyText}>No pending registrations to approve</Text>
-            </View>
-          ) : (
-            pendingUsers.map(u => (
-              <View key={u.id} style={styles.regCard}>
-                <View style={styles.regHeader}>
-                  <Text style={styles.regName}>{u.name}</Text>
-                  <View style={[
-                    styles.regRoleTag, 
-                    { backgroundColor: u.role === 'worker' ? '#E3F2FD' : '#EDE7F6' }
-                  ]}>
-                    <Text style={[
-                      styles.regRoleText, 
-                      { color: u.role === 'worker' ? '#1565C0' : '#5E35B1' }
-                    ]}>
-                      {u.role === 'worker' ? 'Jawan' : 'Sanitary Inspector'}
-                    </Text>
-                  </View>
-                </View>
-                
-                <View style={styles.regDetailRow}>
-                  <Ionicons name="call-outline" size={16} color="#666" style={{ marginRight: 8 }} />
-                  <Text style={styles.regDetailText}>{u.phone || 'No mobile listed'}</Text>
-                </View>
-                
-                <View style={styles.regDetailRow}>
-                  <Ionicons name="grid-outline" size={16} color="#666" style={{ marginRight: 8 }} />
-                  <Text style={styles.regDetailText}>
-                    {u.role === 'worker' ? `Division: ${u.divisions}` : `Divisions: ${u.divisions}`}
-                  </Text>
-                </View>
-                
-                <View style={styles.regActions}>
-                  <TouchableOpacity 
-                    style={[styles.regBtn, styles.approveBtn]} 
-                    onPress={() => handleApprove(u.id)}
-                  >
-                    <Text style={styles.regBtnText}>Approve</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.regBtn, styles.rejectBtn]} 
-                    onPress={() => handleReject(u.id)}
-                  >
-                    <Text style={styles.regBtnText}>Reject</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))
-          )}
-        </ScrollView>
+        renderRegistrationRequests()
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: '#fff' },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: Colors.primary },
-  logout: { padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#D32F2F' },
-  logoutText: { color: '#D32F2F', fontWeight: 'bold' },
-  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', padding: 15, backgroundColor: '#fff' },
-  statBox: { width: '23.5%', padding: 12, borderRadius: 15, alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3 },
-  statVal: { fontSize: 20, fontWeight: 'bold' },
-  statLabel: { fontSize: 10, color: '#666', marginTop: 4, fontWeight: '700', textTransform: 'uppercase' },
+  container: { flex: 1, backgroundColor: Colors.background },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
+  loadingText: { marginTop: 10, color: Colors.textSecondary, fontWeight: '600' },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
+    backgroundColor: Colors.card,
+    borderBottomWidth: 1,
+    borderColor: Colors.border,
+  },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  headerRole: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600', marginTop: 1 },
+  logout: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingVertical: 6, 
+    paddingHorizontal: 12, 
+    borderRadius: 10, 
+    borderWidth: 1, 
+    borderColor: `${Colors.accent}30`,
+    backgroundColor: `${Colors.accent}08`
+  },
+  logoutText: { color: Colors.accent, fontWeight: '700', fontSize: 11, marginLeft: 4 },
+  
+  statsContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    backgroundColor: Colors.background 
+  },
+  statBox: { 
+    width: '23%', 
+    paddingVertical: 10, 
+    borderRadius: 12, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  statVal: { fontSize: 18, fontWeight: '800' },
+  statLabel: { fontSize: 10, color: Colors.textSecondary, marginTop: 4, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.2 },
+  
   mapWrapper: { flex: 1, position: 'relative' },
   map: { ...StyleSheet.absoluteFillObject },
   legend: { 
     position: 'absolute', 
-    bottom: 25, 
-    right: 20, 
-    backgroundColor: 'rgba(255,255,255,0.95)', 
-    padding: 12, 
+    bottom: 20, 
+    right: 15, 
+    backgroundColor: 'rgba(255,255,255,0.92)', 
+    padding: 10, 
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#eee',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5
+    borderColor: 'rgba(226, 232, 240, 0.8)',
   },
-  legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 10 },
-  legendText: { fontSize: 13, fontWeight: 'bold', color: '#333' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginVertical: 3 },
+  legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  legendText: { fontSize: 11, fontWeight: '800', color: Colors.text },
+  
   machineMarkerContainer: { alignItems: 'center', justifyContent: 'center' },
   truckIconWrapper: { 
-    backgroundColor: '#fff', 
+    backgroundColor: Colors.white, 
     padding: 6, 
     borderRadius: 18, 
     borderWidth: 2, 
-    borderColor: '#3F51B5',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
+    borderColor: Colors.primary,
     position: 'relative'
   },
   statusDot: { 
-    width: 12, 
-    height: 12, 
-    borderRadius: 6, 
-    backgroundColor: '#4CAF50', 
-    borderWidth: 2, 
+    width: 8, 
+    height: 8, 
+    borderRadius: 4, 
+    backgroundColor: Colors.success, 
+    borderWidth: 1.5, 
     borderColor: '#fff', 
     position: 'absolute', 
-    bottom: -3, 
-    right: -3 
+    bottom: -2, 
+    right: -2 
   },
   labelBubble: {
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 6,
     marginTop: 4
   },
-  labelText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  labelText: { color: Colors.white, fontSize: 10, fontWeight: '700' },
+  
   hoverBox: {
     position: 'absolute',
-    top: 20,
-    left: 20,
-    right: 20,
+    top: 15,
+    left: 15,
+    right: 15,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 15,
+    borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    borderColor: Colors.border,
     zIndex: 100,
   },
   hoverHeader: {
@@ -1136,38 +1116,36 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
+    borderBottomColor: Colors.border,
     paddingBottom: 8,
     marginBottom: 8,
   },
   hoverTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.primary,
+    fontWeight: '800',
+    color: Colors.text,
+    letterSpacing: -0.2,
   },
   closeBtn: {
-    padding: 4,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
     width: 24,
     height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  closeText: {
-    fontSize: 12,
-    color: '#888',
-    fontWeight: 'bold',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   hoverContent: {
     marginTop: 4,
   },
   hoverSubtitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#666',
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
     textTransform: 'uppercase',
     marginBottom: 6,
+    letterSpacing: 0.5,
   },
   jawanRow: {
     flexDirection: 'row',
@@ -1177,8 +1155,8 @@ const styles = StyleSheet.create({
   },
   jawanName: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '700',
+    color: Colors.text,
   },
   jawanPhone: {
     fontSize: 13,
@@ -1187,47 +1165,48 @@ const styles = StyleSheet.create({
   },
   jawanPhoneNo: {
     fontSize: 12,
-    color: '#999',
+    color: Colors.textSecondary,
     fontStyle: 'italic',
   },
   noJawanText: {
     fontSize: 13,
-    color: '#999',
+    color: Colors.textSecondary,
     fontStyle: 'italic',
     marginVertical: 4,
   },
   progressRow: {
     marginTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#EEE',
+    borderTopColor: Colors.border,
     paddingTop: 8,
   },
   progressText: {
     fontSize: 12,
-    color: '#555',
+    color: Colors.text,
     fontWeight: '600',
     textAlign: 'center',
   },
   zoomHintBox: {
     position: 'absolute',
-    top: 20,
+    top: 15,
     alignSelf: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderRadius: 20,
     zIndex: 99,
   },
   zoomHintText: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 11,
+    fontWeight: '700',
   },
+  
   tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: Colors.border,
     paddingHorizontal: 10,
   },
   tabButton: {
@@ -1235,85 +1214,92 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
+    paddingVertical: 14,
     borderBottomWidth: 3,
     borderBottomColor: 'transparent',
   },
   activeTabButton: {
-    borderBottomColor: Colors.primary || '#007bff',
+    borderBottomColor: Colors.primary,
   },
   tabText: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: '#666',
+    fontWeight: '700',
+    color: Colors.textSecondary,
     marginLeft: 6,
   },
   activeTabText: {
-    color: Colors.primary || '#007bff',
+    color: Colors.primary,
   },
   badge: {
-    backgroundColor: '#D32F2F',
+    backgroundColor: Colors.accent,
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginLeft: 6,
   },
   badgeText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 10,
     fontWeight: 'bold',
   },
+  
   registrationsList: {
-    padding: 15,
+    padding: 20,
   },
   regCard: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 20,
+    backgroundColor: Colors.card,
+    borderRadius: Colors.radiusMedium,
+    padding: 16,
     marginBottom: 15,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   regHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    paddingBottom: 8,
+    borderBottomColor: Colors.border,
+    paddingBottom: 10,
   },
   regName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.text,
+    letterSpacing: -0.1,
+  },
+  regPhone: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    fontWeight: '600',
   },
   regRoleTag: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
   regRoleText: {
-    fontSize: 11,
-    fontWeight: 'bold',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   regDetailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 4,
+    marginBottom: 15,
   },
   regDetailText: {
-    fontSize: 14,
-    color: '#555',
-    marginLeft: 8,
+    fontSize: 13,
+    color: Colors.text,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   regActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 15,
+    marginHorizontal: -5,
   },
   regBtn: {
     flex: 1,
@@ -1321,30 +1307,52 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
     marginHorizontal: 5,
   },
   approveBtn: {
-    backgroundColor: '#2E7D32',
+    backgroundColor: Colors.success,
   },
   rejectBtn: {
-    backgroundColor: '#C62828',
+    backgroundColor: Colors.accent,
   },
   regBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
+    color: Colors.white,
+    fontWeight: '700',
+    fontSize: 13,
+    marginLeft: 4,
   },
+  
   emptyContainer: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 50,
+    paddingVertical: 60,
+    paddingHorizontal: 30,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
-    marginTop: 10,
+    color: Colors.text,
+    fontWeight: '800',
+    marginBottom: 4,
   },
+  emptySubtext: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  
   dropdownContainer: {
     marginHorizontal: 15,
     marginVertical: 10,
@@ -1355,41 +1363,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.card,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 12,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   dropdownButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   dropdownButtonText: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.text,
   },
   dropdownMenu: {
     position: 'absolute',
     top: 52,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    borderColor: Colors.border,
     zIndex: 10000,
     overflow: 'hidden',
   },
@@ -1397,37 +1395,39 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
+    borderBottomColor: Colors.border,
   },
   dropdownOptionSelected: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: `${Colors.primary}08`,
   },
   dropdownOptionText: {
     fontSize: 14,
-    color: '#555',
+    color: Colors.textSecondary,
+    fontWeight: '600',
   },
   dropdownOptionTextSelected: {
-    color: '#2E7D32',
-    fontWeight: 'bold',
+    color: Colors.primary,
+    fontWeight: '800',
   },
+  
   largeMainContainer: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.background,
     height: '100%',
     width: '100%',
   },
   sidebar: {
     width: 360,
     height: '100%',
-    backgroundColor: '#FFF',
+    backgroundColor: Colors.card,
     borderRightWidth: 1,
-    borderRightColor: '#E0E0E0',
+    borderRightColor: Colors.border,
     display: 'flex',
     flexDirection: 'column',
     shadowColor: '#000',
     shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 4,
     zIndex: 10,
@@ -1439,23 +1439,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  logout: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-    backgroundColor: '#FFEBEE',
-  },
-  logoutText: {
-    fontSize: 12,
-    color: '#C62828',
-    fontWeight: 'bold',
+    borderBottomColor: Colors.border,
   },
   sidebarStatsContainer: {
     flexDirection: 'row',
@@ -1467,24 +1451,12 @@ const styles = StyleSheet.create({
     width: '47%',
     paddingVertical: 15,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 15,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  statVal: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-    fontWeight: '500',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   largeMapWrapper: {
     flex: 1,

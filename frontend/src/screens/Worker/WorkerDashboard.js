@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Alert } from 'react-native';
-import MapView, { Polygon, Polyline, Marker, Geojson } from '../../components/MapViewWrapper';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Alert } from 'react-native';
+import MapView, { Polygon, Polyline, Marker } from '../../components/MapViewWrapper';
 import * as Location from 'expo-location';
 import api from '../../api/axios';
 import { useIsFocused } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
+import { Ionicons } from '@expo/vector-icons';
 
 const MemoizedRoad = React.memo(({ geom, color, strokeWidth, onPress }) => {
   const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
@@ -171,27 +172,20 @@ export default function WorkerDashboard({ navigation }) {
     }
   }, [isFocused]);
 
-  const handleSelectMachine = async (machineId) => {
-    try {
-      await api.put('/machines/link-worker', { machineId });
-      updateUserMachine(machineId);
-    } catch (error) {
-       console.error('Failed to link machine', error);
-    }
-  };
-
-  const getStatusColor = (status) => {
+  const getBadgeStyle = (status) => {
     switch (status) {
-      case 'approved': return '#2E7D32';
+      case 'approved':
+        return { bg: Colors.successBg, text: Colors.successText };
       case 'submitted':
       case 'in_progress':
-        return '#FFD600';
-      default: return '#D32F2F';
+        return { bg: Colors.warningBg, text: Colors.warningText };
+      default:
+        return { bg: Colors.errorBg, text: Colors.errorText };
     }
   };
 
   const getRoadColor = (item) => {
-    if (item.type !== 'road') return 'rgba(211,47,47,0.5)';
+    if (item.type !== 'road') return 'rgba(198,40,40,0.5)';
     const props = item.properties || {};
     const lineId = props.Line_ID || props.line_id;
     const rdName = props.Rd_Name || props.rd_name || item.name;
@@ -204,10 +198,10 @@ export default function WorkerDashboard({ navigation }) {
     }
 
     if (task) {
-      if (task.status === 'approved') return '#2E7D32';
-      if (task.status === 'submitted' || task.status === 'in_progress') return '#FFD600';
+      if (task.status === 'approved') return Colors.success;
+      if (task.status === 'submitted' || task.status === 'in_progress') return Colors.warning;
     }
-    return '#D32F2F'; // Roads default to red until completed
+    return Colors.accent; // Default pending (Red)
   };
 
   const isAssignedRoad = (item) => {
@@ -248,11 +242,11 @@ export default function WorkerDashboard({ navigation }) {
       }
       if (task) status = task.status;
       
-      let roadColor = '#D32F2F'; // Red (Pending)
+      let roadColor = Colors.accent; // Red (Pending)
       if (status === 'approved') {
-        roadColor = '#2E7D32'; // Green (Completed)
+        roadColor = Colors.success; // Emerald Green (Completed)
       } else if (status === 'submitted' || status === 'in_progress') {
-        roadColor = '#FFD600'; // Yellow (Active)
+        roadColor = Colors.warning; // Amber (Active)
       }
       
       roads.push({
@@ -359,145 +353,192 @@ export default function WorkerDashboard({ navigation }) {
     }
   };
 
-  const onRegionChangeComplete = (newRegion) => {
-    setRegion(newRegion);
+  const getUserInitials = (name) => {
+    if (!name) return 'JW';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
   };
 
-  const renderTask = ({ item }) => (
-    <View style={styles.taskCard}>
-      <TouchableOpacity
-        onPress={() => navigation.navigate('MapNavigation', { task: item })}
-      >
-        <View style={styles.cardHeader}>
-          <Text style={styles.taskTitle}>{item.title}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-            <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+  const renderTask = ({ item }) => {
+    const badge = getBadgeStyle(item.status);
+    return (
+      <View style={[styles.taskCard, Colors.shadowLow]}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('MapNavigation', { task: item })}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardHeader}>
+            <Text style={styles.taskTitle}>{item.title}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
+              <Text style={[styles.statusText, { color: badge.text }]}>
+                {item.status.replace('_', ' ').toUpperCase()}
+              </Text>
+            </View>
           </View>
-        </View>
-        <Text style={styles.taskDesc} numberOfLines={2}>{item.description}</Text>
+          <Text style={styles.taskDesc} numberOfLines={2}>{item.description}</Text>
 
-        {/* Render Ward, Line ID, and Road Name if they exist */}
-        {(item.line_id || item.rd_name || item.ward_name) ? (
-          <View style={styles.metaRow}>
-            {item.ward_name ? <Text style={styles.metaText}>📍 Ward: {item.ward_name}</Text> : null}
-            {item.line_id ? <Text style={styles.metaText}>🔗 Line ID: {item.line_id}</Text> : null}
-            {item.rd_name ? <Text style={styles.metaText}>🛣️ Road Name: {item.rd_name}</Text> : null}
+          {(item.line_id || item.rd_name || item.ward_name) ? (
+            <View style={styles.metaRow}>
+              {item.ward_name ? (
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>📍 Ward: {item.ward_name}</Text>
+                </View>
+              ) : null}
+              {item.line_id ? (
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>🔗 Line ID: {item.line_id}</Text>
+                </View>
+              ) : null}
+              {item.rd_name ? (
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>🛣️ Road: {item.rd_name}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          <View style={styles.cardFooter}>
+            <View style={styles.actionPrompt}>
+              <Ionicons name="navigate-circle-outline" size={18} color={Colors.primary} />
+              <Text style={styles.locationLabel}>Tap to Navigate</Text>
+            </View>
+            <Text style={styles.viewDetails}>Open Task ➔</Text>
           </View>
-        ) : null}
-
-        <View style={styles.cardFooter}>
-          <Text style={styles.locationLabel}>📍 Tap to Navigate</Text>
-          <Text style={styles.viewDetails}>Open Task →</Text>
-        </View>
-      </TouchableOpacity>
-    </View>
-  );
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
       <Header small={true} />
-      <View style={styles.titleSection}>
-        <View>
-          <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
-          <Text style={styles.subText}>{wardBoundary?.wardName ? wardBoundary.wardName : (user?.ward_id ? `Ward ${user.ward_id}` : 'Unassigned')}</Text>
+      
+      <View style={[styles.titleSection, Colors.shadowLow]}>
+        <View style={styles.profileRow}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{getUserInitials(user?.name)}</Text>
+          </View>
+          <View style={styles.profileText}>
+            <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
+            <Text style={styles.subText}>
+              👷 Jawan • {wardBoundary?.wardName ? wardBoundary.wardName : (user?.ward_id ? `Ward ${user.ward_id}` : 'Ward Area')}
+            </Text>
+          </View>
         </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+        <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
+          <Ionicons name="log-out-outline" size={16} color={Colors.accent} />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.mapWrapper}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          mapType="satellite"
-          initialRegion={region}
-          onPress={(e) => handleMapPress(e.nativeEvent.coordinate)}
-          showsUserLocation={true}
-        >
-          {/* Ward Boundary (Explicit Layer) */}
-          {wardBoundary && user?.email !== 'jawan_61' && (() => {
-             const geom = wardBoundary.parsedGeom;
-             if (!geom) return null;
-             const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
-             return polys.map((poly, idx) => {
-                const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
-                return (
-                  <Polygon
-                    key={`ward-boundary-${wardBoundary.id}-${idx}`}
-                    coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                    fillColor="rgba(255, 255, 255, 0.03)"
-                    strokeColor="#FFFFFF"
-                    strokeWidth={2}
-                    zIndex={10}
-                  />
-                );
-             });
-          })()}
+      <View style={styles.mapContainer}>
+        <View style={[styles.mapWrapper, Colors.shadowMedium]}>
+          <MapView
+            ref={mapRef}
+            style={styles.map}
+            mapType="satellite"
+            initialRegion={region}
+            onPress={(e) => handleMapPress(e.nativeEvent.coordinate)}
+            showsUserLocation={true}
+          >
+            {/* Ward Boundary (Explicit Layer) */}
+            {wardBoundary && user?.email !== 'jawan_61' && (() => {
+               const geom = wardBoundary.parsedGeom;
+               if (!geom) return null;
+               const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+               return polys.map((poly, idx) => {
+                  const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
+                  return (
+                    <Polygon
+                      key={`ward-boundary-${wardBoundary.id}-${idx}`}
+                      coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                      fillColor="rgba(255, 255, 255, 0.03)"
+                      strokeColor="#FFFFFF"
+                      strokeWidth={2}
+                      zIndex={10}
+                    />
+                  );
+               });
+            })()}
 
-          {/* Grouped QGIS Infrastructure Roads */}
-          {roadList.map(({ id, geom, color, item, task }) => (
-             <MemoizedRoad
-               key={`road-${id}`}
-               geom={geom}
-               color={color}
-               strokeWidth={task ? 4 : 2}
-               onPress={() => handleRoadPress(item)}
-             />
-          ))}
+            {/* Grouped QGIS Infrastructure Roads */}
+            {roadList.map(({ id, geom, color, item, task }) => (
+               <MemoizedRoad
+                 key={`road-${id}`}
+                 geom={geom}
+                 color={color}
+                 strokeWidth={task ? 4 : 2}
+                 onPress={() => handleRoadPress(item)}
+               />
+            ))}
 
-          {/* Non-road Infrastructure (ROW and Ward Polygons) */}
-          {nonRoadFeatures.map(item => {
-             const geom = item.parsedGeom;
-             if (!geom) return null;
-             if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
-                const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
-                return polys.map((poly, idx) => {
-                   const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
-                   let fillColor = "rgba(255, 255, 255, 0.02)";
-                   let strokeColor = "rgba(255, 255, 255, 0.1)";
-                   let strokeWidth = 0.5;
-                   let lineDash = null;
-                   
-                   if (item.type === 'row') {
-                      fillColor = "rgba(255, 152, 0, 0.15)";
-                      strokeColor = "rgba(255, 152, 0, 0.6)";
-                      strokeWidth = 1.5;
-                   } else if (item.type === 'ward') {
-                      fillColor = "rgba(255, 255, 255, 0.03)";
-                      strokeColor = "#FFFFFF";
-                      strokeWidth = 2;
-                      lineDash = null;
-                   }
-                   
-                   return (
-                     <Polygon 
-                       key={`infra-poly-${item.id}-${idx}`}
-                       coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                       fillColor={fillColor}
-                       strokeColor={strokeColor}
-                       strokeWidth={strokeWidth}
-                       lineDashPattern={lineDash}
-                       zIndex={5}
-                     />
-                   );
-                });
-             }
-             return null;
-          })}
-        </MapView>
-        
-        <View style={styles.legend}>
-           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#2E7D32' }]} /><Text style={styles.legendText}>Cleaned</Text></View>
-           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#FFD600' }]} /><Text style={styles.legendText}>Active</Text></View>
-           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#D32F2F' }]} /><Text style={styles.legendText}>Pending</Text></View>
+            {/* Non-road Infrastructure (ROW and Ward Polygons) */}
+            {nonRoadFeatures.map(item => {
+               const geom = item.parsedGeom;
+               if (!geom) return null;
+               if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+                  const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+                  return polys.map((poly, idx) => {
+                     const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
+                     let fillColor = "rgba(255, 255, 255, 0.02)";
+                     let strokeColor = "rgba(255, 255, 255, 0.1)";
+                     let strokeWidth = 0.5;
+                     
+                     if (item.type === 'row') {
+                        fillColor = "rgba(255, 152, 0, 0.15)";
+                        strokeColor = "rgba(255, 152, 0, 0.6)";
+                        strokeWidth = 1.5;
+                     } else if (item.type === 'ward') {
+                        fillColor = "rgba(255, 255, 255, 0.03)";
+                        strokeColor = "#FFFFFF";
+                        strokeWidth = 2;
+                     }
+                     
+                     return (
+                       <Polygon 
+                         key={`infra-poly-${item.id}-${idx}`}
+                         coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                         fillColor={fillColor}
+                         strokeColor={strokeColor}
+                         strokeWidth={strokeWidth}
+                         zIndex={5}
+                       />
+                     );
+                  });
+               }
+               return null;
+            })}
+          </MapView>
+          
+          <View style={styles.legend}>
+             <View style={styles.legendItem}>
+               <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
+               <Text style={styles.legendText}>Cleaned</Text>
+             </View>
+             <View style={styles.legendItem}>
+               <View style={[styles.legendDot, { backgroundColor: Colors.warning }]} />
+               <Text style={styles.legendText}>Active</Text>
+             </View>
+             <View style={styles.legendItem}>
+               <View style={[styles.legendDot, { backgroundColor: Colors.accent }]} />
+               <Text style={styles.legendText}>Pending</Text>
+             </View>
+          </View>
         </View>
       </View>
 
-      <Text style={styles.subHeader}>Your Assigned Tasks</Text>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.subHeader}>Assigned Cleaning Tasks</Text>
+        <View style={styles.badgeCount}>
+          <Text style={styles.badgeCountText}>{tasks.length}</Text>
+        </View>
+      </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 30 }} />
       ) : (
         <FlatList
           data={tasks}
@@ -506,7 +547,11 @@ export default function WorkerDashboard({ navigation }) {
           contentContainerStyle={styles.listContainer}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No tasks assigned yet.</Text>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="clipboard-outline" size={40} color={Colors.textSecondary} />
+              </View>
+              <Text style={styles.emptyText}>No tasks assigned yet</Text>
+              <Text style={styles.emptySubtext}>Contact your supervisor for new cleanups.</Text>
             </View>
           }
         />
@@ -520,86 +565,159 @@ const styles = StyleSheet.create({
   titleSection: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
-    paddingHorizontal: 15, 
-    paddingVertical: 6, 
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
     alignItems: 'center',
-    backgroundColor: Colors.white,
-    marginBottom: 5
+    backgroundColor: Colors.card,
+    borderBottomWidth: 1,
+    borderColor: Colors.border,
   },
-  headerTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.primary },
-  logoutButton: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: Colors.accent },
-  logoutText: { color: Colors.accent, fontWeight: '600', fontSize: 12 },
-  subHeader: { fontSize: 14, fontWeight: 'bold', marginHorizontal: 15, marginBottom: 8, color: Colors.text },
-  listContainer: { paddingBottom: 20 },
-  taskCard: { 
-    backgroundColor: Colors.white, 
-    padding: 12, 
-    marginHorizontal: 15, 
-    marginBottom: 8, 
+  profileRow: { flexDirection: 'row', alignItems: 'center' },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: `${Colors.primary}12`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}30`,
+  },
+  avatarText: { color: Colors.primary, fontWeight: '700', fontSize: 16 },
+  profileText: { justifyContent: 'center' },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  subText: { fontSize: 12, color: Colors.textSecondary, marginTop: 2, fontWeight: '600' },
+  logoutButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingVertical: 6, 
+    paddingHorizontal: 12, 
     borderRadius: 10, 
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 1, 
+    borderColor: `${Colors.accent}30`,
+    backgroundColor: `${Colors.accent}08`
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  taskTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.text, flex: 1, marginRight: 10 },
-  taskDesc: { color: Colors.textSecondary, marginBottom: 4, fontSize: 12, lineHeight: 16 },
+  logoutText: { color: Colors.accent, fontWeight: '700', fontSize: 11, marginLeft: 4 },
+  
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 15,
+    marginBottom: 10,
+  },
+  subHeader: { fontSize: 15, fontWeight: '800', color: Colors.text, marginRight: 8, letterSpacing: -0.2 },
+  badgeCount: {
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeCountText: {
+    color: Colors.white,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+
+  listContainer: { paddingBottom: 30, paddingHorizontal: 5 },
+  taskCard: { 
+    backgroundColor: Colors.card, 
+    padding: 16, 
+    marginHorizontal: 15, 
+    marginBottom: 12, 
+    borderRadius: Colors.radiusMedium, 
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  taskTitle: { fontSize: 15, fontWeight: '800', color: Colors.text, flex: 1, marginRight: 10, lineHeight: 20, letterSpacing: -0.1 },
+  taskDesc: { color: Colors.textSecondary, marginBottom: 12, fontSize: 13, lineHeight: 18 },
+  
   metaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 2,
-    marginTop: -2,
+    marginBottom: 12,
+    marginHorizontal: -3,
   },
-  metaText: {
+  metaChip: {
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginHorizontal: 3,
+    marginVertical: 3,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  metaChipText: {
     fontSize: 11,
-    color: '#666',
-    marginRight: 10,
-    marginBottom: 2,
+    color: Colors.textSecondary,
+    fontWeight: '700',
   },
-  statusBadge: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 4 },
-  statusText: { color: Colors.white, fontSize: 9, fontWeight: 'bold' },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 6 },
-  locationLabel: { color: Colors.primary, fontSize: 12, fontWeight: '500' },
-  viewDetails: { color: Colors.textSecondary, fontWeight: '600', fontSize: 12 },
-  mapWrapper: { position: 'relative', marginBottom: 5 },
-  map: { width: Dimensions.get('window').width, height: 280 },
+
+  statusBadge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8 },
+  statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.2 },
+  cardFooter: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    borderTopWidth: 1, 
+    borderTopColor: Colors.border, 
+    paddingTop: 12,
+    marginTop: 4,
+  },
+  actionPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  locationLabel: { color: Colors.primary, fontSize: 13, fontWeight: '700', marginLeft: 4 },
+  viewDetails: { color: Colors.textSecondary, fontWeight: '700', fontSize: 13 },
+  
+  mapContainer: {
+    paddingHorizontal: 15,
+    paddingTop: 10,
+  },
+  mapWrapper: { 
+    position: 'relative', 
+    borderRadius: Colors.radiusMedium,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  map: { width: '100%', height: 260 },
   legend: { 
     position: 'absolute', 
-    bottom: 15, 
-    right: 15, 
-    backgroundColor: 'rgba(255,255,255,0.9)', 
-    padding: 8, 
-    borderRadius: 8,
+    bottom: 12, 
+    right: 12, 
+    backgroundColor: 'rgba(255,255,255,0.92)', 
+    padding: 10, 
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ddd'
+    borderColor: 'rgba(226, 232, 240, 0.8)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
-  legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  legendDot: { width: 10, height: 10, borderRadius: 5, marginRight: 6 },
-  legendText: { fontSize: 10, fontWeight: 'bold', color: '#444' },
-  emptyContainer: { alignItems: 'center', marginTop: 50 },
-  emptyText: { color: Colors.textSecondary, fontSize: 16 },
-  machineSelector: { backgroundColor: Colors.white, padding: 15, marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.text, marginBottom: 10 },
-  machineList: { flexDirection: 'row' },
-  machineChip: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: '#F5F5F5', 
-    paddingHorizontal: 15, 
-    paddingVertical: 10, 
-    borderRadius: 20, 
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#E0E0E0'
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginVertical: 3 },
+  legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  legendText: { fontSize: 11, fontWeight: '800', color: Colors.text },
+  
+  emptyContainer: { alignItems: 'center', marginTop: 40, paddingHorizontal: 30 },
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
   },
-  machineChipActive: { 
-    backgroundColor: '#E8F5E9', 
-    borderColor: '#4CAF50' 
-  },
-  machineEmoji: { fontSize: 18, marginRight: 5 },
-  machineName: { fontSize: 14, color: '#666', fontWeight: '500' },
-  machineNameActive: { color: '#2E7D32', fontWeight: 'bold' },
-  subText: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 }
+  emptyText: { color: Colors.text, fontSize: 16, fontWeight: '800', marginBottom: 4 },
+  emptySubtext: { color: Colors.textSecondary, fontSize: 13, textAlign: 'center', lineHeight: 18 }
 });

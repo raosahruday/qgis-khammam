@@ -21,6 +21,9 @@ export default function MapTaskCreationScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const { user } = useContext(AuthContext);
 
+  const [titleFocused, setTitleFocused] = useState(false);
+  const [descFocused, setDescFocused] = useState(false);
+
   const [region, setRegion] = useState({
     latitude: 17.2473,
     longitude: 80.1514,
@@ -34,7 +37,6 @@ export default function MapTaskCreationScreen({ navigation }) {
     try {
       const { latitude, longitude, latitudeDelta, longitudeDelta } = activeRegion;
       
-      // GIS Zoom optimization: if zoomed out too far, don't load detailed overlays
       if (latitudeDelta > 0.025) {
          setInfrastructure([]);
          return;
@@ -88,7 +90,6 @@ export default function MapTaskCreationScreen({ navigation }) {
     try {
       const response = await api.get('/wards');
       setWards(response.data);
-      // Auto-select the first ward for supervisors (they typically manage one)
       if (response.data.length > 0 && user?.role === 'supervisor') {
         setSelectedWardId(response.data[0].id);
       }
@@ -119,7 +120,7 @@ export default function MapTaskCreationScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const response = await api.post('/tasks', {
+      await api.post('/tasks', {
         title,
         description,
         area_geojson: coordinates,
@@ -144,196 +145,285 @@ export default function MapTaskCreationScreen({ navigation }) {
       <Header />
       
       <View style={styles.infoBanner}>
-        <Ionicons name="git-commit-outline" size={20} color={Colors.primary} />
-        <Text style={styles.infoBannerText}>Draw Road Segment (Multiple points for curves)</Text>
+        <Ionicons name="git-branch-outline" size={18} color={Colors.primary} />
+        <Text style={styles.infoBannerText}>Draw Road Segment (Tap map to add points)</Text>
       </View>
 
-      <MapView
-        style={styles.map}
-        mapType="satellite"
-        initialRegion={region}
-        onRegionChangeComplete={onRegionChangeComplete}
-        onPress={handleMapPress}
-        showsUserLocation={true}
-      >
-        {/* QGIS Infrastructure Layers */}
-        {infrastructure.map(item => {
-           const geom = item.parsedGeom;
-           if (!geom) return null;
-           
-           if (geom.type === 'LineString' || geom.type === 'MultiLineString') {
-              const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
-              return coords.map((cList, idx) => (
-                <Polyline
-                  key={`infra-road-${item.id}-${idx}`}
-                  coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                  strokeColor={item.type === 'road' ? '#1A73E8' : 'rgba(66,133,244,0.5)'}
-                  strokeWidth={item.type === 'road' ? 2 : 1}
-                  zIndex={11}
-                  tappable={true}
-                  onPress={() => {
-                     const props = item.properties || {};
-                     const lineIdVal = props.Line_ID || props.line_id || '';
-                     const rdNameVal = props.Rd_Name || props.rd_name || item.name || '';
-                     
-                     setTitle(rdNameVal);
-                     setLineId(lineIdVal.toString());
-                     setRdName(rdNameVal);
-                     
-                     // Set coordinates to match this polyline
-                     const polyCoords = cList.map(c => ({ longitude: c[0], latitude: c[1] }));
-                     setCoordinates(polyCoords);
-                     
-                     Alert.alert('Road Selected', `Road: ${rdNameVal}\nLine ID: ${lineIdVal}`);
-                  }}
-                />
-              ));
-           } else if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
-              const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
-              return polys.map((poly, idx) => {
-                 const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
-                 // Style based on type
-                 let fillColor = "rgba(255, 255, 255, 0.02)";
-                 let strokeColor = "rgba(255, 255, 255, 0.1)";
-                 let strokeWidth = 0.5;
-                 let lineDash = null;
-                 
-                 if (item.type === 'row') {
-                    fillColor = "rgba(255, 152, 0, 0.15)";
-                    strokeColor = "rgba(255, 152, 0, 0.6)";
-                    strokeWidth = 1;
-                 } else if (item.type === 'ward') {
-                    fillColor = "rgba(255, 255, 255, 0.03)";
-                    strokeColor = "rgba(255, 255, 255, 0.45)";
-                    strokeWidth = 1;
-                    lineDash = [6, 6];
-                 }
-                 
-                 return (
-                   <Polygon 
-                     key={`infra-poly-${item.id}-${idx}`}
-                     coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                     fillColor={fillColor}
-                     strokeColor={strokeColor}
-                     strokeWidth={strokeWidth}
-                     lineDashPattern={lineDash}
-                     zIndex={5}
-                   />
-                 );
-              });
-           }
-           return null;
-        })}
+      <View style={styles.mapContainer}>
+        <MapView
+          style={styles.map}
+          mapType="satellite"
+          initialRegion={region}
+          onRegionChangeComplete={onRegionChangeComplete}
+          onPress={handleMapPress}
+          showsUserLocation={true}
+        >
+          {/* QGIS Infrastructure Layers */}
+          {infrastructure.map(item => {
+             const geom = item.parsedGeom;
+             if (!geom) return null;
+             
+             if (geom.type === 'LineString' || geom.type === 'MultiLineString') {
+                const coords = geom.type === 'LineString' ? [geom.coordinates] : geom.coordinates;
+                return coords.map((cList, idx) => (
+                  <Polyline
+                    key={`infra-road-${item.id}-${idx}`}
+                    coordinates={cList.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                    strokeColor={item.type === 'road' ? '#3B82F6' : 'rgba(59, 130, 246, 0.5)'}
+                    strokeWidth={item.type === 'road' ? 2 : 1}
+                    zIndex={11}
+                    tappable={true}
+                    onPress={() => {
+                       const props = item.properties || {};
+                       const lineIdVal = props.Line_ID || props.line_id || '';
+                       const rdNameVal = props.Rd_Name || props.rd_name || item.name || '';
+                       
+                       setTitle(rdNameVal);
+                       setLineId(lineIdVal.toString());
+                       setRdName(rdNameVal);
+                       
+                       const polyCoords = cList.map(c => ({ longitude: c[0], latitude: c[1] }));
+                       setCoordinates(polyCoords);
+                       
+                       Alert.alert('Road Selected', `Road: ${rdNameVal}\nLine ID: ${lineIdVal}`);
+                    }}
+                  />
+                ));
+             } else if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+                const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+                return polys.map((poly, idx) => {
+                   const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
+                   let fillColor = "rgba(255, 255, 255, 0.02)";
+                   let strokeColor = "rgba(255, 255, 255, 0.1)";
+                   let strokeWidth = 0.5;
+                   
+                   if (item.type === 'row') {
+                      fillColor = "rgba(245, 158, 11, 0.12)";
+                      strokeColor = "rgba(245, 158, 11, 0.5)";
+                      strokeWidth = 1;
+                   } else if (item.type === 'ward') {
+                      fillColor = "rgba(255, 255, 255, 0.02)";
+                      strokeColor = "rgba(255, 255, 255, 0.4)";
+                      strokeWidth = 1;
+                   }
+                   
+                   return (
+                     <Polygon 
+                       key={`infra-poly-${item.id}-${idx}`}
+                       coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
+                       fillColor={fillColor}
+                       strokeColor={strokeColor}
+                       strokeWidth={strokeWidth}
+                       zIndex={5}
+                     />
+                   );
+                });
+             }
+             return null;
+          })}
 
-        {coordinates.map((coord, index) => (
-          <Marker 
-            key={index} 
-            coordinate={coord} 
-            anchor={{x: 0.5, y: 0.5}}
-            zIndex={21}
-          >
-            <View style={[styles.dotMarker, index === 0 && {backgroundColor: '#4CAF50'}]} />
-          </Marker>
-        ))}
-        {coordinates.length >= 2 && (
-          <Polyline 
-            coordinates={coordinates} 
-            strokeColor="#FFFF00" 
-            strokeWidth={2.5} 
-            zIndex={20}
-          />
-        )}
-      </MapView>
+          {coordinates.map((coord, index) => (
+            <Marker 
+              key={index} 
+              coordinate={coord} 
+              anchor={{x: 0.5, y: 0.5}}
+              zIndex={21}
+            >
+              <View style={[styles.dotMarker, index === 0 && {backgroundColor: Colors.success}]} />
+            </Marker>
+          ))}
+          {coordinates.length >= 2 && (
+            <Polyline 
+              coordinates={coordinates} 
+              strokeColor="#FFEB3B" 
+              strokeWidth={3} 
+              zIndex={20}
+            />
+          )}
+        </MapView>
+      </View>
 
-      <ScrollView style={styles.formContainer}>
+      <ScrollView style={styles.formContainer} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <View style={styles.headerRow}>
            <Text style={styles.helpText}>
-             Tap on the map to mark the path of the road.
+             {coordinates.length === 0 ? "Tap maps to start drawing" : `${coordinates.length} points marked`}
            </Text>
            {coordinates.length > 0 && (
-              <View style={{flexDirection: 'row'}}>
-                <TouchableOpacity onPress={undoLastPoint} style={{marginRight: 10, backgroundColor: '#f0f0f0', padding: 5, borderRadius: 5}}>
+              <View style={styles.drawingActions}>
+                <TouchableOpacity onPress={undoLastPoint} style={[styles.drawBtn, { marginRight: 8 }]} activeOpacity={0.8}>
+                   <Ionicons name="arrow-undo-outline" size={14} color={Colors.primary} />
                    <Text style={styles.undoText}>Undo</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={clearPoints} style={{backgroundColor: '#FFEBEE', padding: 5, borderRadius: 5}}>
-                   <Text style={[styles.undoText, {color: '#D32F2F'}]}>Clear All</Text>
+                <TouchableOpacity onPress={clearPoints} style={[styles.drawBtn, { backgroundColor: Colors.errorBg, borderColor: `${Colors.error}20` }]} activeOpacity={0.8}>
+                   <Ionicons name="trash-outline" size={14} color={Colors.error} />
+                   <Text style={[styles.undoText, {color: Colors.error}]}>Clear</Text>
                 </TouchableOpacity>
               </View>
            )}
         </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Road Name / Segment Title"
-          value={title}
-          onChangeText={setTitle}
-        />
-        <TextInput
-          style={[styles.input, {height: 80, textAlignVertical: 'top'}]}
-          placeholder="Specific instructions for this road..."
-          value={description}
-          onChangeText={setDescription}
-          multiline
-        />
-
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={selectedWorkerId}
-            onValueChange={(itemValue) => setSelectedWorkerId(itemValue)}
-          >
-            <Picker.Item label="-- Assign Worker --" value="" />
-            {workers.map(worker => (
-              <Picker.Item 
-                key={worker.id} 
-                label={`${worker.name}`} 
-                value={worker.id} 
-              />
-            ))}
-          </Picker>
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Road Segment Title</Text>
+          <TextInput
+            style={[styles.input, titleFocused && styles.inputFocused]}
+            placeholder="e.g. Gandhi Nagar Road B"
+            placeholderTextColor={Colors.placeholder}
+            value={title}
+            onChangeText={setTitle}
+            onFocus={() => setTitleFocused(true)}
+            onBlur={() => setTitleFocused(false)}
+          />
         </View>
 
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={selectedWardId}
-            onValueChange={(itemValue) => setSelectedWardId(itemValue)}
-          >
-            <Picker.Item label="-- Assign Ward --" value="" />
-            {wards.map(ward => (
-              <Picker.Item 
-                key={ward.id} 
-                label={ward.name} 
-                value={ward.id} 
-              />
-            ))}
-          </Picker>
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Instructions</Text>
+          <TextInput
+            style={[styles.input, {height: 72, textAlignVertical: 'top'}, descFocused && styles.inputFocused]}
+            placeholder="Clean both sides of the street..."
+            placeholderTextColor={Colors.placeholder}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            onFocus={() => setDescFocused(true)}
+            onBlur={() => setDescFocused(false)}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Assign Jawan (Optional)</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={selectedWorkerId}
+              onValueChange={(itemValue) => setSelectedWorkerId(itemValue)}
+              style={styles.picker}
+            >
+              <Picker.Item label="-- Select Worker --" value="" style={styles.pickerPlaceholderItem} />
+              {workers.map(worker => (
+                <Picker.Item 
+                  key={worker.id} 
+                  label={worker.name} 
+                  value={worker.id} 
+                />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Assign Ward Area</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={selectedWardId}
+              onValueChange={(itemValue) => setSelectedWardId(itemValue)}
+              style={styles.picker}
+            >
+              <Picker.Item label="-- Select Ward --" value="" style={styles.pickerPlaceholderItem} />
+              {wards.map(ward => (
+                <Picker.Item 
+                  key={ward.id} 
+                  label={ward.name} 
+                  value={ward.id} 
+                />
+              ))}
+            </Picker>
+          </View>
         </View>
 
         <TouchableOpacity 
-           style={[styles.button, (coordinates.length < 2 || loading) ? styles.buttonDisabled : null]} 
+           style={[styles.button, (coordinates.length < 2 || loading) ? styles.buttonDisabled : null, Colors.shadowMedium]} 
            onPress={handleCreateTask}
            disabled={coordinates.length < 2 || loading}
+           activeOpacity={0.8}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>CREATE LINE TASK</Text>}
+          {loading ? (
+            <ActivityIndicator color={Colors.white} />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle-outline" size={20} color={Colors.white} />
+              <Text style={styles.buttonText}>CREATE LINE TASK</Text>
+            </>
+          )}
         </TouchableOpacity>
-        <View style={{height: 40}} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  infoBanner: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: '#f9f9f9', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  infoBannerText: { marginLeft: 10, fontWeight: 'bold', color: '#444', fontSize: 13 },
-  map: { width: Dimensions.get('window').width, height: 350 },
+  container: { flex: 1, backgroundColor: Colors.background },
+  infoBanner: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: Colors.card, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  infoBannerText: { marginLeft: 8, fontWeight: '700', color: Colors.text, fontSize: 13 },
+  
+  mapContainer: {
+    paddingHorizontal: 15,
+    paddingTop: 10,
+  },
+  map: { 
+    width: '100%', 
+    height: 250, 
+    borderRadius: Colors.radiusMedium,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  
   dotMarker: { width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.primary, borderWidth: 2, borderColor: '#fff' },
-  formContainer: { padding: 20, flex: 1 },
+  formContainer: { paddingHorizontal: 20, paddingTop: 15, flex: 1 },
+  
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  helpText: { color: '#666', fontSize: 13, fontStyle: 'italic' },
-  undoText: { color: Colors.primary, fontWeight: 'bold', fontSize: 12 },
-  input: { backgroundColor: '#f9f9f9', padding: 15, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: '#eee' },
-  pickerContainer: { borderWidth: 1, borderColor: '#eee', borderRadius: 10, backgroundColor: '#f9f9f9', marginBottom: 20 },
-  button: { backgroundColor: Colors.primary, padding: 18, borderRadius: 12, alignItems: 'center', elevation: 3 },
-  buttonDisabled: { backgroundColor: '#ccc' },
-  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  helpText: { color: Colors.textSecondary, fontSize: 13, fontWeight: '600', fontStyle: 'italic' },
+  drawingActions: { flexDirection: 'row' },
+  drawBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: `${Colors.primary}08`, 
+    paddingVertical: 5, 
+    paddingHorizontal: 8, 
+    borderRadius: 8, 
+    borderWidth: 1, 
+    borderColor: `${Colors.primary}20` 
+  },
+  undoText: { fontWeight: '700', fontSize: 11, color: Colors.primary, marginLeft: 4 },
+  
+  inputGroup: { marginBottom: 12 },
+  label: { fontSize: 12, fontWeight: '700', color: Colors.text, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  input: { 
+    backgroundColor: Colors.card, 
+    padding: 12, 
+    borderRadius: 12, 
+    borderWidth: 1.5, 
+    borderColor: Colors.border,
+    color: Colors.text,
+    fontSize: 15,
+  },
+  inputFocused: {
+    borderColor: Colors.primary,
+  },
+  
+  pickerContainer: { 
+    borderWidth: 1.5, 
+    borderColor: Colors.border, 
+    borderRadius: 12, 
+    backgroundColor: Colors.card, 
+    overflow: 'hidden',
+  },
+  picker: {
+    color: Colors.text,
+    height: 50,
+  },
+  pickerPlaceholderItem: {
+    color: Colors.placeholder,
+  },
+  
+  button: { 
+    backgroundColor: Colors.primary, 
+    padding: 15, 
+    borderRadius: 12, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    flexDirection: 'row',
+    marginTop: 15, 
+  },
+  buttonDisabled: { backgroundColor: Colors.placeholder },
+  buttonText: { color: Colors.white, fontWeight: '700', fontSize: 15, marginLeft: 8 }
 });
