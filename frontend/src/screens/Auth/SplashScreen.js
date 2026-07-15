@@ -5,50 +5,47 @@ import Colors from '../../constants/Colors';
 
 const { width, height } = Dimensions.get('window');
 
-const SweepingWorker = ({ direction = 'left' }) => {
+const SweepingWorker = ({ scale = 1, direction = 'left' }) => {
   const isLeft = direction === 'left';
   return (
-    <View style={styles.workerContainer}>
+    <View style={[styles.workerContainer, { transform: [{ scale }] }]}>
       {/* 1. Yellow Safety Helmet */}
       <View style={styles.helmetShape}>
-        {/* Brim of helmet */}
         <View style={styles.helmetBrim} />
       </View>
       
-      {/* 2. Face / Head */}
+      {/* 2. Face */}
       <View style={styles.headShape} />
       
-      {/* 3. Orange High-Visibility Safety Jacket / Vest */}
+      {/* 3. Orange High-Vis Jacket / Vest */}
       <View style={styles.safetyJacket}>
-        {/* Reflective Stripes (Silver bands running horizontally) */}
+        {/* Silver Reflective Stripes */}
         <View style={styles.reflectiveBand} />
-        <View style={[styles.reflectiveBand, { marginTop: 6 }]} />
+        <View style={[styles.reflectiveBand, { marginTop: 5 }]} />
         
-        {/* Vertical suspender reflective stripes */}
+        {/* Vertical Reflective Bands */}
         <View style={styles.suspenderLeft} />
         <View style={styles.suspenderRight} />
       </View>
 
-      {/* 4. Legs on the ground */}
+      {/* 4. Legs */}
       <View style={styles.legsRow}>
         <View style={styles.leg} />
         <View style={styles.leg} />
       </View>
 
-      {/* 5. Broomstick (Held in hands, slanting down to the road) */}
+      {/* 5. Broomstick (sweeping the road) */}
       <View 
         style={[
           styles.broomstickAssembly, 
           isLeft ? { left: -10, transform: [{ rotate: '-35deg' }] } : { right: -10, transform: [{ rotate: '35deg' }] }
         ]}
       >
-        {/* Wooden Handle */}
         <View style={styles.broomHandle} />
-        {/* Straw/Plastic Bristles */}
         <View style={styles.broomBristles} />
       </View>
 
-      {/* 6. Hand dots holding the broom */}
+      {/* 6. Hands holding the broom */}
       <View style={styles.handsRow}>
         <View style={styles.handDot} />
         <View style={[styles.handDot, { marginTop: -2 }]} />
@@ -60,13 +57,13 @@ const SweepingWorker = ({ direction = 'left' }) => {
 export default function SplashScreen() {
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#104A18" />
+      <StatusBar barStyle="light-content" backgroundColor="#051329" />
       
-      {/* Subtle backdrop circle layouts */}
-      <View style={[styles.bgCircle, { top: -height * 0.1, left: -width * 0.2, backgroundColor: 'rgba(255,255,255,0.03)' }]} />
-      <View style={[styles.bgCircle, { bottom: -height * 0.15, right: -width * 0.2, backgroundColor: 'rgba(255,255,255,0.04)' }]} />
+      {/* Abstract decorative background rings */}
+      <View style={[styles.bgCircle, { top: -height * 0.1, left: -width * 0.2, backgroundColor: 'rgba(255,255,255,0.02)' }]} />
+      <View style={[styles.bgCircle, { bottom: -height * 0.15, right: -width * 0.2, backgroundColor: 'rgba(255,255,255,0.03)' }]} />
 
-      {/* Top Header Section */}
+      {/* 1. Header Section */}
       <View style={styles.header}>
         <View style={[styles.logoWrapper, Colors.shadowHigh]}>
           <Image
@@ -80,76 +77,96 @@ export default function SplashScreen() {
         <Text style={styles.subTitleTelugu}>ఖమ్మం నగర పాలక సంస్థ</Text>
       </View>
 
-      {/* Graphic Section with Roads & Sweeping Workers */}
-      <View style={styles.graphicContainer}>
-        {/* Skyline background silhouette */}
-        <View style={styles.skylineBackground}>
-          <MaterialCommunityIcons name="city-variant-outline" size={70} color="rgba(255, 255, 255, 0.08)" />
-          <MaterialCommunityIcons name="city-variant-outline" size={90} color="rgba(255, 255, 255, 0.06)" style={{ marginLeft: -15 }} />
-          <MaterialCommunityIcons name="city-variant-outline" size={70} color="rgba(255, 255, 255, 0.08)" style={{ marginLeft: -15 }} />
-        </View>
-
-        {/* Greenery / Forest elements */}
-        <View style={styles.forestBackground}>
-          <MaterialCommunityIcons name="pine-tree" size={28} color="rgba(255, 255, 255, 0.2)" />
-          <MaterialCommunityIcons name="pine-tree" size={36} color="rgba(255, 255, 255, 0.25)" style={{ marginHorizontal: 8, marginTop: -6 }} />
-          <MaterialCommunityIcons name="pine-tree" size={28} color="rgba(255, 255, 255, 0.2)" />
-        </View>
-
-        {/* Interactive illustration card containing the street scene */}
-        <View style={[styles.illustrationCard, Colors.shadowHigh]}>
+      {/* 2. Middle Canvas (City Silhouette, Road, and Workers) */}
+      <View style={styles.canvasContainer}>
+        
+        {/* City Skyline Silhouettes (Layered Blue Buildings) */}
+        <View style={styles.skylineWrapper}>
+          {/* Layer 1: Distant Light Blue Buildings */}
+          <View style={styles.skylineLayer1}>
+            <View style={[styles.building, { height: 110, width: 35 }]} />
+            <View style={[styles.building, { height: 150, width: 45 }]} />
+            <View style={[styles.building, { height: 90, width: 30 }]} />
+            <View style={[styles.building, { height: 170, width: 40 }]} />
+            <View style={[styles.building, { height: 120, width: 35 }]} />
+            <View style={[styles.building, { height: 140, width: 45 }]} />
+            <View style={[styles.building, { height: 100, width: 30 }]} />
+          </View>
           
-          {/* Active road canvas */}
-          <View style={styles.roadCanvas}>
-            {/* White side lane lines */}
-            <View style={styles.roadBoundaryLine} />
-            
-            {/* Center dashed lane markers */}
-            <View style={styles.centerDividerContainer}>
-              <View style={styles.centerStripe} />
-              <View style={styles.centerStripe} />
-              <View style={styles.centerStripe} />
-              <View style={styles.centerStripe} />
-              <View style={styles.centerStripe} />
-            </View>
-
-            <View style={[styles.roadBoundaryLine, { marginTop: 'auto' }]} />
-            
-            {/* Swept sparkles to indicate cleanliness success */}
-            <View style={[styles.sparkleDecoration, { left: 45, top: 8 }]}>
-              <Ionicons name="sparkles" size={12} color={Colors.secondary} />
-            </View>
-            <View style={[styles.sparkleDecoration, { right: 45, bottom: 8 }]}>
-              <Ionicons name="sparkles" size={12} color={Colors.secondary} />
-            </View>
-          </View>
-
-          {/* Overlaying the sweeping Jawans */}
-          <View style={styles.workersOverlayRow}>
-            {/* Jawan sweeping left side of the road */}
-            <View style={{ marginRight: 25 }}>
-              <SweepingWorker direction="left" />
-            </View>
-
-            {/* Middle decorative emblem of clean mission */}
-            <View style={styles.cleanEmblemContainer}>
-              <View style={styles.emblemCircle}>
-                <MaterialCommunityIcons name="leaf" size={24} color={Colors.successText} />
-              </View>
-              <Text style={styles.emblemText}>CLEAN ROAD</Text>
-            </View>
-
-            {/* Jawan sweeping right side of the road */}
-            <View style={{ marginLeft: 25 }}>
-              <SweepingWorker direction="right" />
-            </View>
+          {/* Layer 2: Mid-ground Medium Blue Buildings */}
+          <View style={styles.skylineLayer2}>
+            <View style={[styles.buildingMid, { height: 80, width: 40 }]} />
+            <View style={[styles.buildingMid, { height: 110, width: 42 }]} />
+            <View style={[styles.buildingMid, { height: 75, width: 35 }]} />
+            <View style={[styles.buildingMid, { height: 130, width: 48 }]} />
+            <View style={[styles.buildingMid, { height: 95, width: 38 }]} />
+            <View style={[styles.buildingMid, { height: 115, width: 40 }]} />
           </View>
         </View>
+
+        {/* Green Trees (Overlapping the skyline on the right/left sides) */}
+        <View style={styles.treeLeft}>
+          <View style={[styles.leafCircle, { width: 36, height: 36, backgroundColor: '#065F46' }]} />
+          <View style={[styles.leafCircle, { width: 46, height: 46, backgroundColor: '#047857', marginTop: -20, marginLeft: 10 }]} />
+          <View style={[styles.leafCircle, { width: 36, height: 36, backgroundColor: '#065F46', marginTop: -25, marginLeft: -10 }]} />
+          <View style={styles.trunk} />
+        </View>
+
+        <View style={styles.treeRight}>
+          <View style={[styles.leafCircle, { width: 40, height: 40, backgroundColor: '#047857' }]} />
+          <View style={[styles.leafCircle, { width: 52, height: 52, backgroundColor: '#059669', marginTop: -24, marginRight: 8 }]} />
+          <View style={[styles.leafCircle, { width: 40, height: 40, backgroundColor: '#047857', marginTop: -30, marginLeft: 12 }]} />
+          <View style={styles.trunk} />
+        </View>
+
+        {/* Asphalt Road Canvas (Replacing vehicles with sweeping workers) */}
+        <View style={styles.roadCanvas}>
+          {/* Top curb border */}
+          <View style={styles.curbBorder} />
+
+          {/* Lane Dividers */}
+          <View style={styles.roadCenterLines}>
+            <View style={styles.laneStripe} />
+            <View style={styles.laneStripe} />
+            <View style={styles.laneStripe} />
+            <View style={styles.laneStripe} />
+            <View style={styles.laneStripe} />
+          </View>
+
+          {/* Bottom curb border */}
+          <View style={[styles.curbBorder, { marginTop: 'auto' }]} />
+        </View>
+
+        {/* Sweeping Workers Overlay (3 workers placed at left, middle, right on the road) */}
+        <View style={styles.workersOverlay}>
+          {/* Left Worker */}
+          <View style={[styles.workerPosition, { left: width * 0.08 }]}>
+            <SweepingWorker scale={0.9} direction="left" />
+          </View>
+
+          {/* Center Worker */}
+          <View style={[styles.workerPosition, { left: width * 0.38, bottom: -10 }]}>
+            <SweepingWorker scale={1.0} direction="right" />
+          </View>
+
+          {/* Right Worker */}
+          <View style={[styles.workerPosition, { right: width * 0.08 }]}>
+            <SweepingWorker scale={0.9} direction="left" />
+          </View>
+        </View>
+
+        {/* Sparkle Clean Effect decor */}
+        <View style={styles.sparkleOverlay}>
+          <Ionicons name="sparkles" size={16} color={Colors.secondary} />
+          <Text style={styles.cleanLabel}>KEEPIN' KHAMMAM CLEAN</Text>
+          <Ionicons name="sparkles" size={16} color={Colors.secondary} />
+        </View>
+
       </View>
 
-      {/* Secure footer */}
+      {/* 3. Secure Footer */}
       <View style={styles.footer}>
-        <Ionicons name="shield-checkmark" size={16} color="rgba(255,255,255,0.7)" style={{ marginRight: 6 }} />
+        <Ionicons name="shield-checkmark" size={16} color="rgba(255,255,255,0.6)" style={{ marginRight: 6 }} />
         <Text style={styles.footerText}>SECURE WORKSPACE PORTAL</Text>
       </View>
     </View>
@@ -159,7 +176,7 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#104A18', // Rich green theme
+    backgroundColor: '#051E3C', // Deep Royal Blue Background matching KMC-FRS
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: height * 0.08,
@@ -174,7 +191,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     paddingHorizontal: 20,
-    marginTop: height * 0.02,
+    marginTop: height * 0.01,
   },
   logoWrapper: {
     backgroundColor: Colors.white,
@@ -200,7 +217,7 @@ const styles = StyleSheet.create({
   },
   subTitleEnglish: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.95)',
     fontWeight: '700',
     letterSpacing: 0.5,
     marginBottom: 4,
@@ -210,217 +227,238 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.75)',
     fontWeight: '600',
   },
-  graphicContainer: {
+  canvasContainer: {
     width: '92%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 20,
+    height: 240,
+    justifyContent: 'flex-end',
+    position: 'relative',
+    marginVertical: 10,
   },
-  skylineBackground: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginBottom: -10,
+  skylineWrapper: {
+    position: 'absolute',
+    bottom: 80,
+    width: '100%',
+    height: 180,
     zIndex: 1,
   },
-  forestBackground: {
+  skylineLayer1: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: 12,
-    zIndex: 2,
-  },
-  illustrationCard: {
+    justifyContent: 'space-around',
+    position: 'absolute',
+    bottom: 0,
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: Colors.radiusLarge,
-    paddingHorizontal: 16,
-    paddingTop: 45,
-    paddingBottom: 25,
-    alignItems: 'center',
+  },
+  building: {
+    backgroundColor: 'rgba(37, 99, 235, 0.16)', // Distant soft light-blue silhouettes
+    borderRadius: 3,
+  },
+  skylineLayer2: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  buildingMid: {
+    backgroundColor: 'rgba(30, 58, 138, 0.35)', // Midground medium-blue silhouettes
+    borderRadius: 3,
+  },
+  treeLeft: {
+    position: 'absolute',
+    left: -10,
+    bottom: 75,
     zIndex: 3,
-    position: 'relative',
+    alignItems: 'center',
+  },
+  treeRight: {
+    position: 'absolute',
+    right: -10,
+    bottom: 75,
+    zIndex: 3,
+    alignItems: 'center',
+  },
+  leafCircle: {
+    borderRadius: 30,
+  },
+  trunk: {
+    width: 6,
+    height: 20,
+    backgroundColor: '#78350F',
+    marginTop: -2,
   },
   roadCanvas: {
     width: '100%',
-    height: 60,
-    backgroundColor: '#334155', // Slate road color
-    borderRadius: 6,
-    paddingVertical: 4,
-    justifyContent: 'space-between',
+    height: 85,
+    backgroundColor: '#1E293B', // Dark slate road
+    borderRadius: 8,
+    zIndex: 2,
     position: 'relative',
     overflow: 'hidden',
   },
-  roadBoundaryLine: {
+  curbBorder: {
     width: '100%',
-    height: 2,
-    backgroundColor: 'rgba(255,255,255,0.4)',
+    height: 3,
+    backgroundColor: '#94A3B8', // Grey road lines
   },
-  centerDividerContainer: {
+  roadCenterLines: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
     width: '100%',
-    paddingHorizontal: 10,
+    marginTop: 38,
   },
-  centerStripe: {
+  laneStripe: {
     width: 25,
     height: 2,
-    backgroundColor: 'rgba(255,255,255,0.8)',
+    backgroundColor: '#F8FAFC', // White divider stripes
   },
-  sparkleDecoration: {
+  workersOverlay: {
     position: 'absolute',
-    zIndex: 2,
-  },
-  workersOverlayRow: {
-    position: 'absolute',
-    top: -30,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    bottom: 10,
     width: '100%',
-    paddingHorizontal: 10,
+    height: 120,
+    zIndex: 4,
   },
-  cleanEmblemContainer: {
+  workerPosition: {
+    position: 'absolute',
+    bottom: 0,
+  },
+  sparkleOverlay: {
+    position: 'absolute',
+    bottom: -32,
+    alignSelf: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: -22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    zIndex: 5,
   },
-  emblemCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.successBg,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: Colors.success,
-  },
-  emblemText: {
+  cleanLabel: {
     fontSize: 9,
-    fontWeight: '900',
-    color: Colors.successText,
-    marginTop: 4,
-    letterSpacing: 0.5,
+    fontWeight: '800',
+    color: '#34D399',
+    marginHorizontal: 6,
+    letterSpacing: 1,
   },
 
-  /* Worker Vector Styling */
+  /* Worker Vector Styles */
   workerContainer: {
     alignItems: 'center',
-    width: 65,
-    height: 110,
+    width: 60,
+    height: 100,
     position: 'relative',
   },
   helmetShape: {
-    width: 24,
-    height: 11,
-    backgroundColor: '#FDD835', // Safety Yellow Helmet
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
+    width: 20,
+    height: 10,
+    backgroundColor: '#FACC15', // Yellow hard hat
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
     zIndex: 5,
-    position: 'relative',
   },
   helmetBrim: {
     position: 'absolute',
-    bottom: -1.5,
-    left: -3,
-    width: 30,
-    height: 2.5,
-    backgroundColor: '#FBC02D',
-    borderRadius: 1,
+    bottom: -1,
+    left: -2,
+    width: 24,
+    height: 2,
+    backgroundColor: '#CA8A04',
   },
   headShape: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#FFCC80', // Peach face tone
-    marginTop: 1,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#FED7AA', // Face skin tone
     zIndex: 4,
   },
   safetyJacket: {
-    width: 28,
-    height: 34,
-    backgroundColor: '#FF5722', // High-Vis Safety Orange Vest
-    borderRadius: 5,
-    marginTop: 2,
+    width: 24,
+    height: 28,
+    backgroundColor: '#F97316', // Neon Orange High-Vis Jacket
+    borderRadius: 4,
+    marginTop: 1,
     zIndex: 3,
     overflow: 'hidden',
     borderWidth: 0.5,
-    borderColor: '#E64A19',
+    borderColor: '#EA580C',
     position: 'relative',
   },
   reflectiveBand: {
     width: '100%',
-    height: 3.5,
-    backgroundColor: '#CBD5E1', // Silver/Grey reflective stripe
-    marginTop: 8,
+    height: 3,
+    backgroundColor: '#E2E8F0', // Horizontal reflective silver band
+    marginTop: 6,
   },
   suspenderLeft: {
     position: 'absolute',
     top: 0,
-    left: 4,
-    width: 3,
+    left: 3,
+    width: 2.5,
     height: '100%',
-    backgroundColor: '#CBD5E1',
+    backgroundColor: '#E2E8F0',
   },
   suspenderRight: {
     position: 'absolute',
     top: 0,
-    right: 4,
-    width: 3,
+    right: 3,
+    width: 2.5,
     height: '100%',
-    backgroundColor: '#CBD5E1',
+    backgroundColor: '#E2E8F0',
   },
   legsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: 16,
-    height: 12,
-    marginTop: 1,
+    width: 14,
+    height: 10,
     zIndex: 2,
   },
   leg: {
-    width: 5,
+    width: 4,
     height: '100%',
-    backgroundColor: '#334155', // Grey trousers
-    borderRadius: 1,
+    backgroundColor: '#475569', // Dark grey pants
   },
   handsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     position: 'absolute',
-    top: 44,
+    top: 38,
     width: '100%',
     zIndex: 6,
   },
   handDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#FFCC80',
-    marginHorizontal: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#FED7AA',
+    marginHorizontal: 2,
   },
   broomstickAssembly: {
     position: 'absolute',
-    bottom: -15, // Broom bristles sit right on the road surface
-    height: 75,
+    bottom: -15, // Broom rests on road surface
+    height: 65,
     alignItems: 'center',
     zIndex: 7,
   },
   broomHandle: {
-    width: 2.5,
-    height: 60,
-    backgroundColor: '#8D6E63', // Wooden pole handle
-    borderRadius: 1,
+    width: 2,
+    height: 52,
+    backgroundColor: '#78350F', // Wooden handle
   },
   broomBristles: {
-    width: 18,
-    height: 15,
-    backgroundColor: '#FBC02D', // Broom bristles/brush sweeping the road
+    width: 16,
+    height: 13,
+    backgroundColor: '#FACC15', // Yellow straw broom brush
     borderTopLeftRadius: 3,
     borderTopRightRadius: 3,
-    borderBottomLeftRadius: 1,
-    borderBottomRightRadius: 1,
     borderWidth: 0.5,
-    borderColor: '#F57F17',
+    borderColor: '#CA8A04',
   },
   footer: {
     flexDirection: 'row',
@@ -431,7 +469,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.65)',
+    color: 'rgba(255, 255, 255, 0.45)',
     fontWeight: '800',
     letterSpacing: 1,
   },
