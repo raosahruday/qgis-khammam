@@ -1,10 +1,11 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider, AuthContext } from './src/context/AuthContext';
 import { ActivityIndicator, View } from 'react-native';
 
 // Auth Screens
+import SplashScreen from './src/screens/Auth/SplashScreen';
 import LoginScreen from './src/screens/Auth/LoginScreen';
 import RegisterScreen from './src/screens/Auth/RegisterScreen';
 
@@ -25,6 +26,18 @@ const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
   const { user, isLoading } = useContext(AuthContext);
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (showSplash) {
+    return <SplashScreen />;
+  }
 
   if (isLoading) {
     return (
