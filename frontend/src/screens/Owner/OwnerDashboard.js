@@ -369,9 +369,6 @@ export default function OwnerDashboard({ navigation }) {
       
       <View style={[styles.titleSection, Colors.shadowLow]}>
         <View style={styles.profileRow}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{getUserInitials(user?.name)}</Text>
-          </View>
           <View style={styles.profileText}>
             <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
             <Text style={styles.subText}>
@@ -584,7 +581,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: Colors.border,
   },
-  profileRow: { flexDirection: 'row', alignItems: 'center' },
+  profileRow: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 },
   avatar: {
     width: 44,
     height: 44,
@@ -597,7 +594,7 @@ const styles = StyleSheet.create({
     borderColor: `${Colors.primary}30`,
   },
   avatarText: { color: Colors.primary, fontWeight: '700', fontSize: 16 },
-  profileText: { justifyContent: 'center' },
+  profileText: { justifyContent: 'center', flex: 1 },
   headerTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
   subText: { fontSize: 11, color: Colors.textSecondary, marginTop: 2, fontWeight: '600' },
   logoutButton: { 
@@ -608,7 +605,8 @@ const styles = StyleSheet.create({
     borderRadius: 10, 
     borderWidth: 1, 
     borderColor: `${Colors.accent}30`,
-    backgroundColor: `${Colors.accent}08`
+    backgroundColor: `${Colors.accent}08`,
+    flexShrink: 0
   },
   logoutText: { color: Colors.accent, fontWeight: '700', fontSize: 11, marginLeft: 4 },
   

@@ -170,6 +170,9 @@ exports.swipeStatus = async (req, res) => {
           error: `Too far away. You are ${Math.round(dist)}m away from the Start Point. You must be within 150m to start the task.` 
         });
       }
+
+      // Clear any old photo proofs so worker has to upload a new one for redo/restart
+      await db.query('DELETE FROM photos WHERE task_id = $1', [id]);
     }
 
     if (type === 'complete') {

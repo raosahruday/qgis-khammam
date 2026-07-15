@@ -624,14 +624,22 @@ export default function MapNavigationScreen({ route, navigation }) {
            </View>
         </View>
 
-        {liveTask.status === 'pending' && (
+        {(liveTask.status === 'pending' || liveTask.status === 'rejected') && (
            <View style={styles.actionContainer}>
+             {liveTask.status === 'rejected' && (
+                <View style={[styles.statusMessageBox, { backgroundColor: Colors.errorBg, borderColor: Colors.accent, marginBottom: 12, marginTop: 0 }]}>
+                   <Ionicons name="alert-circle-outline" size={20} color={Colors.errorText} />
+                   <Text style={[styles.statusMessageText, { color: Colors.errorText, flex: 1 }]}>
+                      Rejected: {liveTask.review_comment || 'No reason provided.'}
+                   </Text>
+                </View>
+             )}
              <TouchableOpacity style={[styles.navBtn, Colors.shadowLow]} onPress={handleNavigateToStart} activeOpacity={0.8}>
                 <Ionicons name="location-outline" size={18} color={Colors.white} />
                 <Text style={styles.btnText}>Navigate to Start</Text>
              </TouchableOpacity>
              <SwipeButton 
-                title="Swipe to Start Task"
+                title={liveTask.status === 'rejected' ? "Swipe to Re-do Task" : "Swipe to Start Task"}
                 color={Colors.primary}
                 onSwipeComplete={() => handleSwipeStatus('start')}
               />
@@ -704,7 +712,7 @@ const styles = StyleSheet.create({
   footer: { 
     paddingHorizontal: 20, 
     paddingTop: 16, 
-    paddingBottom: Platform.OS === 'ios' ? 30 : 24, 
+    paddingBottom: Platform.OS === 'ios' ? 48 : 42, 
     backgroundColor: Colors.card, 
     borderTopLeftRadius: Colors.radiusLarge, 
     borderTopRightRadius: Colors.radiusLarge, 
