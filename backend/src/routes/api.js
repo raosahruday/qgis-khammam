@@ -161,12 +161,12 @@ router.put('/tasks/:id/reject', authorizeRole(['owner', 'supervisor', 'park_insp
 
 // --- Dashboards & Infrastructure ---
 router.get('/wards/stats', authorizeRole(['owner', 'supervisor', 'commissioner']), taskController.getWardStats);
-router.get('/machines', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker', 'park_jawan']), machineController.getMachines);
+router.get('/machines', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker', 'park_jawan', 'park_inspector']), machineController.getMachines);
 router.post('/machines/:id/location', authorizeRole(['worker', 'park_jawan']), machineController.updateMachineLocation);
 router.put('/machines/link-worker', authorizeRole(['worker', 'park_jawan']), machineController.linkWorkerToMachine);
 
 // --- Geospatial Infrastructure ---
-router.get('/infrastructure/ward-boundary', authorizeRole(['worker', 'park_jawan']), infrastructureController.getWorkerWard);
+router.get('/infrastructure/ward-boundary', authorizeRole(['worker', 'park_jawan', 'park_inspector']), infrastructureController.getWorkerWard);
 router.get('/infrastructure', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker', 'park_jawan', 'park_inspector']), infrastructureController.getInfrastructure);
 
 module.exports = router;
