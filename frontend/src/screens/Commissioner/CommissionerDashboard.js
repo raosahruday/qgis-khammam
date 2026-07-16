@@ -573,9 +573,19 @@ export default function CommissionerDashboard({ navigation }) {
             <Text style={styles.statLabel}>Pending</Text>
           </View>
           <View style={[styles.sidebarStatBox, { backgroundColor: `${Colors.blue}10` }, Colors.shadowLow]}>
-            <Ionicons name="bus-outline" size={20} color={Colors.blue} />
-            <Text style={[styles.statVal, { color: Colors.blue }]}>{machines.length}</Text>
-            <Text style={styles.statLabel}>Trucks</Text>
+            <Ionicons 
+              name={selectedWardFilter === 'parks' ? "leaf-outline" : "bus-outline"} 
+              size={20} 
+              color={Colors.blue} 
+            />
+            <Text style={[styles.statVal, { color: Colors.blue }]}>
+              {selectedWardFilter === 'parks'
+                ? tasks.filter(t => t.task_type === 'park').length
+                : machines.length}
+            </Text>
+            <Text style={styles.statLabel}>
+              {selectedWardFilter === 'parks' ? 'Parks' : 'Trucks'}
+            </Text>
           </View>
       </View>
     );
@@ -636,9 +646,11 @@ export default function CommissionerDashboard({ navigation }) {
                   <View style={styles.dropdownButtonContent}>
                     <Ionicons name="filter-outline" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
                     <Text style={styles.dropdownButtonText}>
-                      {selectedWardFilter 
-                        ? `Division: ${wardStats.find(w => w.id === selectedWardFilter)?.name}` 
-                        : 'All Wards / Divisions'}
+                      {selectedWardFilter === 'parks'
+                        ? 'Parks'
+                        : selectedWardFilter 
+                          ? `Division: ${wardStats.find(w => w.id === selectedWardFilter)?.name}` 
+                          : 'All Wards / Divisions'}
                     </Text>
                   </View>
                   <Ionicons 
@@ -666,6 +678,25 @@ export default function CommissionerDashboard({ navigation }) {
                           !selectedWardFilter && styles.dropdownOptionTextSelected
                         ]}>
                           All Divisions
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.dropdownOption,
+                          selectedWardFilter === 'parks' && styles.dropdownOptionSelected
+                        ]}
+                        onPress={() => {
+                          setSelectedWardFilter('parks');
+                          setSelectedWard(null);
+                          setShowDropdown(false);
+                        }}
+                      >
+                        <Text style={[
+                          styles.dropdownOptionText,
+                          selectedWardFilter === 'parks' && styles.dropdownOptionTextSelected
+                        ]}>
+                          Parks
                         </Text>
                       </TouchableOpacity>
 
@@ -748,6 +779,32 @@ export default function CommissionerDashboard({ navigation }) {
                   </View>
                </Marker>
             ))}
+
+            {selectedWardFilter === 'parks' && tasks.filter(t => t.task_type === 'park').map(task => {
+              const coords = (typeof task.area_geojson === 'string' ? JSON.parse(task.area_geojson) : task.area_geojson) || [];
+              const pt = coords[0];
+              if (!pt || !pt.latitude || !pt.longitude) return null;
+
+              const statusColor = getStatusColor(task.status);
+              return (
+                <Marker
+                  key={`park-large-${task.id}`}
+                  coordinate={{ latitude: pt.latitude, longitude: pt.longitude }}
+                  title={task.title || 'Park'}
+                  description={`Status: ${task.status ? task.status.toUpperCase() : 'PENDING'}`}
+                >
+                  <View style={[styles.markerPin, { backgroundColor: statusColor }]}>
+                    <Ionicons name="leaf" size={12} color="white" />
+                  </View>
+                  <Callout>
+                    <View style={styles.calloutContainer}>
+                      <Text style={styles.calloutTitle}>{task.title || 'Park'}</Text>
+                      <Text style={styles.calloutStatus}>{task.status ? task.status.toUpperCase() : 'PENDING'}</Text>
+                    </View>
+                  </Callout>
+                </Marker>
+              );
+            })}
           </MapView>
           
            {/* Map Legend */}
