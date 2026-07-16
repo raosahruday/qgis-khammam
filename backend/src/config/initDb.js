@@ -336,13 +336,21 @@ const initDb = async () => {
 
     // 9. Seed default admin accounts
     const adminPasswordHash = '$2b$10$4MBC37ck8zyFaOFdZs2eBOyNQlxg8PVFZKK88Bfe83rRG8cUdWXx6'; // bcrypt hash for password123
+    const commissionerPasswordHash = '$2b$10$q7mQJ8Db4Drx0yfa3lHwxuFwGWsfLX0f/p3WAG4K2t0Pm6Tff0Yxe'; // bcrypt hash for commissioner123
     
-    // Seed Commissioner
+    // Seed Commissioner (@test.com)
     await db.query(`
       INSERT INTO users (name, email, password, role, approved) 
       VALUES ('Khammam Commissioner', 'commissioner@test.com', $1, 'commissioner', TRUE)
       ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, approved = TRUE;
-    `, [adminPasswordHash]);
+    `, [commissionerPasswordHash]);
+
+    // Seed Commissioner (@kmc.com)
+    await db.query(`
+      INSERT INTO users (name, email, password, role, approved) 
+      VALUES ('Khammam Commissioner', 'commissioner@kmc.com', $1, 'commissioner', TRUE)
+      ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, approved = TRUE;
+    `, [commissionerPasswordHash]);
 
     // Seed Supervisor
     await db.query(`
