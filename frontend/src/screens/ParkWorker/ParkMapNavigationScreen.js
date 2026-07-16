@@ -255,10 +255,14 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'approved': return Colors.success || '#10B981';
-      case 'submitted': return '#F59E0B';
-      case 'rejected': return '#EF4444';
-      default: return '#3B82F6';
+      case 'approved': 
+        return Colors.success || '#10B981'; // Green
+      case 'submitted': 
+      case 'in_progress': 
+        return '#F59E0B'; // Yellow/Amber
+      case 'rejected': 
+      default: 
+        return '#EF4444'; // Red
     }
   };
 

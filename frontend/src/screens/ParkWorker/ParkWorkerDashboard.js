@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Alert, Linking, Platform } from 'react-native';
 import MapView, { Polygon, Marker, Callout } from '../../components/MapViewWrapper';
 import * as Location from 'expo-location';
 import api from '../../api/axios';
@@ -102,10 +102,14 @@ export default function ParkWorkerDashboard({ navigation }) {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'approved': return Colors.success || '#10B981';
-      case 'submitted': return '#F59E0B'; // Amber
-      case 'rejected': return '#EF4444'; // Red
-      default: return '#3B82F6'; // Blue
+      case 'approved': 
+        return Colors.success || '#10B981'; // Green
+      case 'submitted': 
+      case 'in_progress': 
+        return '#F59E0B'; // Yellow/Amber
+      case 'rejected': 
+      default: 
+        return '#EF4444'; // Red
     }
   };
 
@@ -121,6 +125,31 @@ export default function ParkWorkerDashboard({ navigation }) {
 
   const handleTaskPress = (task) => {
     navigation.navigate('ParkMapNavigation', { taskId: task.id });
+  };
+
+  const handleNavigateToPark = (task) => {
+    const coords = (typeof task.area_geojson === 'string' ? JSON.parse(task.area_geojson) : task.area_geojson) || [];
+    const pt = coords[0];
+    if (!pt || !pt.latitude || !pt.longitude) {
+      Alert.alert('Error', 'No coordinates found for this park.');
+      return;
+    }
+    const lat = pt.latitude;
+    const lon = pt.longitude;
+    
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
+    const appleUrl = `http://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`;
+
+    Linking.canOpenURL(url).then(supported => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Linking.openURL(appleUrl);
+      }
+    }).catch(err => {
+      Alert.alert('Error', 'Could not open maps application.');
+      console.error(err);
+    });
   };
 
   const renderTaskItem = ({ item }) => {
@@ -166,11 +195,22 @@ export default function ParkWorkerDashboard({ navigation }) {
           )}
 
           <View style={styles.cardFooter}>
-            <View style={styles.actionPrompt}>
-              <Ionicons name="navigate-circle-outline" size={18} color={Colors.primary} />
-              <Text style={styles.locationLabel}>Tap to Clean / Update</Text>
-            </View>
-            <Text style={styles.viewDetails}>Open Task ➔</Text>
+            <TouchableOpacity 
+              style={styles.navigateButtonInline} 
+              onPress={() => handleNavigateToPark(item)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="navigate-circle-outline" size={16} color={Colors.primary} />
+              <Text style={styles.navigateButtonInlineText}>Navigate</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.openTaskButtonInline}
+              onPress={() => handleTaskPress(item)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.openTaskButtonInlineText}>Open Task ➔</Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </View>
@@ -513,17 +553,27 @@ const styles = StyleSheet.create({
     borderTopColor: '#F1F5F9',
     paddingTop: 10,
   },
-  actionPrompt: {
+  navigateButtonInline: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
-  locationLabel: {
+  navigateButtonInlineText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#475569',
+    color: Colors.primary,
     marginLeft: 4,
   },
-  viewDetails: {
+  openTaskButtonInline: {
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+  },
+  openTaskButtonInlineText: {
     fontSize: 11,
     fontWeight: '700',
     color: Colors.primary,
