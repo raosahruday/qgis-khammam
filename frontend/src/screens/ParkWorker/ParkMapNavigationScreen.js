@@ -88,15 +88,24 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [wardBoundary, setWardBoundary] = useState(null);
+  const [infrastructure, setInfrastructure] = useState([]);
   
   const mapRef = useRef(null);
   const locationSubscription = useRef(null);
 
   const fetchTaskDetails = async () => {
     try {
-      const [tasksRes, photosRes] = await Promise.all([
+      const [tasksRes, photosRes, wardRes, infraRes] = await Promise.all([
         api.get('/tasks'),
-        api.get(`/tasks/${taskId}/photos`)
+        api.get(`/tasks/${taskId}/photos`),
+        api.get('/infrastructure/ward-boundary').catch(err => {
+          console.log('No ward boundary in navigation:', err.message);
+          return { data: null };
+        }),
+        api.get('/infrastructure?limit=1000').catch(err => {
+          console.log('No infrastructure in navigation:', err.message);
+          return { data: [] };
+        })
       ]);
 
       const foundTask = (tasksRes.data || []).find(t => t.id === taskId);
@@ -105,19 +114,25 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
       }
       setPhotos(photosRes.data || []);
 
-      // Fetch ward boundary
-      try {
-        const wardRes = await api.get('/infrastructure/ward-boundary');
-        if (wardRes.data && wardRes.data.geom_json) {
-          const wardData = wardRes.data;
-          wardData.parsedGeom = typeof wardData.geom_json === 'string'
-            ? JSON.parse(wardData.geom_json)
-            : wardData.geom_json;
-          setWardBoundary(wardData);
-        }
-      } catch (e) {
-        console.log('No ward boundary in navigation:', e.message);
+      if (wardRes.data && wardRes.data.geom_json) {
+        const wardData = wardRes.data;
+        wardData.parsedGeom = typeof wardData.geom_json === 'string'
+          ? JSON.parse(wardData.geom_json)
+          : wardData.geom_json;
+        setWardBoundary(wardData);
       }
+
+      const parsedInfra = (infraRes.data || []).map(item => {
+        try {
+          item.parsedGeom = item.geom_json
+            ? (typeof item.geom_json === 'string' ? JSON.parse(item.geom_json) : item.geom_json)
+            : null;
+        } catch (e) {
+          item.parsedGeom = null;
+        }
+        return item;
+      });
+      setInfrastructure(parsedInfra);
 
     } catch (err) {
       console.error('Fetch task details error:', err);
@@ -307,25 +322,26 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
           showsUserLocation={true}
           showsMyLocationButton={true}
         >
-          {/* Ward boundary polygon */}
-          {wardBoundary && (() => {
-            const geom = wardBoundary.parsedGeom;
+          {/* All Ward Boundaries */}
+          {infrastructure.filter(item => item.type === 'ward').map(ward => {
+            const geom = ward.parsedGeom;
             if (!geom) return null;
             const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+            const isAssigned = wardBoundary && ward.name.toLowerCase().includes(wardBoundary.wardName.toLowerCase());
             return polys.map((poly, idx) => {
               const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
               return (
                 <Polygon
-                  key={`ward-boundary-nav-${idx}`}
+                  key={`ward-boundary-nav-${ward.id}-${idx}`}
                   coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                  strokeColor="#10B981"
-                  fillColor="rgba(16, 185, 129, 0.03)"
-                  strokeWidth={2}
-                  zIndex={1}
+                  strokeColor={isAssigned ? "#10B981" : "rgba(255, 255, 255, 0.4)"}
+                  fillColor={isAssigned ? "rgba(16, 185, 129, 0.03)" : "rgba(255, 255, 255, 0.02)"}
+                  strokeWidth={isAssigned ? 3 : 1}
+                  zIndex={isAssigned ? 10 : 5}
                 />
               );
             });
-          })()}
+          })}
 
           {/* Guide Line from current location to Park */}
           {currentLocation && parkCoordinate && (

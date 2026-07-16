@@ -15,6 +15,7 @@ export default function ParkWorkerDashboard({ navigation }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [wardBoundary, setWardBoundary] = useState(null);
+  const [infrastructure, setInfrastructure] = useState([]);
   const [region, setRegion] = useState({
     latitude: 17.2473,
     longitude: 80.1514,
@@ -35,7 +36,18 @@ export default function ParkWorkerDashboard({ navigation }) {
         console.log('Location permission request failed:', locErr);
       });
 
-      const tasksRes = await api.get('/tasks');
+      const [tasksRes, wardRes, infraRes] = await Promise.all([
+        api.get('/tasks'),
+        api.get('/infrastructure/ward-boundary').catch(err => {
+          console.log('No ward boundary found:', err.message);
+          return { data: null };
+        }),
+        api.get('/infrastructure?limit=1000').catch(err => {
+          console.log('No infrastructure found:', err.message);
+          return { data: [] };
+        })
+      ]);
+
       const tasksData = (tasksRes.data || []).filter(t => t.task_type === 'park');
       setTasks(tasksData);
 
@@ -72,19 +84,25 @@ export default function ParkWorkerDashboard({ navigation }) {
         }
       }
 
-      // Fetch ward boundary
-      try {
-        const wardRes = await api.get('/infrastructure/ward-boundary');
-        if (wardRes.data && wardRes.data.geom_json) {
-          const wardData = wardRes.data;
-          wardData.parsedGeom = typeof wardData.geom_json === 'string'
-            ? JSON.parse(wardData.geom_json)
-            : wardData.geom_json;
-          setWardBoundary(wardData);
-        }
-      } catch (wardErr) {
-        console.log('No ward boundary found:', wardErr.message);
+      if (wardRes.data && wardRes.data.geom_json) {
+        const wardData = wardRes.data;
+        wardData.parsedGeom = typeof wardData.geom_json === 'string'
+          ? JSON.parse(wardData.geom_json)
+          : wardData.geom_json;
+        setWardBoundary(wardData);
       }
+
+      const parsedInfra = (infraRes.data || []).map(item => {
+        try {
+          item.parsedGeom = item.geom_json
+            ? (typeof item.geom_json === 'string' ? JSON.parse(item.geom_json) : item.geom_json)
+            : null;
+        } catch (e) {
+          item.parsedGeom = null;
+        }
+        return item;
+      });
+      setInfrastructure(parsedInfra);
 
     } catch (error) {
       console.error('Fetch dashboard error:', error);
@@ -245,25 +263,26 @@ export default function ParkWorkerDashboard({ navigation }) {
             initialRegion={region}
             showsUserLocation={true}
           >
-            {/* Ward Boundary Outline */}
-            {wardBoundary && (() => {
-              const geom = wardBoundary.parsedGeom;
+            {/* All Ward Boundaries */}
+            {infrastructure.filter(item => item.type === 'ward').map(ward => {
+              const geom = ward.parsedGeom;
               if (!geom) return null;
               const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+              const isAssigned = wardBoundary && ward.name.toLowerCase().includes(wardBoundary.wardName.toLowerCase());
               return polys.map((poly, idx) => {
                 const ring = Array.isArray(poly[0][0]) ? poly[0] : poly;
                 return (
                   <Polygon
-                    key={`ward-poly-${idx}`}
+                    key={`ward-poly-${ward.id}-${idx}`}
                     coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                    strokeColor="#10B981"
-                    fillColor="rgba(16, 185, 129, 0.05)"
-                    strokeWidth={2}
-                    zIndex={5}
+                    strokeColor={isAssigned ? "#10B981" : "rgba(255, 255, 255, 0.4)"}
+                    fillColor={isAssigned ? "rgba(16, 185, 129, 0.05)" : "rgba(255, 255, 255, 0.02)"}
+                    strokeWidth={isAssigned ? 3 : 1}
+                    zIndex={isAssigned ? 10 : 5}
                   />
                 );
               });
-            })()}
+            })}
 
             {/* Park Markers */}
             {tasks.map(task => {

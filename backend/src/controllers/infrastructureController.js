@@ -82,14 +82,14 @@ exports.getInfrastructure = async (req, res) => {
             const isJawan61 = req.user.email === 'jawan_61';
 
             // Workers should only see their own ward boundary and roads/rows within it
-            // For Park Jawans, return ONLY the ward boundary.
+            // For Park Jawans, return all ward boundaries.
             if (isParkJawan) {
                 query = `
                     SELECT r.id, r.name, r.type, r.properties,
                            ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json
                     FROM infrastructure r
                     WHERE 1=1 ${envCondition}
-                      AND (r.type = 'ward' AND LOWER(r.name) = LOWER($1))
+                      AND r.type = 'ward'
                     LIMIT $${nextIdx + 1}
                 `;
             } else if (isJawan61) {
