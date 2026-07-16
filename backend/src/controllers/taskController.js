@@ -283,7 +283,7 @@ exports.getTasks = async (req, res) => {
     let params = [];
     let conditions = [];
 
-    if (user.role === 'worker') {
+    if (user.role === 'worker' || user.role === 'park_jawan') {
       conditions.push('t.assigned_worker_id = $' + (params.length + 1));
       params.push(user.id);
     } else if (user.role === 'supervisor') {
