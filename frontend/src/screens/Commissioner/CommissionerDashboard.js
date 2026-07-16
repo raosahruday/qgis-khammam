@@ -141,11 +141,12 @@ export default function CommissionerDashboard({ navigation }) {
   };
 
   const getFilteredWards = () => {
-    if (!selectedWardFilter) return wardStats;
+    if (!selectedWardFilter || selectedWardFilter === 'parks') return wardStats;
     return wardStats.filter(w => w.id === selectedWardFilter);
   };
 
   const getFilteredRoads = () => {
+    if (selectedWardFilter === 'parks') return [];
     const roads = infrastructure.filter(item => item.type === 'road');
     const wardNo = getSelectedWardNo();
     if (!wardNo) return roads;
@@ -157,6 +158,7 @@ export default function CommissionerDashboard({ navigation }) {
   };
 
   const getFilteredRows = () => {
+    if (selectedWardFilter === 'parks') return [];
     const rows = infrastructure.filter(item => item.type === 'row');
     const wardNo = getSelectedWardNo();
     if (!wardNo) return rows;
@@ -217,7 +219,38 @@ export default function CommissionerDashboard({ navigation }) {
     return getRoadStats(filteredRoads);
   };
 
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'approved': return '#10B981'; // Green
+      case 'submitted': 
+      case 'in_progress': 
+        return '#F59E0B'; // Yellow/Amber
+      case 'rejected': 
+      default: 
+        return '#EF4444'; // Red
+    }
+  };
+
   const getStatsValues = () => {
+    if (selectedWardFilter === 'parks') {
+      const parkTasks = tasks.filter(t => t.task_type === 'park');
+      let completed = 0;
+      let active = 0;
+      let pending = 0;
+
+      parkTasks.forEach(t => {
+        if (t.status === 'approved') {
+          completed++;
+        } else if (t.status === 'submitted' || t.status === 'in_progress') {
+          active++;
+        } else {
+          pending++;
+        }
+      });
+
+      return { completed, active, pending };
+    }
+
     if (selectedWardFilter) {
       const selectedWardObj = wardStats.find(w => w.id === selectedWardFilter);
       return getStatsForWard(selectedWardObj);
@@ -824,9 +857,11 @@ export default function CommissionerDashboard({ navigation }) {
               <View style={styles.dropdownButtonContent}>
                 <Ionicons name="filter-outline" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
                 <Text style={styles.dropdownButtonText}>
-                  {selectedWardFilter 
-                    ? `Division: ${wardStats.find(w => w.id === selectedWardFilter)?.name}` 
-                    : 'Select Division (All)'}
+                  {selectedWardFilter === 'parks'
+                    ? 'Parks'
+                    : selectedWardFilter 
+                      ? `Division: ${wardStats.find(w => w.id === selectedWardFilter)?.name}` 
+                      : 'Select Division (All)'}
                 </Text>
               </View>
               <Ionicons 
@@ -854,6 +889,25 @@ export default function CommissionerDashboard({ navigation }) {
                       !selectedWardFilter && styles.dropdownOptionTextSelected
                     ]}>
                       All Divisions
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.dropdownOption,
+                      selectedWardFilter === 'parks' && styles.dropdownOptionSelected
+                    ]}
+                    onPress={() => {
+                      setSelectedWardFilter('parks');
+                      setSelectedWard(null);
+                      setShowDropdown(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.dropdownOptionText,
+                      selectedWardFilter === 'parks' && styles.dropdownOptionTextSelected
+                    ]}>
+                      Parks
                     </Text>
                   </TouchableOpacity>
 
@@ -896,8 +950,14 @@ export default function CommissionerDashboard({ navigation }) {
                 <Text style={styles.statLabel}>Pending</Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: `${Colors.blue}10` }, Colors.shadowLow]}>
-                <Text style={[styles.statVal, { color: Colors.blue }]}>{machines.length}</Text>
-                <Text style={styles.statLabel}>Trucks</Text>
+                <Text style={[styles.statVal, { color: Colors.blue }]}>
+                  {selectedWardFilter === 'parks'
+                    ? tasks.filter(t => t.task_type === 'park').length
+                    : machines.length}
+                </Text>
+                <Text style={styles.statLabel}>
+                  {selectedWardFilter === 'parks' ? 'Parks' : 'Trucks'}
+                </Text>
               </View>
           </View>
 
@@ -947,6 +1007,32 @@ export default function CommissionerDashboard({ navigation }) {
                     </View>
                  </Marker>
               ))}
+
+              {selectedWardFilter === 'parks' && tasks.filter(t => t.task_type === 'park').map(task => {
+                const coords = (typeof task.area_geojson === 'string' ? JSON.parse(task.area_geojson) : task.area_geojson) || [];
+                const pt = coords[0];
+                if (!pt || !pt.latitude || !pt.longitude) return null;
+
+                const statusColor = getStatusColor(task.status);
+                return (
+                  <Marker
+                    key={`park-${task.id}`}
+                    coordinate={{ latitude: pt.latitude, longitude: pt.longitude }}
+                    title={task.title || 'Park'}
+                    description={`Status: ${task.status ? task.status.toUpperCase() : 'PENDING'}`}
+                  >
+                    <View style={[styles.markerPin, { backgroundColor: statusColor }]}>
+                      <Ionicons name="leaf" size={12} color="white" />
+                    </View>
+                    <Callout>
+                      <View style={styles.calloutContainer}>
+                        <Text style={styles.calloutTitle}>{task.title || 'Park'}</Text>
+                        <Text style={styles.calloutStatus}>{task.status ? task.status.toUpperCase() : 'PENDING'}</Text>
+                      </View>
+                    </Callout>
+                  </Marker>
+                );
+              })}
             </MapView>
             
              {/* Map Legend */}
@@ -1462,5 +1548,36 @@ const styles = StyleSheet.create({
     flex: 1,
     height: '100%',
     position: 'relative',
+  },
+  markerPin: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  calloutContainer: {
+    padding: 8,
+    minWidth: 120,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+  },
+  calloutTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  calloutStatus: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 2,
   },
 });
