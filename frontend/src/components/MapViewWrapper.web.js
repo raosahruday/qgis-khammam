@@ -338,4 +338,7 @@ const MapView = forwardRef(({ children, style, initialRegion, mapType, onRegionC
   );
 });
 
+export const Callout = () => null;
+Callout.nativeName = 'Callout';
+
 export default MapView;

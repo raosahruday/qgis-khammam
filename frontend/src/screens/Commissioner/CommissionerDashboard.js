@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Alert, useWindowDimensions } from 'react-native';
-import MapView, { Polygon, Polyline, Marker, RoadsLayer } from '../../components/MapViewWrapper';
+import MapView, { Polygon, Polyline, Marker, RoadsLayer, Callout } from '../../components/MapViewWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
 import Header from '../../components/Header';
@@ -262,7 +262,7 @@ export default function CommissionerDashboard({ navigation }) {
 
   const handleWardSelect = (wardId) => {
     setSelectedWardFilter(wardId);
-    if (!wardId) {
+    if (!wardId || wardId === 'parks') {
       setSelectedWard(null);
       const defaultRegion = {
         latitude: 17.2473,
@@ -687,8 +687,7 @@ export default function CommissionerDashboard({ navigation }) {
                           selectedWardFilter === 'parks' && styles.dropdownOptionSelected
                         ]}
                         onPress={() => {
-                          setSelectedWardFilter('parks');
-                          setSelectedWard(null);
+                          handleWardSelect('parks');
                           setShowDropdown(false);
                         }}
                       >
@@ -949,17 +948,16 @@ export default function CommissionerDashboard({ navigation }) {
                     </Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={[
-                      styles.dropdownOption,
-                      selectedWardFilter === 'parks' && styles.dropdownOptionSelected
-                    ]}
-                    onPress={() => {
-                      setSelectedWardFilter('parks');
-                      setSelectedWard(null);
-                      setShowDropdown(false);
-                    }}
-                  >
+                      <TouchableOpacity
+                        style={[
+                          styles.dropdownOption,
+                          selectedWardFilter === 'parks' && styles.dropdownOptionSelected
+                        ]}
+                        onPress={() => {
+                          handleWardSelect('parks');
+                          setShowDropdown(false);
+                        }}
+                      >
                     <Text style={[
                       styles.dropdownOptionText,
                       selectedWardFilter === 'parks' && styles.dropdownOptionTextSelected
