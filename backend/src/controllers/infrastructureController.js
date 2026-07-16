@@ -63,78 +63,87 @@ exports.getInfrastructure = async (req, res) => {
         let params = [];
 
         if (req.user && (req.user.role === 'worker' || req.user.role === 'park_jawan') && workerWardName) {
-            let envCondition = "";
-            params.push(workerWardName); // $1
-            params.push(tolerance); // $2
-            
-            let envelopeParams = [];
-            if (minLat && maxLat && minLng && maxLng) {
-                envCondition = `AND r.geom && ST_MakeEnvelope($3, $4, $5, $6, 4326)`;
-                envelopeParams = [parseFloat(minLng), parseFloat(minLat), parseFloat(maxLng), parseFloat(maxLat)];
-                params.push(...envelopeParams);
-            }
-            
-            const nextIdx = params.length + 1;
-            params.push(workerWardNum || ""); // $nextIdx
-            params.push(parseInt(limit)); // $nextIdx + 1
-
             const isParkJawan = req.user.role === 'park_jawan';
             const isJawan61 = req.user.email === 'jawan_61';
 
-            // Workers should only see their own ward boundary and roads/rows within it
-            // For Park Jawans, return all ward boundaries.
             if (isParkJawan) {
+                params.push(tolerance); // $1
+                let envCondition = "";
+                let envelopeParams = [];
+                if (minLat && maxLat && minLng && maxLng) {
+                    envCondition = `AND r.geom && ST_MakeEnvelope($2, $3, $4, $5, 4326)`;
+                    envelopeParams = [parseFloat(minLng), parseFloat(minLat), parseFloat(maxLng), parseFloat(maxLat)];
+                    params.push(...envelopeParams);
+                }
+                const limitIdx = params.length + 1;
+                params.push(parseInt(limit));
                 query = `
                     SELECT r.id, r.name, r.type, r.properties,
-                           ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json
+                           ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $1)) as geom_json
                     FROM infrastructure r
-                    WHERE 1=1 ${envCondition}
-                      AND r.type = 'ward'
-                    LIMIT $${nextIdx + 1}
-                `;
-            } else if (isJawan61) {
-                query = `
-                    SELECT r.id, r.name, r.type, r.properties,
-                           ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json
-                    FROM infrastructure r
-                    WHERE 1=1 ${envCondition}
-                      AND (
-                        (r.type = 'ward' AND LOWER(r.name) = LOWER($1))
-                        OR (r.type = 'road' AND r.properties->>'Ward_No' = $${nextIdx})
-                        OR (r.type = 'row' AND EXISTS (
-                          SELECT 1 FROM infrastructure w 
-                          WHERE w.type = 'ward' AND LOWER(w.name) = LOWER($1) 
-                            AND ST_Intersects(r.geom, w.geom)
-                        ))
-                      )
-                    ORDER BY CASE WHEN r.type = 'road' THEN 0 WHEN r.type = 'row' THEN 1 ELSE 2 END ASC
-                    LIMIT $${nextIdx + 1}
+                    WHERE r.type = 'ward' ${envCondition}
+                    LIMIT $${limitIdx}
                 `;
             } else {
-                query = `
-                    SELECT r.id, r.name, r.type, r.properties,
-                           ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json
-                    FROM infrastructure r
-                    WHERE 1=1 ${envCondition}
-                      AND (
-                        (r.type = 'ward' AND LOWER(r.name) = LOWER($1))
-                        OR (r.type = 'road' AND (
-                          r.properties->>'Ward_No' = $${nextIdx} 
-                          OR EXISTS (
-                            SELECT 1 FROM infrastructure w 
-                            WHERE w.type = 'ward' AND LOWER(w.name) = LOWER($1) 
-                              AND ST_Intersects(r.geom, w.geom)
+                let envCondition = "";
+                params.push(workerWardName); // $1
+                params.push(tolerance); // $2
+                
+                let envelopeParams = [];
+                if (minLat && maxLat && minLng && maxLng) {
+                    envCondition = `AND r.geom && ST_MakeEnvelope($3, $4, $5, $6, 4326)`;
+                    envelopeParams = [parseFloat(minLng), parseFloat(minLat), parseFloat(maxLng), parseFloat(maxLat)];
+                    params.push(...envelopeParams);
+                }
+                
+                const nextIdx = params.length + 1;
+                params.push(workerWardNum || ""); // $nextIdx
+                params.push(parseInt(limit)); // $nextIdx + 1
+
+                if (isJawan61) {
+                    query = `
+                        SELECT r.id, r.name, r.type, r.properties,
+                               ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json
+                        FROM infrastructure r
+                        WHERE 1=1 ${envCondition}
+                          AND (
+                            (r.type = 'ward' AND LOWER(r.name) = LOWER($1))
+                            OR (r.type = 'road' AND r.properties->>'Ward_No' = $${nextIdx})
+                            OR (r.type = 'row' AND EXISTS (
+                              SELECT 1 FROM infrastructure w 
+                              WHERE w.type = 'ward' AND LOWER(w.name) = LOWER($1) 
+                                AND ST_Intersects(r.geom, w.geom)
+                            ))
                           )
-                        ))
-                        OR (r.type = 'row' AND EXISTS (
-                          SELECT 1 FROM infrastructure w 
-                          WHERE w.type = 'ward' AND LOWER(w.name) = LOWER($1) 
-                            AND ST_Intersects(r.geom, w.geom)
-                        ))
-                      )
-                    ORDER BY CASE WHEN r.type = 'road' THEN 0 WHEN r.type = 'row' THEN 1 ELSE 2 END ASC
-                    LIMIT $${nextIdx + 1}
-                `;
+                        ORDER BY CASE WHEN r.type = 'road' THEN 0 WHEN r.type = 'row' THEN 1 ELSE 2 END ASC
+                        LIMIT $${nextIdx + 1}
+                    `;
+                } else {
+                    query = `
+                        SELECT r.id, r.name, r.type, r.properties,
+                               ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json
+                        FROM infrastructure r
+                        WHERE 1=1 ${envCondition}
+                          AND (
+                            (r.type = 'ward' AND LOWER(r.name) = LOWER($1))
+                            OR (r.type = 'road' AND (
+                              r.properties->>'Ward_No' = $${nextIdx} 
+                              OR EXISTS (
+                                SELECT 1 FROM infrastructure w 
+                                WHERE w.type = 'ward' AND LOWER(w.name) = LOWER($1) 
+                                  AND ST_Intersects(r.geom, w.geom)
+                              )
+                            ))
+                            OR (r.type = 'row' AND EXISTS (
+                              SELECT 1 FROM infrastructure w 
+                              WHERE w.type = 'ward' AND LOWER(w.name) = LOWER($1) 
+                                AND ST_Intersects(r.geom, w.geom)
+                            ))
+                          )
+                        ORDER BY CASE WHEN r.type = 'road' THEN 0 WHEN r.type = 'row' THEN 1 ELSE 2 END ASC
+                        LIMIT $${nextIdx + 1}
+                    `;
+                }
             }
         } else if (req.user && req.user.role === 'supervisor') {
             // Fetch supervisor wards
