@@ -74,7 +74,7 @@ async function run() {
       if (wardNo) {
         const wardRes = await db.query(
           "SELECT id FROM wards WHERE name ILIKE $1 LIMIT 1",
-          [`%Ward ${wardNo}%`]
+          [`Ward ${wardNo}`]
         );
         if (wardRes.rows.length > 0) {
           wardId = wardRes.rows[0].id;

@@ -334,10 +334,10 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
                 <Polygon
                   key={`ward-boundary-nav-${ward.id}-${idx}`}
                   coordinates={ring.map(c => ({ longitude: c[0], latitude: c[1] }))}
-                  strokeColor={isAssigned ? "#3B82F6" : "rgba(59, 130, 246, 0.5)"}
-                  fillColor={isAssigned ? "rgba(59, 130, 246, 0.08)" : "rgba(59, 130, 246, 0.02)"}
-                  strokeWidth={isAssigned ? 3 : 1.5}
-                  zIndex={isAssigned ? 10 : 5}
+                  strokeColor="#3B82F6"
+                  fillColor="rgba(59, 130, 246, 0.03)"
+                  strokeWidth={2}
+                  zIndex={5}
                 />
               );
             });
