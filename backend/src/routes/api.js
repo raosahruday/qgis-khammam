@@ -133,16 +133,16 @@ router.get('/wards', authorizeRole(['owner', 'supervisor', 'commissioner']), use
 
 
 // --- QR & Live Flow ---
-router.post('/tasks/verify-qr', authorizeRole(['worker', 'owner', 'supervisor']), taskController.verifyQR);
-router.post('/tasks/:id/swipe-status', authorizeRole(['worker']), taskController.swipeStatus);
-router.post('/tasks/live-progress', authorizeRole(['worker']), taskController.updateLiveProgress);
+router.post('/tasks/verify-qr', authorizeRole(['worker', 'owner', 'supervisor', 'park_jawan']), taskController.verifyQR);
+router.post('/tasks/:id/swipe-status', authorizeRole(['worker', 'park_jawan']), taskController.swipeStatus);
+router.post('/tasks/live-progress', authorizeRole(['worker', 'park_jawan']), taskController.updateLiveProgress);
 
 // --- Task Specific Operations ---
 router.get('/tasks/summary', authorizeRole(['owner', 'supervisor', 'commissioner']), taskController.getTaskSummary);
 router.get('/tasks/:id', taskController.getTaskById);
 router.put('/tasks/:id/assign', authorizeRole(['owner', 'supervisor']), taskController.assignTask);
-router.get('/tasks/:id/photos', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker']), taskController.getTaskPhotos);
-router.post('/tasks/:id/upload-photo', authorizeRole(['worker']), upload.single('photo'), taskController.uploadPhoto);
+router.get('/tasks/:id/photos', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker', 'park_jawan']), taskController.getTaskPhotos);
+router.post('/tasks/:id/upload-photo', authorizeRole(['worker', 'park_jawan']), upload.single('photo'), taskController.uploadPhoto);
 router.put('/tasks/:id/status', authorizeRole(['owner', 'supervisor']), taskController.updateTaskStatus);
 router.put('/tasks/:id/reset', authorizeRole(['owner', 'supervisor']), taskController.resetTask);
 router.delete('/tasks/:id', authorizeRole(['owner', 'supervisor']), taskController.deleteTask);
@@ -161,12 +161,12 @@ router.put('/tasks/:id/reject', authorizeRole(['owner', 'supervisor']), (req, re
 
 // --- Dashboards & Infrastructure ---
 router.get('/wards/stats', authorizeRole(['owner', 'supervisor', 'commissioner']), taskController.getWardStats);
-router.get('/machines', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker']), machineController.getMachines);
-router.post('/machines/:id/location', authorizeRole(['worker']), machineController.updateMachineLocation);
-router.put('/machines/link-worker', authorizeRole(['worker']), machineController.linkWorkerToMachine);
+router.get('/machines', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker', 'park_jawan']), machineController.getMachines);
+router.post('/machines/:id/location', authorizeRole(['worker', 'park_jawan']), machineController.updateMachineLocation);
+router.put('/machines/link-worker', authorizeRole(['worker', 'park_jawan']), machineController.linkWorkerToMachine);
 
 // --- Geospatial Infrastructure ---
-router.get('/infrastructure/ward-boundary', authorizeRole(['worker']), infrastructureController.getWorkerWard);
-router.get('/infrastructure', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker']), infrastructureController.getInfrastructure);
+router.get('/infrastructure/ward-boundary', authorizeRole(['worker', 'park_jawan']), infrastructureController.getWorkerWard);
+router.get('/infrastructure', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker', 'park_jawan']), infrastructureController.getInfrastructure);
 
 module.exports = router;

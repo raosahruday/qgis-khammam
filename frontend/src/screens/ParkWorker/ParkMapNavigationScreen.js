@@ -206,7 +206,7 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
       const lat = currentLocation?.latitude || 17.25;
       const lon = currentLocation?.longitude || 80.15;
       
-      const res = await api.post(`/tasks/${taskId}/swipe`, {
+      const res = await api.post(`/tasks/${taskId}/swipe-status`, {
         type: 'start',
         latitude: lat,
         longitude: lon,
@@ -230,7 +230,7 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
       const lat = currentLocation?.latitude || 17.25;
       const lon = currentLocation?.longitude || 80.15;
 
-      const res = await api.post(`/tasks/${taskId}/swipe`, {
+      const res = await api.post(`/tasks/${taskId}/swipe-status`, {
         type: 'complete',
         latitude: lat,
         longitude: lon,
