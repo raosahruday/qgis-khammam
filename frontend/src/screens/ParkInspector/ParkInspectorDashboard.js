@@ -36,7 +36,7 @@ export default function ParkInspectorDashboard({ navigation }) {
       
       const [tasksRes, infraRes] = await Promise.all([
         api.get('/tasks?task_type=park'),
-        api.get('/infrastructure?limit=1000').catch(err => {
+        api.get('/infrastructure?type=ward&limit=100').catch(err => {
           console.log('No infrastructure found:', err.message);
           return { data: [] };
         })
@@ -283,8 +283,12 @@ export default function ParkInspectorDashboard({ navigation }) {
                 key={`park-marker-${task.id}`}
                 coordinate={{ latitude: pt.latitude, longitude: pt.longitude }}
                 onPress={() => handleSelectTask(task)}
-                pinColor={getStatusColor(task.status)}
               >
+                <View style={[styles.markerPin, { borderColor: getStatusColor(task.status) }]}>
+                  <View style={[styles.markerInner, { backgroundColor: getStatusColor(task.status) }]}>
+                    <Ionicons name="leaf" size={13} color="white" />
+                  </View>
+                </View>
                 <Callout>
                   <View style={styles.calloutContainer}>
                     <Text style={styles.calloutTitle}>{task.title || 'Park'}</Text>
@@ -632,5 +636,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
     marginLeft: 6,
+  },
+  markerPin: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  markerInner: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
