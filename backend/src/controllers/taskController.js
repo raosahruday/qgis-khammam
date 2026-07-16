@@ -270,7 +270,7 @@ exports.createTask = async (req, res) => {
 exports.getTasks = async (req, res) => {
   try {
     const user = req.user;
-    const { status, limit = 1000, offset = 0, minLat, maxLat, minLng, maxLng } = req.query;
+    const { status, task_type, limit = 1000, offset = 0, minLat, maxLat, minLng, maxLng } = req.query;
 
 
     
@@ -294,6 +294,11 @@ exports.getTasks = async (req, res) => {
     if (status) {
       conditions.push('t.status = $' + (params.length + 1));
       params.push(status);
+    }
+
+    if (task_type) {
+      conditions.push('t.task_type = $' + (params.length + 1));
+      params.push(task_type);
     }
 
     if (minLat && maxLat && minLng && maxLng) {

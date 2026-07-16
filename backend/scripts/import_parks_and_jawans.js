@@ -20,7 +20,7 @@ async function run() {
   try {
     console.log('Altering check constraint on users.role...');
     await db.query('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
-    await db.query("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('owner', 'worker', 'supervisor', 'commissioner', 'park_jawan'))");
+    await db.query("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('owner', 'worker', 'supervisor', 'commissioner', 'park_jawan', 'park_inspector'))");
     console.log('Constraint altered successfully.');
 
     console.log('Reading landmarks GeoJSON...');
@@ -50,6 +50,19 @@ async function run() {
       
       jawanIds[name] = userRes.rows[0].id;
     }
+
+    // Create Park Inspector user
+    console.log('Upserting park inspector user...');
+    await db.query(
+      `INSERT INTO users (name, email, password, role, phone, approved, divisions)
+       VALUES ('Inspector', 'inspector@kmc.com', $1, 'park_inspector', '8000000009', TRUE, 'All Wards')
+       ON CONFLICT (email) DO UPDATE SET
+         name = EXCLUDED.name,
+         phone = EXCLUDED.phone,
+         role = 'park_inspector',
+         approved = TRUE`,
+      [PASSWORD_HASH]
+    );
 
     // 2. Insert park tasks
     let taskCount = 0;

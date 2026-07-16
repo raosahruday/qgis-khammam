@@ -26,6 +26,9 @@ import ParkWorkerDashboard from './src/screens/ParkWorker/ParkWorkerDashboard';
 import ParkMapNavigationScreen from './src/screens/ParkWorker/ParkMapNavigationScreen';
 import ParkCapturePhotoScreen from './src/screens/ParkWorker/ParkCapturePhotoScreen';
 
+// Park Inspector Screens
+import ParkInspectorDashboard from './src/screens/ParkInspector/ParkInspectorDashboard';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -79,6 +82,11 @@ const AppNavigator = () => {
           <Stack.Screen name="ParkWorkerDashboard" component={ParkWorkerDashboard} options={{ headerShown: false }} />
           <Stack.Screen name="ParkMapNavigation" component={ParkMapNavigationScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ParkCapturePhoto" component={ParkCapturePhotoScreen} options={{ headerShown: false }} />
+        </>
+      ) : user.role === 'park_inspector' ? (
+        // Park Inspector Flow
+        <>
+          <Stack.Screen name="ParkInspectorDashboard" component={ParkInspectorDashboard} options={{ headerShown: false }} />
         </>
       ) : (
         // Worker Flow

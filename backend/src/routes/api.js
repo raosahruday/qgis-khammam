@@ -141,19 +141,19 @@ router.post('/tasks/live-progress', authorizeRole(['worker', 'park_jawan']), tas
 router.get('/tasks/summary', authorizeRole(['owner', 'supervisor', 'commissioner']), taskController.getTaskSummary);
 router.get('/tasks/:id', taskController.getTaskById);
 router.put('/tasks/:id/assign', authorizeRole(['owner', 'supervisor']), taskController.assignTask);
-router.get('/tasks/:id/photos', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker', 'park_jawan']), taskController.getTaskPhotos);
+router.get('/tasks/:id/photos', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker', 'park_jawan', 'park_inspector']), taskController.getTaskPhotos);
 router.post('/tasks/:id/upload-photo', authorizeRole(['worker', 'park_jawan']), upload.single('photo'), taskController.uploadPhoto);
 router.put('/tasks/:id/status', authorizeRole(['owner', 'supervisor']), taskController.updateTaskStatus);
 router.put('/tasks/:id/reset', authorizeRole(['owner', 'supervisor']), taskController.resetTask);
 router.delete('/tasks/:id', authorizeRole(['owner', 'supervisor']), taskController.deleteTask);
 
 // --- Aliases for Status ---
-router.put('/tasks/:id/approve', authorizeRole(['owner', 'supervisor']), (req, res) => {
+router.put('/tasks/:id/approve', authorizeRole(['owner', 'supervisor', 'park_inspector']), (req, res) => {
   req.body = req.body || {};
   req.body.status = 'approved';
   taskController.updateTaskStatus(req, res);
 });
-router.put('/tasks/:id/reject', authorizeRole(['owner', 'supervisor']), (req, res) => {
+router.put('/tasks/:id/reject', authorizeRole(['owner', 'supervisor', 'park_inspector']), (req, res) => {
   req.body = req.body || {};
   req.body.status = 'rejected';
   taskController.updateTaskStatus(req, res);
@@ -167,6 +167,6 @@ router.put('/machines/link-worker', authorizeRole(['worker', 'park_jawan']), mac
 
 // --- Geospatial Infrastructure ---
 router.get('/infrastructure/ward-boundary', authorizeRole(['worker', 'park_jawan']), infrastructureController.getWorkerWard);
-router.get('/infrastructure', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker', 'park_jawan']), infrastructureController.getInfrastructure);
+router.get('/infrastructure', authorizeRole(['owner', 'supervisor', 'commissioner', 'worker', 'park_jawan', 'park_inspector']), infrastructureController.getInfrastructure);
 
 module.exports = router;
