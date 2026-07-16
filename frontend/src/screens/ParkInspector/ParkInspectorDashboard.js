@@ -193,10 +193,14 @@ export default function ParkInspectorDashboard({ navigation }) {
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
-      case 'approved': return '#10B981'; // Green
-      case 'submitted': return '#F59E0B'; // Amber
-      case 'rejected': return '#EF4444'; // Red
-      default: return '#6B7280'; // Gray (pending)
+      case 'approved': 
+        return '#10B981'; // Green
+      case 'submitted': 
+      case 'in_progress': 
+        return '#F59E0B'; // Yellow/Amber
+      case 'rejected': 
+      default: 
+        return '#EF4444'; // Red
     }
   };
 
