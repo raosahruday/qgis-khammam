@@ -242,11 +242,22 @@ export default function ParkInspectorDashboard({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Header 
-        title="Park Inspector" 
-        subtitle="Manage & Verify Cleanings" 
-        onLogout={logout} 
-      />
+      <Header small={true} />
+      
+      <View style={[styles.titleSection, { elevation: 2, zIndex: 10 }]}>
+        <View style={styles.profileRow}>
+          <View style={styles.profileText}>
+            <Text style={styles.headerTitle}>Welcome, {user?.name || 'Inspector'}</Text>
+            <Text style={styles.subText}>
+              🔍 Park Inspector Portal
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
+          <Ionicons name="log-out-outline" size={16} color="#EF4444" />
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.mapContainer}>
         <MapView
@@ -661,5 +672,50 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  titleSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  profileText: {
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  subText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF1F2',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FFE4E6',
+  },
+  logoutText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#EF4444',
+    marginLeft: 4,
   },
 });
