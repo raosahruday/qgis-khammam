@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import api from '../../api/axios';
 import { useIsFocused } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -25,6 +26,7 @@ export default function ParkWorkerDashboard({ navigation }) {
 
   const isFocused = useIsFocused();
   const { logout, user } = useContext(AuthContext);
+  const { t } = useLocalization();
   const mapRef = useRef(null);
 
   const fetchDashboardData = async () => {
@@ -106,7 +108,7 @@ export default function ParkWorkerDashboard({ navigation }) {
 
     } catch (error) {
       console.error('Fetch dashboard error:', error);
-      Alert.alert('Error', 'Failed to fetch dashboard data.');
+      Alert.alert(t('error'), t('fetch_failed_alert'));
     } finally {
       setLoading(false);
     }
@@ -133,11 +135,11 @@ export default function ParkWorkerDashboard({ navigation }) {
 
   const getStatusLabel = (status) => {
     switch (status) {
-      case 'approved': return 'Approved';
-      case 'submitted': return 'Submitted';
-      case 'rejected': return 'Rejected';
-      case 'in_progress': return 'In Progress';
-      default: return 'Pending';
+      case 'approved': return t('approved');
+      case 'submitted': return t('submitted');
+      case 'rejected': return t('rejected');
+      case 'in_progress': return t('in_progress');
+      default: return t('pending');
     }
   };
 
@@ -149,7 +151,7 @@ export default function ParkWorkerDashboard({ navigation }) {
     const coords = (typeof task.area_geojson === 'string' ? JSON.parse(task.area_geojson) : task.area_geojson) || [];
     const pt = coords[0];
     if (!pt || !pt.latitude || !pt.longitude) {
-      Alert.alert('Error', 'No coordinates found for this park.');
+      Alert.alert(t('error'), t('no_coordinates_alert'));
       return;
     }
     const lat = pt.latitude;
@@ -165,7 +167,7 @@ export default function ParkWorkerDashboard({ navigation }) {
         Linking.openURL(appleUrl);
       }
     }).catch(err => {
-      Alert.alert('Error', 'Could not open maps application.');
+      Alert.alert(t('error'), t('no_maps_app_alert'));
       console.error(err);
     });
   };
@@ -200,14 +202,14 @@ export default function ParkWorkerDashboard({ navigation }) {
           {item.ward_name && (
             <View style={styles.metaRow}>
               <View style={styles.metaChip}>
-                <Text style={styles.metaChipText}>📍 Ward: {item.ward_name}</Text>
+                <Text style={styles.metaChipText}>📍 {t('ward_text') || 'Ward'}: {item.ward_name}</Text>
               </View>
             </View>
           )}
 
           {item.status === 'rejected' && item.review_comment && (
             <View style={styles.rejectCommentBox}>
-              <Text style={styles.rejectLabel}>SI Feedback:</Text>
+              <Text style={styles.rejectLabel}>{t('si_feedback')}</Text>
               <Text style={styles.rejectText}>{item.review_comment}</Text>
             </View>
           )}
@@ -219,7 +221,7 @@ export default function ParkWorkerDashboard({ navigation }) {
               activeOpacity={0.7}
             >
               <Ionicons name="navigate-circle-outline" size={16} color={Colors.primary} />
-              <Text style={styles.navigateButtonInlineText}>Navigate</Text>
+              <Text style={styles.navigateButtonInlineText}>{t('navigate')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -227,7 +229,7 @@ export default function ParkWorkerDashboard({ navigation }) {
               onPress={() => handleTaskPress(item)}
               activeOpacity={0.7}
             >
-              <Text style={styles.openTaskButtonInlineText}>Open Task ➔</Text>
+              <Text style={styles.openTaskButtonInlineText}>{t('open_task')}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -242,15 +244,15 @@ export default function ParkWorkerDashboard({ navigation }) {
       <View style={[styles.titleSection, Colors.shadowLow]}>
         <View style={styles.profileRow}>
           <View style={styles.profileText}>
-            <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
+            <Text style={styles.headerTitle}>{t('welcome')}, {user?.name}</Text>
             <Text style={styles.subText}>
-              🌳 Park Jawan • {wardBoundary?.wardName || (user?.ward_id ? `Ward ${user.ward_id}` : 'Park Area')}
+              🌳 {t('jawan')} • {wardBoundary?.wardName || (user?.ward_id ? `${t('ward_text')} ${user.ward_id}` : t('park_area'))}
             </Text>
           </View>
         </View>
         <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
           <Ionicons name="log-out-outline" size={16} color={Colors.accent} />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>{t('logout')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -305,7 +307,7 @@ export default function ParkWorkerDashboard({ navigation }) {
                   <Callout style={styles.callout}>
                     <Text style={styles.calloutTitle}>{task.title}</Text>
                     <Text style={styles.calloutStatus}>{getStatusLabel(task.status)}</Text>
-                    <Text style={styles.calloutHint}>Tap to view details</Text>
+                    <Text style={styles.calloutHint}>{t('tap_to_view_details')}</Text>
                   </Callout>
                 </Marker>
               );
@@ -315,7 +317,7 @@ export default function ParkWorkerDashboard({ navigation }) {
       </View>
 
       <View style={styles.bottomSection}>
-        <Text style={styles.sectionHeader}>Your Assigned Parks ({tasks.length})</Text>
+        <Text style={styles.sectionHeader}>{t('assigned_parks')} ({tasks.length})</Text>
         {loading ? (
           <View style={styles.loaderContainer}>
             <ActivityIndicator size="large" color={Colors.primary} />
@@ -323,7 +325,7 @@ export default function ParkWorkerDashboard({ navigation }) {
         ) : tasks.length === 0 ? (
           <View style={styles.emptyContainer}>
             <MaterialCommunityIcons name="check-decagram" size={48} color={Colors.success} />
-            <Text style={styles.emptyText}>No assigned parks found.</Text>
+            <Text style={styles.emptyText}>{t('no_parks_found')}</Text>
           </View>
         ) : (
           <FlatList

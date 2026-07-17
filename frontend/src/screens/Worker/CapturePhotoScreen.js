@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicat
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import api from '../../api/axios';
+import { useLocalization } from '../../context/LocalizationContext';
 import Colors from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -10,11 +11,12 @@ export default function CapturePhotoScreen({ route, navigation }) {
   const { task } = route.params;
   const [photo, setPhoto] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const { t } = useLocalization();
 
   const takePhoto = async () => {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     if (permissionResult.granted === false) {
-      Alert.alert("Permission to access camera is required!");
+      Alert.alert(t('camera_permission_required'));
       return;
     }
 
@@ -30,7 +32,7 @@ export default function CapturePhotoScreen({ route, navigation }) {
 
   const submitWork = async () => {
     if (!photo) {
-      Alert.alert("Error", "Please take a photo first.");
+      Alert.alert(t('error'), t('take_photo_first'));
       return;
     }
 
@@ -38,7 +40,7 @@ export default function CapturePhotoScreen({ route, navigation }) {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Error', 'Location permission is required to verify task completion.');
+        Alert.alert(t('error'), t('location_permission_required'));
         setUploading(false);
         return;
       }
@@ -59,11 +61,11 @@ export default function CapturePhotoScreen({ route, navigation }) {
         },
       });
 
-      Alert.alert('Success', 'Photo proof uploaded successfully! Please swipe to complete the task.');
+      Alert.alert(t('success') || 'Success', t('photo_uploaded_success'));
       navigation.goBack();
     } catch (error) {
       console.error(error);
-      Alert.alert('Upload Failed', error.response?.data?.error || 'Failed to upload photo and location');
+      Alert.alert(t('upload_failed'), error.response?.data?.error || t('upload_failed_msg'));
     } finally {
       setUploading(false);
     }
@@ -72,10 +74,10 @@ export default function CapturePhotoScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Upload Photo Proof</Text>
-        <Text style={styles.headerSubtitle}>Capture clear evidence of the completed road cleanup.</Text>
+        <Text style={styles.headerTitle}>{t('upload_photo_proof')}</Text>
+        <Text style={styles.headerSubtitle}>{t('capture_evidence')}</Text>
       </View>
-
+ 
       <View style={[styles.previewContainer, Colors.shadowMedium]}>
         {photo ? (
           <Image source={{ uri: photo.uri }} style={styles.preview} />
@@ -84,16 +86,16 @@ export default function CapturePhotoScreen({ route, navigation }) {
             <View style={styles.iconCircle}>
               <Ionicons name="camera-outline" size={48} color={Colors.textSecondary} />
             </View>
-            <Text style={styles.placeholderText}>Camera Ready</Text>
-            <Text style={styles.placeholderSubtext}>Tap the button below to take a picture.</Text>
+            <Text style={styles.placeholderText}>{t('camera_ready')}</Text>
+            <Text style={styles.placeholderSubtext}>{t('take_picture_hint')}</Text>
           </View>
         )}
       </View>
-
+ 
       <View style={styles.buttonRow}>
         <TouchableOpacity style={[styles.cameraBtn, Colors.shadowLow]} onPress={takePhoto} activeOpacity={0.8}>
           <Ionicons name="camera" size={20} color={Colors.white} />
-          <Text style={styles.btnText}>Take Photo</Text>
+          <Text style={styles.btnText}>{t('take_photo')}</Text>
         </TouchableOpacity>
 
         {photo && (
@@ -108,7 +110,7 @@ export default function CapturePhotoScreen({ route, navigation }) {
             ) : (
               <>
                 <Ionicons name="cloud-upload-outline" size={20} color={Colors.white} />
-                <Text style={styles.btnText}>Upload Proof</Text>
+                <Text style={styles.btnText}>{t('upload_proof')}</Text>
               </>
             )}
           </TouchableOpacity>

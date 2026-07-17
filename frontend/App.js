@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider, AuthContext } from './src/context/AuthContext';
+import { LocalizationProvider, useLocalization } from './src/context/LocalizationContext';
 import { ActivityIndicator, View } from 'react-native';
 
 // Auth Screens
@@ -35,6 +36,7 @@ const Stack = createNativeStackNavigator();
 const AppNavigator = () => {
   const { user, isLoading } = useContext(AuthContext);
   const [showSplash, setShowSplash] = useState(true);
+  const { t } = useLocalization();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -66,15 +68,15 @@ const AppNavigator = () => {
       ) : user.role === 'commissioner' ? (
         // Commissioner Flow
         <>
-          <Stack.Screen name="CommissionerDashboard" component={CommissionerDashboard} options={{ title: 'Municipal Commissioner' }} />
-          <Stack.Screen name="TaskDetails" component={TaskDetailsScreen} options={{ title: 'Ward Details' }} />
+          <Stack.Screen name="CommissionerDashboard" component={CommissionerDashboard} options={{ title: t('municipal_commissioner') }} />
+          <Stack.Screen name="TaskDetails" component={TaskDetailsScreen} options={{ title: t('ward_details') }} />
         </>
       ) : user.role === 'owner' || user.role === 'supervisor' ? (
         // Supervisor/Owner Flow
         <>
-          <Stack.Screen name="OwnerDashboard" component={OwnerDashboard} options={{ title: 'Dashboard' }} />
-          <Stack.Screen name="MapTaskCreation" component={MapTaskCreationScreen} options={{ title: 'Create Task' }} />
-          <Stack.Screen name="TaskDetails" component={TaskDetailsScreen} options={{ title: 'Task Details' }} />
+          <Stack.Screen name="OwnerDashboard" component={OwnerDashboard} options={{ title: t('dashboard') }} />
+          <Stack.Screen name="MapTaskCreation" component={MapTaskCreationScreen} options={{ title: t('create_task') }} />
+          <Stack.Screen name="TaskDetails" component={TaskDetailsScreen} options={{ title: t('task_details') }} />
         </>
       ) : user.role === 'park_jawan' ? (
         // Park Worker Flow
@@ -91,9 +93,9 @@ const AppNavigator = () => {
       ) : (
         // Worker Flow
         <>
-          <Stack.Screen name="WorkerDashboard" component={WorkerDashboard} options={{ title: 'My Assignments' }} />
-          <Stack.Screen name="MapNavigation" component={MapNavigationScreen} options={{ title: 'Task Location' }} />
-          <Stack.Screen name="CapturePhoto" component={CapturePhotoScreen} options={{ title: 'Upload Proof' }} />
+          <Stack.Screen name="WorkerDashboard" component={WorkerDashboard} options={{ title: t('my_assignments') }} />
+          <Stack.Screen name="MapNavigation" component={MapNavigationScreen} options={{ title: t('task_location') }} />
+          <Stack.Screen name="CapturePhoto" component={CapturePhotoScreen} options={{ title: t('upload_proof') }} />
         </>
       )}
     </Stack.Navigator>
@@ -102,10 +104,12 @@ const AppNavigator = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <NavigationContainer>
-        <AppNavigator />
-      </NavigationContainer>
-    </AuthProvider>
+    <LocalizationProvider>
+      <AuthProvider>
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
+      </AuthProvider>
+    </LocalizationProvider>
   );
 }

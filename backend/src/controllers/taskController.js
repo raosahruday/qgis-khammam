@@ -127,6 +127,16 @@ exports.verifyQR = async (req, res) => {
     if (taskResult.rows.length === 0) return res.status(404).json({ error: 'Task not found' });
     const task = taskResult.rows[0];
 
+    const isParkTask = (task.task_type === 'park');
+    const isParkUser = (req.user && (req.user.role === 'park_jawan' || req.user.role === 'park_inspector'));
+
+    if (isParkTask && !isParkUser) {
+      return res.status(403).json({ error: 'Access denied to park task' });
+    }
+    if (!isParkTask && isParkUser) {
+      return res.status(403).json({ error: 'Access denied to road task' });
+    }
+
     const expectedQR = type === 'source' ? task.source_qr_id : task.destination_qr_id;
 
     if (qrCode === expectedQR) {
@@ -147,9 +157,25 @@ exports.swipeStatus = async (req, res) => {
     const { id } = req.params;
     const { type, latitude, longitude } = req.body; // type: 'start' or 'complete'
     
-    const taskResult = await db.query('SELECT * FROM tasks WHERE id = $1', [id]);
+    const taskResult = await db.query(
+      `SELECT t.*, w.name as ward_name 
+       FROM tasks t 
+       LEFT JOIN wards w ON t.ward_id = w.id 
+       WHERE t.id = $1`, 
+      [id]
+    );
     if (taskResult.rows.length === 0) return res.status(404).json({ error: 'Task not found' });
     const task = taskResult.rows[0];
+
+    const isParkTask = (task.task_type === 'park');
+    const isParkUser = (req.user && (req.user.role === 'park_jawan' || req.user.role === 'park_inspector'));
+
+    if (isParkTask && !isParkUser) {
+      return res.status(403).json({ error: 'Access denied to park task' });
+    }
+    if (!isParkTask && isParkUser) {
+      return res.status(403).json({ error: 'Access denied to road task' });
+    }
 
     const points = (typeof task.area_geojson === 'string' ? JSON.parse(task.area_geojson) : task.area_geojson) || [];
     if (points.length === 0) {
@@ -158,7 +184,8 @@ exports.swipeStatus = async (req, res) => {
 
     if (type === 'start') {
       const isPark = task.task_type === 'park';
-      if (!isPark) {
+      const isWard61 = task.ward_name && task.ward_name.includes('61');
+      if (!isPark && !isWard61) {
         const targetPoint = points[0];
         const dist = getDistanceFromLatLonInM(
           parseFloat(latitude), 
@@ -283,6 +310,13 @@ exports.getTasks = async (req, res) => {
     let params = [];
     let conditions = [];
 
+    // Filter task type strictly based on user roles
+    if (user.role === 'park_jawan' || user.role === 'park_inspector') {
+      conditions.push("t.task_type = 'park'");
+    } else if (user.role === 'worker' || user.role === 'supervisor' || user.role === 'owner') {
+      conditions.push("t.task_type != 'park'");
+    }
+
     if (user.role === 'worker' || user.role === 'park_jawan') {
       conditions.push('t.assigned_worker_id = $' + (params.length + 1));
       params.push(user.id);
@@ -297,8 +331,15 @@ exports.getTasks = async (req, res) => {
     }
 
     if (task_type) {
-      conditions.push('t.task_type = $' + (params.length + 1));
-      params.push(task_type);
+      const isParkRole = (user.role === 'park_jawan' || user.role === 'park_inspector');
+      if (task_type === 'park' && !isParkRole) {
+        conditions.push("1 = 0");
+      } else if (task_type !== 'park' && isParkRole) {
+        conditions.push("1 = 0");
+      } else {
+        conditions.push('t.task_type = $' + (params.length + 1));
+        params.push(task_type);
+      }
     }
 
     if (minLat && maxLat && minLng && maxLng) {
@@ -324,6 +365,7 @@ exports.getTasks = async (req, res) => {
 exports.getTaskById = async (req, res) => {
   try {
     const { id } = req.params;
+    const user = req.user;
     
     if (typeof id === 'string' && id.startsWith('virtual-')) {
       const roadId = parseInt(id.split('-')[1]);
@@ -423,7 +465,7 @@ exports.getTaskById = async (req, res) => {
       });
     }
 
-    const task = await db.query(`
+    const taskRes = await db.query(`
       SELECT t.*, ST_AsGeoJSON(t.geom) as geom_json, u.name as worker_name, w.name as ward_name
       FROM tasks t
       LEFT JOIN users u ON t.assigned_worker_id = u.id
@@ -431,8 +473,19 @@ exports.getTaskById = async (req, res) => {
       WHERE t.id = $1
     `, [id]);
     
-    if (task.rows.length === 0) return res.status(404).json({ error: 'Task not found' });
-    res.json(task.rows[0]);
+    if (taskRes.rows.length === 0) return res.status(404).json({ error: 'Task not found' });
+    const task = taskRes.rows[0];
+    
+    // Segregation check for task details access
+    const isParkUser = (user && (user.role === 'park_jawan' || user.role === 'park_inspector'));
+    if (task.task_type === 'park' && !isParkUser) {
+      return res.status(403).json({ error: 'Access denied to park task' });
+    }
+    if (task.task_type !== 'park' && isParkUser) {
+      return res.status(403).json({ error: 'Access denied to road task' });
+    }
+    
+    res.json(task);
   } catch (error) {
     console.error('Get task by id error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -443,6 +496,40 @@ exports.assignTask = async (req, res) => {
   try {
     const { id } = req.params;
     const { workerId } = req.body;
+    const user = req.user;
+
+    // Validate role permissions for assignment
+    if (workerId) {
+      const workerRes = await db.query('SELECT role FROM users WHERE id = $1', [workerId]);
+      if (workerRes.rows.length === 0) {
+        return res.status(400).json({ error: 'Worker not found' });
+      }
+      const workerRole = workerRes.rows[0].role;
+      
+      let isParkTask = false;
+      if (!(typeof id === 'string' && id.startsWith('virtual-'))) {
+        const taskCheck = await db.query('SELECT task_type FROM tasks WHERE id = $1', [id]);
+        if (taskCheck.rows.length > 0 && taskCheck.rows[0].task_type === 'park') {
+          isParkTask = true;
+        }
+      }
+
+      if (isParkTask) {
+        if (user.role !== 'park_inspector') {
+          return res.status(403).json({ error: 'Only Park Inspectors can assign park tasks.' });
+        }
+        if (workerRole !== 'park_jawan') {
+          return res.status(400).json({ error: 'Park tasks can only be assigned to Park Jawans.' });
+        }
+      } else {
+        if (user.role !== 'supervisor' && user.role !== 'owner') {
+          return res.status(403).json({ error: 'Only Sanitary Inspectors can assign road tasks.' });
+        }
+        if (workerRole !== 'worker') {
+          return res.status(400).json({ error: 'Road tasks can only be assigned to Road Jawans.' });
+        }
+      }
+    }
 
     if (typeof id === 'string' && id.startsWith('virtual-')) {
       const roadId = parseInt(id.split('-')[1]);
@@ -522,7 +609,7 @@ exports.getWardStats = async (req, res) => {
           WHERE u.ward_id = w.id AND u.role = 'worker'
         ) as jawans
       FROM wards w
-      LEFT JOIN tasks t ON w.id = t.ward_id
+      LEFT JOIN tasks t ON w.id = t.ward_id AND t.task_type != 'park'
       GROUP BY w.id
     `);
     res.json(stats.rows);
@@ -534,14 +621,23 @@ exports.getWardStats = async (req, res) => {
 
 exports.getTaskSummary = async (req, res) => {
     try {
-        const stats = await db.query(`
+        const user = req.user;
+        let query = `
             SELECT 
                 COUNT(*) as total,
                 COUNT(CASE WHEN status = 'approved' THEN 1 END) as completed,
                 COUNT(CASE WHEN status IN ('in_progress', 'submitted') THEN 1 END) as active,
                 COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending
             FROM tasks
-        `);
+        `;
+        
+        if (user && (user.role === 'park_jawan' || user.role === 'park_inspector')) {
+            query += " WHERE task_type = 'park'";
+        } else if (user && (user.role === 'worker' || user.role === 'supervisor' || user.role === 'owner')) {
+            query += " WHERE task_type != 'park'";
+        }
+        
+        const stats = await db.query(query);
         res.json(stats.rows[0]);
     } catch (error) {
         console.error('Get task summary error:', error);
@@ -555,6 +651,20 @@ exports.uploadPhoto = async (req, res) => {
   try {
     const { id } = req.params;
     const { latitude, longitude } = req.body;
+
+    const taskResult = await db.query('SELECT task_type FROM tasks WHERE id = $1', [id]);
+    if (taskResult.rows.length === 0) return res.status(404).json({ error: 'Task not found' });
+    const task = taskResult.rows[0];
+
+    const isParkTask = (task.task_type === 'park');
+    const isParkUser = (req.user && (req.user.role === 'park_jawan' || req.user.role === 'park_inspector'));
+
+    if (isParkTask && !isParkUser) {
+      return res.status(403).json({ error: 'Access denied: Only park jawans can upload photos for park tasks.' });
+    }
+    if (!isParkTask && isParkUser) {
+      return res.status(403).json({ error: 'Access denied: Only road jawans can upload photos for road tasks.' });
+    }
 
     if (!req.file) return res.status(400).json({ error: 'No image provided' });
 
@@ -658,6 +768,26 @@ exports.uploadPhoto = async (req, res) => {
 exports.getTaskPhotos = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Check type of task for segregation
+    if (typeof id === 'string' && id.startsWith('virtual-')) {
+      return res.json([]); // virtual tasks have no photos
+    }
+
+    const taskResult = await db.query('SELECT task_type FROM tasks WHERE id = $1', [id]);
+    if (taskResult.rows.length === 0) return res.status(404).json({ error: 'Task not found' });
+    const task = taskResult.rows[0];
+
+    const isParkTask = (task.task_type === 'park');
+    const isParkUser = (req.user && (req.user.role === 'park_jawan' || req.user.role === 'park_inspector'));
+
+    if (isParkTask && !isParkUser) {
+      return res.status(403).json({ error: 'Access denied: You do not have permission to view park photos.' });
+    }
+    if (!isParkTask && isParkUser) {
+      return res.status(403).json({ error: 'Access denied: You do not have permission to view road photos.' });
+    }
+
     const photos = await db.query('SELECT * FROM photos WHERE task_id = $1 ORDER BY uploaded_at DESC', [id]);
     res.json(photos.rows);
   } catch (error) {

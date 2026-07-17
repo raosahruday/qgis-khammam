@@ -5,6 +5,7 @@ import MapView, { Polyline, Polygon } from '../../components/MapViewWrapper';
 import api from '../../api/axios';
 import { useIsFocused } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 
@@ -40,6 +41,7 @@ export default function OwnerDashboard({ navigation }) {
   const hasCenteredMapRef = useRef(false);
   const isFocused = useIsFocused();
   const { user, logout } = useContext(AuthContext);
+  const { t } = useLocalization();
 
   const getWardsList = () => {
     const list = [];
@@ -203,29 +205,29 @@ export default function OwnerDashboard({ navigation }) {
 
   const handleDeleteAll = async () => {
     Alert.alert(
-      "🧨 DANGER AREA",
-      "This will PERMANENTLY DELETE ALL current tasks in your network. This cannot be undone.",
+      t('danger_area'),
+      t('purge_all_alert_body'),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t('cancel'), style: "cancel" },
         { 
-          text: "YES, PURGE EVERYTHING", 
+          text: t('yes_purge_everything'), 
           style: "destructive",
           onPress: () => {
             Alert.alert(
-              "Final Confirmation",
-              "Are you absolutely sure you want to delete all tasks?",
+              t('final_confirmation'),
+              t('delete_all_confirm_body'),
               [
-                { text: "Cancel", style: "cancel" },
+                { text: t('cancel'), style: "cancel" },
                 {
-                  text: "PURGE ALL",
+                  text: t('purge_all'),
                   style: "destructive",
                   onPress: async () => {
                     try {
                       await api.delete('/tasks/all');
-                      Alert.alert("Success", "All tasks have been purged.");
+                      Alert.alert(t('success'), t('purge_success'));
                       fetchData();
                     } catch (err) {
-                      Alert.alert("Error", "Bulk delete failed");
+                      Alert.alert(t('error'), t('purge_failed'));
                     }
                   }
                 }
@@ -331,7 +333,7 @@ export default function OwnerDashboard({ navigation }) {
             <Text style={styles.taskTitle}>{item.title}</Text>
             <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
               <Text style={[styles.statusText, { color: badge.text }]}>
-                {item.status.replace('_', ' ').toUpperCase()}
+                {t(item.status.toLowerCase()) || item.status.replace('_', ' ').toUpperCase()}
               </Text>
             </View>
           </View>
@@ -340,12 +342,12 @@ export default function OwnerDashboard({ navigation }) {
             <View style={styles.metaRow}>
               {item.line_id ? (
                 <View style={styles.metaChip}>
-                  <Text style={styles.metaChipText}>🔗 Line: {item.line_id}</Text>
+                  <Text style={styles.metaChipText}>🔗 {t('line_label')}: {item.line_id}</Text>
                 </View>
               ) : null}
               {item.rd_name ? (
                 <View style={styles.metaChip}>
-                  <Text style={styles.metaChipText}>🛣️ Road: {item.rd_name}</Text>
+                  <Text style={styles.metaChipText}>🛣️ {t('road_label')}: {item.rd_name}</Text>
                 </View>
               ) : null}
             </View>
@@ -354,9 +356,9 @@ export default function OwnerDashboard({ navigation }) {
           <View style={styles.cardFooter}>
             <View style={styles.workerContainer}>
               <Ionicons name="construct-outline" size={14} color={Colors.textSecondary} />
-              <Text style={styles.workerName}>Jawan: {item.worker_name || 'Unassigned'}</Text>
+              <Text style={styles.workerName}>{t('jawan_label')}: {item.worker_name || t('unassigned')}</Text>
             </View>
-            <Text style={styles.viewDetails}>View Details ➔</Text>
+            <Text style={styles.viewDetails}>{t('view_details_arrow')}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -370,15 +372,15 @@ export default function OwnerDashboard({ navigation }) {
       <View style={[styles.titleSection, Colors.shadowLow]}>
         <View style={styles.profileRow}>
           <View style={styles.profileText}>
-            <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
+            <Text style={styles.headerTitle}>{t('welcome_comma')}{user?.name}</Text>
             <Text style={styles.subText}>
-              🛡️ Inspector • {tasks.length} Assigned / {getCombinedTasks().length} Road Segments
+              🛡️ {t('sanitary_inspector')} • {tasks.length} {t('assigned')} / {getCombinedTasks().length} {t('road_segments')}
             </Text>
           </View>
         </View>
         <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
           <Ionicons name="log-out-outline" size={16} color={Colors.accent} />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>{t('logout')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -390,7 +392,7 @@ export default function OwnerDashboard({ navigation }) {
             activeOpacity={0.8}
           >
             <Ionicons name="add-circle-outline" size={20} color={Colors.white} />
-            <Text style={styles.createButtonText}>CREATE ROAD TASK</Text>
+            <Text style={styles.createButtonText}>{t('create_road_task').toUpperCase()}</Text>
           </TouchableOpacity>
 
           {tasks.length > 0 && (
@@ -400,7 +402,7 @@ export default function OwnerDashboard({ navigation }) {
               activeOpacity={0.8}
             >
               <Ionicons name="trash-outline" size={18} color={Colors.white} />
-              <Text style={styles.deleteAllText}>PURGE ALL</Text>
+              <Text style={styles.deleteAllText}>{t('purge_all').toUpperCase()}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -415,17 +417,17 @@ export default function OwnerDashboard({ navigation }) {
             <View style={[styles.statBox, { backgroundColor: Colors.successBg }, Colors.shadowLow]}>
               <Ionicons name="checkbox-outline" size={18} color={Colors.success} />
               <Text style={[styles.statVal, { color: Colors.success }]}>{getRoadStats().completed}</Text>
-              <Text style={styles.statLabel}>Cleaned</Text>
+              <Text style={styles.statLabel}>{t('cleaned')}</Text>
             </View>
             <View style={[styles.statBox, { backgroundColor: Colors.warningBg }, Colors.shadowLow]}>
               <Ionicons name="hourglass-outline" size={18} color={Colors.warning} />
               <Text style={[styles.statVal, { color: Colors.warning }]}>{getRoadStats().active}</Text>
-              <Text style={styles.statLabel}>Active</Text>
+              <Text style={styles.statLabel}>{t('active')}</Text>
             </View>
             <View style={[styles.statBox, { backgroundColor: Colors.errorBg }, Colors.shadowLow]}>
               <Ionicons name="alert-circle-outline" size={18} color={Colors.accent} />
               <Text style={[styles.statVal, { color: Colors.accent }]}>{getRoadStats().pending}</Text>
-              <Text style={styles.statLabel}>Pending</Text>
+              <Text style={styles.statLabel}>{t('pending')}</Text>
             </View>
           </View>
 
@@ -451,7 +453,7 @@ export default function OwnerDashboard({ navigation }) {
                       selectedWardFilter === null && styles.filterChipTextActive
                     ]}
                   >
-                    All Wards
+                    {t('all_wards')}
                   </Text>
                 </TouchableOpacity>
                 
@@ -471,7 +473,7 @@ export default function OwnerDashboard({ navigation }) {
                         selectedWardFilter === wardNo && styles.filterChipTextActive
                       ]}
                     >
-                      Ward {wardNo}
+                      {t('ward_number')}{wardNo}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -559,7 +561,7 @@ export default function OwnerDashboard({ navigation }) {
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Ionicons name="file-tray-outline" size={40} color={Colors.textSecondary} />
-                <Text style={styles.emptyText}>No tasks found in this area</Text>
+                <Text style={styles.emptyText}>{t('no_tasks_found_area')}</Text>
               </View>
             }
           />

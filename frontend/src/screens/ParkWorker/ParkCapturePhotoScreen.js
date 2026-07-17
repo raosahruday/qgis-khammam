@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicat
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import api from '../../api/axios';
+import { useLocalization } from '../../context/LocalizationContext';
 import Colors from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -11,6 +12,7 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
   const [photo, setPhoto] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [photosCount, setPhotosCount] = useState(0);
+  const { t } = useLocalization();
 
   const fetchCurrentPhotosCount = async () => {
     try {
@@ -28,7 +30,7 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
   const takePhoto = async () => {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     if (permissionResult.granted === false) {
-      Alert.alert("Permission to access camera is required!");
+      Alert.alert(t('camera_permission_required'));
       return;
     }
 
@@ -44,7 +46,7 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
 
   const uploadPhoto = async () => {
     if (!photo) {
-      Alert.alert("Error", "Please take a photo first.");
+      Alert.alert(t('error'), t('take_photo_first'));
       return;
     }
 
@@ -52,7 +54,7 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Error', 'Location permission is required to upload task photos.');
+        Alert.alert(t('error'), t('location_permission_required'));
         setUploading(false);
         return;
       }
@@ -79,24 +81,24 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
 
       if (nextCount < 4) {
         Alert.alert(
-          'Photo Uploaded',
-          `Photo ${nextCount}/4 uploaded successfully! Please upload ${4 - nextCount} more photo(s) to complete the task.`,
-          [{ text: 'Take Next Photo', onPress: () => takePhoto() }]
+          t('photo_uploaded_alert_title'),
+          `Photo ${nextCount}/4 ${t('photo_uploaded_alert_body')}`,
+          [{ text: t('take_next_photo'), onPress: () => takePhoto() }]
         );
       } else {
         Alert.alert(
-          'Minimum Uploads Met',
-          `Successfully uploaded ${nextCount} photos! You have met the minimum requirement of 4 photos.`,
+          t('min_uploads_met_title'),
+          t('min_uploads_met_body'),
           [
-            { text: 'Upload More (Optional)', onPress: () => {} },
-            { text: 'Finish & Go back', onPress: () => navigation.goBack() }
+            { text: t('upload_more_optional'), onPress: () => {} },
+            { text: t('finish_go_back'), onPress: () => navigation.goBack() }
           ]
         );
       }
 
     } catch (error) {
       console.error(error);
-      Alert.alert('Upload Failed', error.response?.data?.error || 'Failed to upload photo and location');
+      Alert.alert(t('upload_failed'), error.response?.data?.error || t('upload_failed_msg'));
     } finally {
       setUploading(false);
     }
@@ -108,14 +110,14 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back-outline" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Park Photo Proof</Text>
+        <Text style={styles.headerTitle}>{t('park_photo_proof')}</Text>
         <Text style={styles.headerSubtitle}>
-          Upload at least 4 photos of different areas in the park.
+          {t('upload_4_photos')}
         </Text>
       </View>
 
       <View style={styles.counterBox}>
-        <Text style={styles.counterLabel}>Photos Uploaded</Text>
+        <Text style={styles.counterLabel}>{t('counterLabel') || t('photos_uploaded')}</Text>
         <Text style={[styles.counterValue, { color: photosCount >= 4 ? Colors.success : '#EF4444' }]}>
           {photosCount} / 4
         </Text>
@@ -129,9 +131,9 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
             <View style={styles.iconCircle}>
               <Ionicons name="camera-outline" size={44} color={Colors.textSecondary} />
             </View>
-            <Text style={styles.placeholderText}>Camera Ready</Text>
+            <Text style={styles.placeholderText}>{t('camera_ready')}</Text>
             <Text style={styles.placeholderSubtext}>
-              Take clear pictures of the swept pathways and clean areas.
+              {t('take_clear_pictures')}
             </Text>
           </View>
         )}
@@ -141,7 +143,7 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
         <TouchableOpacity style={[styles.cameraBtn, Colors.shadowLow]} onPress={takePhoto} activeOpacity={0.8}>
           <Ionicons name="camera" size={20} color={Colors.white} />
           <Text style={styles.btnText}>
-            {photo ? 'Re-take Photo' : `Take Photo #${photosCount + 1}`}
+            {photo ? t('retake_photo') : `${t('take_photo')} #${photosCount + 1}`}
           </Text>
         </TouchableOpacity>
 
@@ -157,7 +159,7 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
             ) : (
               <>
                 <Ionicons name="cloud-upload-outline" size={20} color={Colors.white} />
-                <Text style={styles.btnText}>Upload Photo #{photosCount + 1}</Text>
+                <Text style={styles.btnText}>{t('upload_proof')} #{photosCount + 1}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -170,7 +172,7 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
             activeOpacity={0.8}
           >
             <Ionicons name="checkmark-circle-outline" size={20} color={Colors.white} />
-            <Text style={styles.btnText}>I'm Done - Go Back</Text>
+            <Text style={styles.btnText}>{t('im_done')}</Text>
           </TouchableOpacity>
         )}
       </View>

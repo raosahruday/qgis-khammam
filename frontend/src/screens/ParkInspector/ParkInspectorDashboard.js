@@ -4,6 +4,7 @@ import MapView, { Polygon, Marker, Callout } from '../../components/MapViewWrapp
 import api from '../../api/axios';
 import { useIsFocused } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +29,7 @@ export default function ParkInspectorDashboard({ navigation }) {
 
   const isFocused = useIsFocused();
   const { logout, user } = useContext(AuthContext);
+  const { t } = useLocalization();
   const mapRef = useRef(null);
 
   const fetchDashboardData = async (showLoader = true) => {
@@ -94,7 +96,7 @@ export default function ParkInspectorDashboard({ navigation }) {
 
     } catch (error) {
       console.error('Error fetching inspector dashboard data:', error);
-      Alert.alert('Error', 'Failed to fetch dashboard data. Please try again.');
+      Alert.alert(t('error'), t('fetch_failed_alert'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -139,23 +141,23 @@ export default function ParkInspectorDashboard({ navigation }) {
 
   const handleApproveTask = async (taskId) => {
     Alert.alert(
-      'Approve Task',
-      'Are you sure you want to approve this park cleaning?',
+      t('approve_alert_title'),
+      t('approve_alert_body'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
         {
-          text: 'Approve',
+          text: t('approve'),
           style: 'default',
           onPress: async () => {
             try {
               setLoading(true);
               await api.put(`/tasks/${taskId}/approve`);
-              Alert.alert('Success', 'Park cleaning task has been approved.');
+              Alert.alert(t('success') || 'Success', t('approve_success_alert'));
               setSelectedTask(null);
               fetchDashboardData(false);
             } catch (err) {
               console.error('Approve task error:', err);
-              Alert.alert('Error', 'Failed to approve task.');
+              Alert.alert(t('error'), t('something_went_wrong'));
               setLoading(false);
             }
           }
@@ -166,23 +168,23 @@ export default function ParkInspectorDashboard({ navigation }) {
 
   const handleRejectTask = async (taskId) => {
     Alert.alert(
-      'Reject Task',
-      'Are you sure you want to reject this park cleaning? The park jawan will need to upload a new proof photo.',
+      t('reject_alert_title'),
+      t('reject_alert_body'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
         {
-          text: 'Reject',
+          text: t('reject'),
           style: 'destructive',
           onPress: async () => {
             try {
               setLoading(true);
               await api.put(`/tasks/${taskId}/reject`);
-              Alert.alert('Success', 'Park cleaning task has been rejected.');
+              Alert.alert(t('success') || 'Success', t('reject_success_alert'));
               setSelectedTask(null);
               fetchDashboardData(false);
             } catch (err) {
               console.error('Reject task error:', err);
-              Alert.alert('Error', 'Failed to reject task.');
+              Alert.alert(t('error'), t('something_went_wrong'));
               setLoading(false);
             }
           }
@@ -216,7 +218,7 @@ export default function ParkInspectorDashboard({ navigation }) {
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
             <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
             <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-              {item.status ? item.status.toUpperCase() : 'PENDING'}
+              {item.status ? t(item.status.toLowerCase()) || item.status.toUpperCase() : t('pending')}
             </Text>
           </View>
         </View>
@@ -225,7 +227,7 @@ export default function ParkInspectorDashboard({ navigation }) {
           <Ionicons name="location-outline" size={13} color="#9CA3AF" /> {item.ward_name || 'Unknown Ward'}
         </Text>
         <Text style={styles.taskSubtitle}>
-          <Ionicons name="person-outline" size={13} color="#9CA3AF" /> Jawan: {item.worker_name || 'Unassigned'}
+          <Ionicons name="person-outline" size={13} color="#9CA3AF" /> {t('jawan_label') || 'Jawan'}: {item.worker_name || 'Unassigned'}
         </Text>
       </TouchableOpacity>
     );
@@ -235,7 +237,7 @@ export default function ParkInspectorDashboard({ navigation }) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#3B82F6" />
-        <Text style={styles.loadingText}>Loading portal data...</Text>
+        <Text style={styles.loadingText}>{t('loading')}</Text>
       </View>
     );
   }
@@ -247,15 +249,15 @@ export default function ParkInspectorDashboard({ navigation }) {
       <View style={[styles.titleSection, { elevation: 2, zIndex: 10 }]}>
         <View style={styles.profileRow}>
           <View style={styles.profileText}>
-            <Text style={styles.headerTitle}>Welcome, {user?.name || 'Inspector'}</Text>
+            <Text style={styles.headerTitle}>{t('welcome')}, {user?.name || t('inspector')}</Text>
             <Text style={styles.subText}>
-              🔍 Park Inspector Portal
+              🔍 {t('inspector')}
             </Text>
           </View>
         </View>
         <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
           <Ionicons name="log-out-outline" size={16} color="#EF4444" />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>{t('logout')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -322,11 +324,11 @@ export default function ParkInspectorDashboard({ navigation }) {
           <View style={styles.detailHeader}>
             <TouchableOpacity onPress={() => setSelectedTask(null)} style={styles.backButton}>
               <Ionicons name="arrow-back" size={20} color="#1E293B" />
-              <Text style={styles.backButtonText}>Back to List</Text>
+              <Text style={styles.backButtonText}>{t('back_to_list')}</Text>
             </TouchableOpacity>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedTask.status) + '15' }]}>
               <Text style={[styles.statusText, { color: getStatusColor(selectedTask.status) }]}>
-                {selectedTask.status ? selectedTask.status.toUpperCase() : 'PENDING'}
+                {selectedTask.status ? t(selectedTask.status.toLowerCase()) || selectedTask.status.toUpperCase() : t('pending')}
               </Text>
             </View>
           </View>
@@ -337,19 +339,19 @@ export default function ParkInspectorDashboard({ navigation }) {
             <View style={styles.metaRow}>
               <View style={styles.metaItem}>
                 <Ionicons name="map-outline" size={16} color="#4B5563" />
-                <Text style={styles.metaLabel}>Ward:</Text>
+                <Text style={styles.metaLabel}>{t('ward_text') || 'Ward'}:</Text>
                 <Text style={styles.metaValue}>{selectedTask.ward_name || 'N/A'}</Text>
               </View>
               <View style={styles.metaItem}>
                 <Ionicons name="person-outline" size={16} color="#4B5563" />
-                <Text style={styles.metaLabel}>Jawan:</Text>
+                <Text style={styles.metaLabel}>{t('jawan_label') || 'Jawan'}:</Text>
                 <Text style={styles.metaValue}>{selectedTask.worker_name || 'Unassigned'}</Text>
               </View>
             </View>
 
             <View style={styles.divider} />
 
-            <Text style={styles.sectionTitle}>Uploaded Proof Photos</Text>
+            <Text style={styles.sectionTitle}>{t('photo_proofs')}</Text>
             {photosLoading ? (
               <ActivityIndicator size="small" color="#3B82F6" style={{ marginVertical: 20 }} />
             ) : selectedTaskPhotos.length > 0 ? (
@@ -364,7 +366,7 @@ export default function ParkInspectorDashboard({ navigation }) {
                 ))}
               </ScrollView>
             ) : (
-              <Text style={styles.noPhotosText}>No proof photos uploaded for this cleaning session yet.</Text>
+              <Text style={styles.noPhotosText}>{t('no_photos')}</Text>
             )}
 
             {/* Action Buttons */}
@@ -375,7 +377,7 @@ export default function ParkInspectorDashboard({ navigation }) {
                   onPress={() => handleApproveTask(selectedTask.id)}
                 >
                   <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
-                  <Text style={styles.actionBtnText}>Approve Cleaning</Text>
+                  <Text style={styles.actionBtnText}>{t('approve_cleaning')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -383,7 +385,7 @@ export default function ParkInspectorDashboard({ navigation }) {
                   onPress={() => handleRejectTask(selectedTask.id)}
                 >
                   <Ionicons name="close-circle-outline" size={20} color="#FFFFFF" />
-                  <Text style={styles.actionBtnText}>Reject Cleaning</Text>
+                  <Text style={styles.actionBtnText}>{t('reject_cleaning')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -391,7 +393,7 @@ export default function ParkInspectorDashboard({ navigation }) {
         </View>
       ) : (
         <View style={styles.listContainer}>
-          <Text style={styles.listSectionTitle}>All Parks ({tasks.length})</Text>
+          <Text style={styles.listSectionTitle}>{t('all_parks')} ({tasks.length})</Text>
           <FlatList
             data={tasks}
             renderItem={renderTaskItem}
@@ -404,7 +406,7 @@ export default function ParkInspectorDashboard({ navigation }) {
             }}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No park cleaning tasks registered.</Text>
+                <Text style={styles.emptyText}>{t('no_tasks')}</Text>
               </View>
             }
           />

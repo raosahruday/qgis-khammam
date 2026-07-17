@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import api from '../../api/axios';
 import { useIsFocused } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,6 +42,7 @@ export default function WorkerDashboard({ navigation }) {
 
   const isFocused = useIsFocused();
   const { logout, user, updateUserMachine } = useContext(AuthContext);
+  const { t } = useLocalization();
   const mapRef = useRef(null);
 
   const fetchData = async () => {
@@ -314,7 +316,7 @@ export default function WorkerDashboard({ navigation }) {
     if (task) {
       navigation.navigate('MapNavigation', { task });
     } else {
-      Alert.alert("No Task", "This road is not currently assigned to you.");
+      Alert.alert(t('no_task_assigned_alert_title'), t('no_task_assigned_alert_body'));
     }
   };
 
@@ -374,7 +376,7 @@ export default function WorkerDashboard({ navigation }) {
             <Text style={styles.taskTitle}>{item.title}</Text>
             <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
               <Text style={[styles.statusText, { color: badge.text }]}>
-                {item.status.replace('_', ' ').toUpperCase()}
+                {t(item.status.toLowerCase()) || item.status.replace('_', ' ').toUpperCase()}
               </Text>
             </View>
           </View>
@@ -384,17 +386,17 @@ export default function WorkerDashboard({ navigation }) {
             <View style={styles.metaRow}>
               {item.ward_name ? (
                 <View style={styles.metaChip}>
-                  <Text style={styles.metaChipText}>📍 Ward: {item.ward_name}</Text>
+                  <Text style={styles.metaChipText}>📍 {t('ward_text') || 'Ward'}: {item.ward_name}</Text>
                 </View>
               ) : null}
               {item.line_id ? (
                 <View style={styles.metaChip}>
-                  <Text style={styles.metaChipText}>🔗 Line ID: {item.line_id}</Text>
+                  <Text style={styles.metaChipText}>🔗 {t('line_id') || 'Line ID'}: {item.line_id}</Text>
                 </View>
               ) : null}
               {item.rd_name ? (
                 <View style={styles.metaChip}>
-                  <Text style={styles.metaChipText}>🛣️ Road: {item.rd_name}</Text>
+                  <Text style={styles.metaChipText}>🛣️ {t('road') || 'Road'}: {item.rd_name}</Text>
                 </View>
               ) : null}
             </View>
@@ -403,9 +405,9 @@ export default function WorkerDashboard({ navigation }) {
           <View style={styles.cardFooter}>
             <View style={styles.actionPrompt}>
               <Ionicons name="navigate-circle-outline" size={18} color={Colors.primary} />
-              <Text style={styles.locationLabel}>Tap to Navigate</Text>
+              <Text style={styles.locationLabel}>{t('tap_to_navigate')}</Text>
             </View>
-            <Text style={styles.viewDetails}>Open Task ➔</Text>
+            <Text style={styles.viewDetails}>{t('open_task')}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -419,15 +421,15 @@ export default function WorkerDashboard({ navigation }) {
       <View style={[styles.titleSection, Colors.shadowLow]}>
         <View style={styles.profileRow}>
           <View style={styles.profileText}>
-            <Text style={styles.headerTitle}>Welcome, {user?.name}</Text>
+            <Text style={styles.headerTitle}>{t('welcome')}, {user?.name}</Text>
             <Text style={styles.subText}>
-              👷 Jawan • {wardBoundary?.wardName ? wardBoundary.wardName : (user?.ward_id ? `Ward ${user.ward_id}` : 'Ward Area')}
+              👷 {t('jawan')} • {wardBoundary?.wardName ? wardBoundary.wardName : (user?.ward_id ? `${t('ward_text')} ${user.ward_id}` : 'Ward Area')}
             </Text>
           </View>
         </View>
         <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
           <Ionicons name="log-out-outline" size={16} color={Colors.accent} />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>{t('logout')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -513,22 +515,22 @@ export default function WorkerDashboard({ navigation }) {
           <View style={styles.legend}>
              <View style={styles.legendItem}>
                <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
-               <Text style={styles.legendText}>Cleaned</Text>
+               <Text style={styles.legendText}>{t('cleaned')}</Text>
              </View>
              <View style={styles.legendItem}>
                <View style={[styles.legendDot, { backgroundColor: Colors.warning }]} />
-               <Text style={styles.legendText}>Active</Text>
+               <Text style={styles.legendText}>{t('active')}</Text>
              </View>
              <View style={styles.legendItem}>
                <View style={[styles.legendDot, { backgroundColor: Colors.accent }]} />
-               <Text style={styles.legendText}>Pending</Text>
+               <Text style={styles.legendText}>{t('pending')}</Text>
              </View>
           </View>
         </View>
       </View>
 
       <View style={styles.sectionHeaderRow}>
-        <Text style={styles.subHeader}>Assigned Cleaning Tasks</Text>
+        <Text style={styles.subHeader}>{t('assigned_cleaning_tasks')}</Text>
         <View style={styles.badgeCount}>
           <Text style={styles.badgeCountText}>{tasks.length}</Text>
         </View>
@@ -547,8 +549,8 @@ export default function WorkerDashboard({ navigation }) {
               <View style={styles.emptyIconCircle}>
                 <Ionicons name="clipboard-outline" size={40} color={Colors.textSecondary} />
               </View>
-              <Text style={styles.emptyText}>No tasks assigned yet</Text>
-              <Text style={styles.emptySubtext}>Contact your supervisor for new cleanups.</Text>
+              <Text style={styles.emptyText}>{t('no_tasks')}</Text>
+              <Text style={styles.emptySubtext}>{t('contact_supervisor')}</Text>
             </View>
           }
         />

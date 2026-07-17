@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 
@@ -11,20 +12,21 @@ export default function LoginScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useContext(AuthContext);
+  const { locale, setLocale, t } = useLocalization();
 
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t('error'), t('fill_all_fields_alert'));
       return;
     }
     setLoading(true);
     try {
       await login(email, password);
     } catch (error) {
-      Alert.alert('Login Failed', error.response?.data?.error || 'Something went wrong');
+      Alert.alert(t('login_failed'), error.response?.data?.error || t('something_went_wrong'));
     } finally {
       setLoading(false);
     }
@@ -39,21 +41,37 @@ export default function LoginScreen({ navigation }) {
       >
         <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
           <View style={[styles.card, Colors.shadowMedium]}>
+            {/* Language Selector Toggle */}
+            <View style={styles.languageToggleContainer}>
+              <TouchableOpacity 
+                style={[styles.languageToggleBtn, locale === 'en' && styles.languageToggleBtnActive]} 
+                onPress={() => setLocale('en')}
+              >
+                <Text style={[styles.languageToggleText, locale === 'en' && styles.languageToggleTextActive]}>English</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.languageToggleBtn, locale === 'te' && styles.languageToggleBtnActive]} 
+                onPress={() => setLocale('te')}
+              >
+                <Text style={[styles.languageToggleText, locale === 'te' && styles.languageToggleTextActive]}>తెలుగు</Text>
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.headerSection}>
               <View style={styles.iconCircle}>
                 <Ionicons name="leaf-outline" size={32} color={Colors.primary} />
               </View>
-              <Text style={styles.title}>Khammam Cleanup</Text>
-              <Text style={styles.subtitle}>Welcome back! Please login to your workspace.</Text>
+              <Text style={styles.title}>{t('login_title')}</Text>
+              <Text style={styles.subtitle}>{t('login_subtitle')}</Text>
             </View>
             
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Mobile Number or Email</Text>
+              <Text style={styles.label}>{t('email')}</Text>
               <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
                 <Ionicons name="person-outline" size={20} color={emailFocused ? Colors.primary : Colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter mobile number or email"
+                  placeholder={t('enter_email')}
                   placeholderTextColor={Colors.placeholder}
                   value={email}
                   onChangeText={setEmail}
@@ -66,12 +84,12 @@ export default function LoginScreen({ navigation }) {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>{t('password')}</Text>
               <View style={[styles.inputWrapper, passwordFocused && styles.inputWrapperFocused]}>
                 <Ionicons name="lock-closed-outline" size={20} color={passwordFocused ? Colors.primary : Colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.passwordInput}
-                  placeholder="Enter your password"
+                  placeholder={t('enter_password')}
                   placeholderTextColor={Colors.placeholder}
                   value={password}
                   onChangeText={setPassword}
@@ -89,12 +107,12 @@ export default function LoginScreen({ navigation }) {
               {loading ? (
                 <ActivityIndicator color={Colors.white} />
               ) : (
-                <Text style={styles.buttonText}>LOGIN</Text>
+                <Text style={styles.buttonText}>{t('login_btn')}</Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => navigation.navigate('Register')} style={styles.linkContainer}>
-              <Text style={styles.linkText}>Don't have an account? <Text style={styles.linkHighlight}>Register</Text></Text>
+              <Text style={styles.linkText}>{t('no_account')}<Text style={styles.linkHighlight}>{t('register')}</Text></Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -112,6 +130,30 @@ const styles = StyleSheet.create({
     borderRadius: Colors.radiusLarge,
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  languageToggleContainer: {
+    flexDirection: 'row',
+    alignSelf: 'flex-end',
+    backgroundColor: `${Colors.textSecondary}15`,
+    borderRadius: 8,
+    padding: 3,
+    marginBottom: 15,
+  },
+  languageToggleBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  languageToggleBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  languageToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  languageToggleTextActive: {
+    color: Colors.white,
   },
   headerSection: {
     alignItems: 'center',

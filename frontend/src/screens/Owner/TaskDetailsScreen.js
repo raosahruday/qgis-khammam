@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert, TextInput, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Alert, TextInput, TouchableOpacity, ScrollView, Image, Modal } from 'react-native';
 import MapView, { Polygon, Polyline, Marker } from '../../components/MapViewWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import api from '../../api/axios';
 import Colors from '../../constants/Colors';
 
@@ -23,7 +24,9 @@ export default function TaskDetailsScreen({ route, navigation }) {
   const [workerIdInput, setWorkerIdInput] = useState('');
   const [photos, setPhotos] = useState([]);
   const [reviewComment, setReviewComment] = useState('');
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
   const { user } = useContext(AuthContext);
+  const { t } = useLocalization();
 
   const [infrastructure, setInfrastructure] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -67,7 +70,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
       }
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'Failed to load task details');
+      Alert.alert(t('error'), t('failed_fetch_task'));
     } finally {
       setLoading(false);
     }
@@ -102,12 +105,12 @@ export default function TaskDetailsScreen({ route, navigation }) {
   const handleUpdateStatus = async (status) => {
     try {
       await api.put(`/tasks/${taskId}/status`, { status, comment: reviewComment });
-      Alert.alert('Success', `Task ${status === 'approved' ? 'approved' : 'rejected'} successfully.`);
+      Alert.alert(t('success'), t('task_status_updated_success'));
       setReviewComment('');
       fetchTaskDetails();
     } catch (error) {
       const errorMsg = error.response?.data?.details || error.response?.data?.error || error.message;
-      Alert.alert('Error', `Failed to update task: ${errorMsg}`);
+      Alert.alert(t('error'), `${t('failed_to_update_task')}: ${errorMsg}`);
     }
   };
 
@@ -135,7 +138,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
   }, [area]);
 
   if (loading) return <ActivityIndicator size="large" style={{ marginTop: 30 }} color={Colors.primary} />;
-  if (!task) return <Text style={{ textAlign: 'center', marginTop: 20, color: Colors.textSecondary }}>Task not found</Text>;
+  if (!task) return <Text style={{ textAlign: 'center', marginTop: 20, color: Colors.textSecondary }}>{t('task_not_found')}</Text>;
   
   const initialRegion = mappedPoints.length > 0 ? {
      latitude: mappedPoints[0].latitude,
@@ -300,7 +303,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
           </View>
           <View style={[styles.statusBadge, { backgroundColor: badgeColors.bg }]}>
             <Text style={[styles.statusText, { color: badgeColors.text }]}>
-              {task.status.replace('_', ' ').toUpperCase()}
+              {t(task.status.toLowerCase()) || task.status.replace('_', ' ').toUpperCase()}
             </Text>
           </View>
         </View>
@@ -309,12 +312,12 @@ export default function TaskDetailsScreen({ route, navigation }) {
           <View style={styles.metaRow}>
             {task.line_id ? (
               <View style={styles.metaChip}>
-                <Text style={styles.metaChipText}>🔗 Line: {task.line_id}</Text>
+                <Text style={styles.metaChipText}>🔗 {t('line_label')}: {task.line_id}</Text>
               </View>
             ) : null}
             {task.rd_name ? (
               <View style={styles.metaChip}>
-                <Text style={styles.metaChipText}>🛣️ Road: {task.rd_name}</Text>
+                <Text style={styles.metaChipText}>🛣️ {t('road_label')}: {task.rd_name}</Text>
               </View>
             ) : null}
           </View>
@@ -324,7 +327,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
           <View style={styles.commentLogBox}>
             <View style={styles.commentLogHeader}>
               <Ionicons name="chatbox-ellipses-outline" size={16} color={Colors.primary} />
-              <Text style={styles.commentLogLabel}>Review Feedback</Text>
+              <Text style={styles.commentLogLabel}>{t('review_feedback')}</Text>
             </View>
             <Text style={styles.commentLogText}>{task.review_comment}</Text>
           </View>
@@ -332,12 +335,12 @@ export default function TaskDetailsScreen({ route, navigation }) {
 
         <View style={styles.actionSection}>
             <View style={[styles.jawanInfoSection, Colors.shadowLow]}>
-                <Text style={styles.jawanLabel}>Assigned Jawan</Text>
+                <Text style={styles.jawanLabel}>{t('assignee')}</Text>
                 <View style={styles.jawanProfileRow}>
                   <View style={styles.jawanAvatar}>
                     <Ionicons name="construct" size={18} color={Colors.primary} />
                   </View>
-                  <Text style={styles.jawanNameText}>{task.worker_name || 'Unassigned'}</Text>
+                  <Text style={styles.jawanNameText}>{task.worker_name || t('unassigned')}</Text>
                 </View>
             </View>
 
@@ -345,10 +348,15 @@ export default function TaskDetailsScreen({ route, navigation }) {
               <View style={styles.reviewSection}>
                 {photos.length > 0 ? (
                   <View style={styles.photoGallerySection}>
-                    <Text style={styles.galleryLabel}>📸 Uploaded Proofs ({photos.length})</Text>
+                    <Text style={styles.galleryLabel}>📸 {t('uploaded_proofs')} ({photos.length})</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
                       {photos.map((item) => (
-                        <View key={item.id} style={[styles.photoWrapper, Colors.shadowLow]}>
+                        <TouchableOpacity 
+                          key={item.id} 
+                          style={[styles.photoWrapper, Colors.shadowLow]}
+                          onPress={() => setSelectedPhoto(getImageUrl(item.image_url))}
+                          activeOpacity={0.9}
+                        >
                           <Image source={{ uri: getImageUrl(item.image_url) }} style={styles.galleryImage} />
                           <View style={styles.photoMeta}>
                             <Ionicons name="calendar-outline" size={10} color={Colors.textSecondary} />
@@ -356,23 +364,23 @@ export default function TaskDetailsScreen({ route, navigation }) {
                               {new Date(item.uploaded_at).toLocaleDateString()} {new Date(item.uploaded_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                             </Text>
                           </View>
-                        </View>
+                        </TouchableOpacity>
                       ))}
                     </ScrollView>
                   </View>
                 ) : (
                   <View style={styles.noPhotosBox}>
                     <Ionicons name="images-outline" size={24} color={Colors.textSecondary} />
-                    <Text style={styles.noPhotosText}>No photos submitted yet.</Text>
+                    <Text style={styles.noPhotosText}>{t('no_photos')}</Text>
                   </View>
                 )}
 
                 {(user.role === 'owner' || user.role === 'supervisor') && (
                   <View style={styles.reviewForm}>
-                    <Text style={styles.label}>Review Feedback Comment</Text>
+                    <Text style={styles.label}>{t('review_feedback')}</Text>
                     <TextInput
                       style={[styles.commentInput, commentFocused && styles.commentInputFocused]}
-                      placeholder="Write review comments or rejection reason here..."
+                      placeholder={t('review_comment_placeholder')}
                       placeholderTextColor={Colors.placeholder}
                       value={reviewComment}
                       onChangeText={setReviewComment}
@@ -387,7 +395,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
                         activeOpacity={0.8}
                       >
                         <Ionicons name="close-circle-outline" size={18} color={Colors.white} />
-                        <Text style={styles.actionButtonText}>Reject</Text>
+                        <Text style={styles.actionButtonText}>{t('reject')}</Text>
                       </TouchableOpacity>
                       
                       <TouchableOpacity 
@@ -396,7 +404,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
                         activeOpacity={0.8}
                       >
                         <Ionicons name="checkmark-circle-outline" size={18} color={Colors.white} />
-                        <Text style={styles.actionButtonText}>Approve</Text>
+                        <Text style={styles.actionButtonText}>{t('approve')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -405,6 +413,36 @@ export default function TaskDetailsScreen({ route, navigation }) {
             )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={!!selectedPhoto}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedPhoto(null)}
+      >
+        <TouchableOpacity 
+          style={styles.modalBackground} 
+          activeOpacity={1} 
+          onPress={() => setSelectedPhoto(null)}
+        >
+          <View style={styles.modalContainer}>
+            {selectedPhoto && (
+              <Image 
+                source={{ uri: selectedPhoto }} 
+                style={styles.largeImage} 
+                resizeMode="contain" 
+              />
+            )}
+            <TouchableOpacity 
+              style={styles.closeButton} 
+              onPress={() => setSelectedPhoto(null)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close" size={28} color={Colors.white} />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -557,5 +595,35 @@ const styles = StyleSheet.create({
   },
   rejectButton: { backgroundColor: Colors.accent },
   approveButton: { backgroundColor: Colors.success },
-  actionButtonText: { color: Colors.white, fontWeight: '700', fontSize: 15, marginLeft: 6 }
+  actionButtonText: { color: Colors.white, fontWeight: '700', fontSize: 15, marginLeft: 6 },
+  modalBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  largeImage: {
+    width: '95%',
+    height: '85%',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
 });

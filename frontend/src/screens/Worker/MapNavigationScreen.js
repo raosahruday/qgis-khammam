@@ -4,6 +4,7 @@ import MapView, { Polygon, Polyline, Marker } from '../../components/MapViewWrap
 import * as Location from 'expo-location';
 import api from '../../api/axios';
 import { AuthContext } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import Colors from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -78,6 +79,7 @@ function SwipeButton({ onSwipeComplete, title, disabled, color = '#1B5E20' }) {
 export default function MapNavigationScreen({ route, navigation }) {
   const { task } = route.params;
   const { user } = useContext(AuthContext);
+  const { t } = useLocalization();
   const [currentLocation, setCurrentLocation] = useState(null);
   const [liveTask, setLiveTask] = useState(task);
   const [tasks, setTasks] = useState([]);
@@ -221,7 +223,7 @@ export default function MapNavigationScreen({ route, navigation }) {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Error', 'Location permission is required.');
+        Alert.alert(t('error'), t('location_permission_required'));
         return;
       }
 
@@ -347,7 +349,7 @@ export default function MapNavigationScreen({ route, navigation }) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Initializing Navigation...</Text>
+        <Text style={styles.loadingText}>{t('initializing_navigation')}</Text>
       </View>
     );
   }
@@ -365,7 +367,7 @@ export default function MapNavigationScreen({ route, navigation }) {
 
   const handleSwipeStatus = async (type) => {
     if (mappedPoints.length === 0) {
-      Alert.alert('Error', 'No road coordinates available.');
+      Alert.alert(t('error'), t('no_coordinates_alert'));
       return;
     }
 
@@ -396,26 +398,29 @@ export default function MapNavigationScreen({ route, navigation }) {
 
       if (!loc) {
         Alert.alert(
-          'GPS Lock Required',
-          'Could not determine your location. Please check your GPS settings and wait for a location lock to start the task.'
+          t('gps_lock_required'),
+          t('gps_lock_required_msg')
         );
         return;
       }
 
-      const targetPoint = mappedPoints[0];
-      const dist = getDist(
-        loc.latitude,
-        loc.longitude,
-        targetPoint.latitude,
-        targetPoint.longitude
-      );
-
-      if (dist > 150) {
-        Alert.alert(
-          'Too Far Away!',
-          `You are currently ${Math.round(dist)}m away from the Start Point of the road. You must be within 150 meters to start.`
+      const isWard61 = liveTask.ward_name && liveTask.ward_name.includes('61');
+      if (!isWard61) {
+        const targetPoint = mappedPoints[0];
+        const dist = getDist(
+          loc.latitude,
+          loc.longitude,
+          targetPoint.latitude,
+          targetPoint.longitude
         );
-        return;
+
+        if (dist > 150) {
+          Alert.alert(
+            t('too_far_away'),
+            t('te') ? `మీరు ప్రస్తుతం రోడ్డు ప్రారంభ స్థానానికి ${Math.round(dist)}మీటర్ల దూరంలో ఉన్నారు. ప్రారంభించడానికి మీరు 150 మీటర్ల లోపల ఉండాలి.` : `You are currently ${Math.round(dist)}m away from the Start Point of the road. You must be within 150 meters to start.`
+          );
+          return;
+        }
       }
     }
 
@@ -427,13 +432,13 @@ export default function MapNavigationScreen({ route, navigation }) {
         longitude: loc ? loc.longitude : 0
       });
       if (res.data.success) {
-        Alert.alert('Success', `Task successfully ${type === 'start' ? 'started!' : 'submitted for approval!'}`);
+        Alert.alert(t('success') || 'Success', type === 'start' ? t('task_started') : t('task_submitted_for_approval'));
         setLiveTask(prev => ({ ...prev, status: res.data.status }));
       }
     } catch (err) {
       console.error(err);
-      const errorMsg = err.response?.data?.error || 'Failed to update task status.';
-      Alert.alert('Error', errorMsg);
+      const errorMsg = err.response?.data?.error || t('failed_update_status');
+      Alert.alert(t('error'), errorMsg);
     } finally {
       setLoading(false);
     }
@@ -441,23 +446,54 @@ export default function MapNavigationScreen({ route, navigation }) {
 
   const handleNavigateToStart = () => {
     if (mappedPoints.length === 0) return;
-    const startPoint = mappedPoints[0];
-    const lat = startPoint.latitude;
-    const lon = startPoint.longitude;
     
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
-    const appleUrl = `http://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`;
-
-    Linking.canOpenURL(url).then(supported => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        Linking.openURL(appleUrl);
+    const isWard61 = liveTask.ward_name && liveTask.ward_name.includes('61');
+    
+    if (isWard61) {
+      const startPoint = mappedPoints[0];
+      const endPoint = mappedPoints[mappedPoints.length - 1];
+      let midPoints = mappedPoints.slice(1, -1);
+      
+      const MAX_WAYPOINTS = 10;
+      if (midPoints.length > MAX_WAYPOINTS) {
+        const step = Math.floor(midPoints.length / MAX_WAYPOINTS);
+        midPoints = midPoints.filter((_, idx) => idx % step === 0).slice(0, MAX_WAYPOINTS);
       }
-    }).catch(err => {
-      Alert.alert('Error', 'Could not open maps application.');
-      console.error(err);
-    });
+      
+      const waypointsStr = midPoints.map(p => `${p.latitude},${p.longitude}`).join('%7C');
+      
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${startPoint.latitude},${startPoint.longitude}&destination=${endPoint.latitude},${endPoint.longitude}&waypoints=${waypointsStr}&travelmode=driving`;
+      const appleUrl = `http://maps.apple.com/?saddr=${startPoint.latitude},${startPoint.longitude}&daddr=${endPoint.latitude},${endPoint.longitude}`;
+      
+      Linking.canOpenURL(url).then(supported => {
+        if (supported) {
+          Linking.openURL(url);
+        } else {
+          Linking.openURL(appleUrl);
+        }
+      }).catch(err => {
+        Alert.alert(t('error'), t('no_maps_app_alert'));
+        console.error(err);
+      });
+    } else {
+      const startPoint = mappedPoints[0];
+      const lat = startPoint.latitude;
+      const lon = startPoint.longitude;
+      
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
+      const appleUrl = `http://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`;
+
+      Linking.canOpenURL(url).then(supported => {
+        if (supported) {
+          Linking.openURL(url);
+        } else {
+          Linking.openURL(appleUrl);
+        }
+      }).catch(err => {
+        Alert.alert(t('error'), t('no_maps_app_alert'));
+        console.error(err);
+      });
+    }
   };
 
   const geom = liveTask.geom_json ? (typeof liveTask.geom_json === 'string' ? JSON.parse(liveTask.geom_json) : liveTask.geom_json) : null;
@@ -473,6 +509,7 @@ export default function MapNavigationScreen({ route, navigation }) {
   };
 
   const badgeColors = getStatusBadgeColors(liveTask.status);
+  const isWard61 = liveTask.ward_name && liveTask.ward_name.includes('61');
 
   return (
     <View style={styles.container}>
@@ -576,8 +613,8 @@ export default function MapNavigationScreen({ route, navigation }) {
           <Marker 
             key="start-pin"
             coordinate={mappedPoints[0]} 
-            title="Start Point" 
-            description="Start cleaning here"
+            title={t('start_point')} 
+            description={t('start_cleaning_here')}
             pinColor="red" 
             zIndex={22} 
           />
@@ -587,8 +624,8 @@ export default function MapNavigationScreen({ route, navigation }) {
           <Marker 
             key="end-pin"
             coordinate={mappedPoints[mappedPoints.length - 1]} 
-            title="End Point" 
-            description="End cleaning here"
+            title={t('end_point')} 
+            description={t('end_cleaning_here')}
             pinColor="green" 
             zIndex={22} 
           />
@@ -602,24 +639,24 @@ export default function MapNavigationScreen({ route, navigation }) {
              <View style={styles.metaBadgeRow}>
                {liveTask.line_id ? (
                  <View style={styles.metaBadge}>
-                   <Text style={styles.metaBadgeText}>🔗 ID: {liveTask.line_id}</Text>
+                   <Text style={styles.metaBadgeText}>🔗 {t('line_id') || 'ID'}: {liveTask.line_id}</Text>
                  </View>
                ) : null}
                {liveTask.rd_name ? (
                  <View style={styles.metaBadge}>
-                   <Text style={styles.metaBadgeText}>🛣️ Road: {liveTask.rd_name}</Text>
+                   <Text style={styles.metaBadgeText}>🛣️ {t('road') || 'Road'}: {liveTask.rd_name}</Text>
                  </View>
                ) : null}
                <View style={[styles.metaBadge, { backgroundColor: '#F1F5F9' }]}>
                  <Text style={[styles.metaBadgeText, { color: Colors.textSecondary }]}>
-                   📍 {liveTask.ward_name || 'Ward Area'}
+                   📍 {liveTask.ward_name || t('ward_text') || 'Ward Area'}
                  </Text>
                </View>
              </View>
            </View>
            <View style={[styles.statusBadge, { backgroundColor: badgeColors.bg }]}>
              <Text style={[styles.statusText, { color: badgeColors.text }]}>
-               {liveTask.status.replace('_', ' ').toUpperCase()}
+               {t(liveTask.status.toLowerCase()) || liveTask.status.replace('_', ' ').toUpperCase()}
              </Text>
            </View>
         </View>
@@ -630,19 +667,19 @@ export default function MapNavigationScreen({ route, navigation }) {
                 <View style={[styles.statusMessageBox, { backgroundColor: Colors.errorBg, borderColor: Colors.accent, marginBottom: 12, marginTop: 0 }]}>
                    <Ionicons name="alert-circle-outline" size={20} color={Colors.errorText} />
                    <Text style={[styles.statusMessageText, { color: Colors.errorText, flex: 1 }]}>
-                      Rejected: {liveTask.review_comment || 'No reason provided.'}
+                      {t('rejected')}: {liveTask.review_comment || t('no_reason_provided')}
                    </Text>
                 </View>
              )}
              <TouchableOpacity style={[styles.navBtn, Colors.shadowLow]} onPress={handleNavigateToStart} activeOpacity={0.8}>
                 <Ionicons name="location-outline" size={18} color={Colors.white} />
-                <Text style={styles.btnText}>Navigate to Start</Text>
+                <Text style={styles.btnText}>{isWard61 ? t('navigate_route') : t('navigate_to_start')}</Text>
              </TouchableOpacity>
              <SwipeButton 
-                title={liveTask.status === 'rejected' ? "Swipe to Re-do Task" : "Swipe to Start Task"}
+                title={liveTask.status === 'rejected' ? t('swipe_to_redo') : t('swipe_to_start')}
                 color={Colors.primary}
                 onSwipeComplete={() => handleSwipeStatus('start')}
-              />
+             />
            </View>
         )}
 
@@ -650,7 +687,7 @@ export default function MapNavigationScreen({ route, navigation }) {
            <View style={styles.actionContainer}>
              <TouchableOpacity style={[styles.navBtn, { backgroundColor: '#E2E8F0', borderOpacity: 0.1 }, Colors.shadowLow]} onPress={handleNavigateToStart} activeOpacity={0.8}>
                 <Ionicons name="location-outline" size={18} color={Colors.text} />
-                <Text style={[styles.btnText, { color: Colors.text }]}>Re-Navigate to Start</Text>
+                <Text style={[styles.btnText, { color: Colors.text }]}>{isWard61 ? t('re_navigate_route') : t('re_navigate_to_start')}</Text>
              </TouchableOpacity>
              
              <View style={styles.actionButtonsRow}>
@@ -660,7 +697,7 @@ export default function MapNavigationScreen({ route, navigation }) {
                  activeOpacity={0.8}
                >
                   <Ionicons name="camera-outline" size={18} color={Colors.white} />
-                  <Text style={styles.btnText}>Photo Proof</Text>
+                  <Text style={styles.btnText}>{t('photo_proof_btn')}</Text>
                </TouchableOpacity>
 
                <TouchableOpacity 
@@ -668,14 +705,14 @@ export default function MapNavigationScreen({ route, navigation }) {
                     styles.completeBtn, 
                     photos.length === 0 && styles.completeBtnDisabled,
                     Colors.shadowLow
-                  ]}
+                   ]}
                   disabled={photos.length === 0}
                   onPress={() => handleSwipeStatus('complete')}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="checkmark-circle-outline" size={18} color={Colors.white} />
                   <Text style={styles.btnText}>
-                    {photos.length > 0 ? "Complete Task" : "Locked (Need Photo)"}
+                    {photos.length > 0 ? t('complete_task_btn') : t('locked_need_photo')}
                   </Text>
                </TouchableOpacity>
              </View>
@@ -686,7 +723,7 @@ export default function MapNavigationScreen({ route, navigation }) {
            <View style={[styles.statusMessageBox, { backgroundColor: Colors.warningBg, borderColor: Colors.warning }]}>
               <Ionicons name="time-outline" size={20} color={Colors.warningText} />
               <Text style={[styles.statusMessageText, { color: Colors.warningText }]}>
-                Submitted. Pending Supervisor Approval.
+                {t('submitted_pending_approval')}
               </Text>
            </View>
         )}
@@ -695,7 +732,7 @@ export default function MapNavigationScreen({ route, navigation }) {
            <View style={[styles.statusMessageBox, { backgroundColor: Colors.successBg, borderColor: Colors.success }]}>
               <Ionicons name="checkmark-done-circle" size={20} color={Colors.successText} />
               <Text style={[styles.statusMessageText, { color: Colors.successText }]}>
-                Task Completed & Approved! Excellent work.
+                {t('task_approved_excellent')}
               </Text>
            </View>
         )}

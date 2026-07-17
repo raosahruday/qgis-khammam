@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 import api from '../../api/axios';
@@ -25,10 +26,11 @@ export default function RegisterScreen({ navigation }) {
   const [passwordFocused, setPasswordFocused] = useState(false);
 
   const { register } = useContext(AuthContext);
+  const { t } = useLocalization();
 
   const handleSendOTP = async () => {
     if (!phone || !/^\d{10}$/.test(phone.trim())) {
-      Alert.alert('Error', 'Please enter a valid 10-digit mobile number');
+      Alert.alert(t('error'), t('valid_phone_alert'));
       return;
     }
     setOtpLoading(true);
@@ -36,11 +38,11 @@ export default function RegisterScreen({ navigation }) {
       const response = await api.post('/otp/send', { phone: phone.trim() });
       setOtpSent(true);
       Alert.alert(
-        'OTP Sent (Simulator)',
-        `OTP sent to ${phone.trim()}.\nVerification code is: ${response.data.otp}`
+        t('otp_sent_alert'),
+        `${t('otp')} sent to ${phone.trim()}.\nVerification code is: ${response.data.otp}`
       );
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.error || 'Failed to send OTP');
+      Alert.alert(t('error'), error.response?.data?.error || t('otp_failed_alert'));
     } finally {
       setOtpLoading(false);
     }
@@ -48,29 +50,29 @@ export default function RegisterScreen({ navigation }) {
 
   const handleRegister = async () => {
     if (!name || !phone || !divisions || !password || !otp) {
-      Alert.alert('Error', 'Please fill in all fields and verify OTP');
+      Alert.alert(t('error'), t('fill_all_fields_otp'));
       return;
     }
 
     const cleanDivs = divisions.trim();
     if (role === 'worker') {
       if (!/^\d+$/.test(cleanDivs)) {
-        Alert.alert('Validation Error', 'Jawan must enter a single numeric division number (e.g. 53)');
+        Alert.alert(t('validation_error'), t('jawan_division_numeric_validation'));
         return;
       }
     } else {
       const parts = cleanDivs.split(',').map(p => p.trim()).filter(Boolean);
       if (parts.length === 0) {
-        Alert.alert('Validation Error', 'Sanitary Inspector must enter division numbers');
+        Alert.alert(t('validation_error'), t('inspector_division_empty_validation'));
         return;
       }
       if (parts.length > 15) {
-        Alert.alert('Validation Error', 'Sanitary Inspector can enter up to 15 divisions only');
+        Alert.alert(t('validation_error'), t('inspector_division_limit_validation'));
         return;
       }
       for (const part of parts) {
         if (!/^\d+$/.test(part)) {
-          Alert.alert('Validation Error', 'All division numbers must be numeric');
+          Alert.alert(t('validation_error'), t('division_numeric_only_validation'));
           return;
         }
       }
@@ -79,10 +81,10 @@ export default function RegisterScreen({ navigation }) {
     setLoading(true);
     try {
       await register(name, phone.trim(), password, role, cleanDivs, otp.trim());
-      Alert.alert('Success', 'Registered successfully. Please wait for Commissioner approval.');
+      Alert.alert(t('success') || 'Success', t('registration_success'));
       navigation.navigate('Login');
     } catch (error) {
-      Alert.alert('Registration Failed', error.response?.data?.error || 'Something went wrong');
+      Alert.alert(t('registration_failed'), error.response?.data?.error || t('something_went_wrong'));
     } finally {
       setLoading(false);
     }
@@ -101,17 +103,17 @@ export default function RegisterScreen({ navigation }) {
               <View style={styles.iconCircle}>
                 <Ionicons name="person-add-outline" size={32} color={Colors.primary} />
               </View>
-              <Text style={styles.title}>Create Account</Text>
-              <Text style={styles.subtitle}>Join the municipal network to start work.</Text>
+              <Text style={styles.title}>{t('register')}</Text>
+              <Text style={styles.subtitle}>{t('register_subtitle')}</Text>
             </View>
             
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Full Name</Text>
+              <Text style={styles.label}>{t('name')}</Text>
               <View style={[styles.inputWrapper, nameFocused && styles.inputWrapperFocused]}>
                 <Ionicons name="card-outline" size={20} color={nameFocused ? Colors.primary : Colors.textSecondary} style={styles.inputIcon} />
                 <TextInput 
                   style={styles.input} 
-                  placeholder="Enter your full name" 
+                  placeholder={t('enter_name')} 
                   placeholderTextColor={Colors.placeholder}
                   value={name} 
                   onChangeText={setName} 
@@ -122,7 +124,7 @@ export default function RegisterScreen({ navigation }) {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Register as</Text>
+              <Text style={styles.label}>{t('register_as')}</Text>
               <View style={styles.roleGrid}>
                 <TouchableOpacity 
                   style={[styles.roleButton, role === 'worker' && styles.roleActive]} 
@@ -130,7 +132,7 @@ export default function RegisterScreen({ navigation }) {
                   activeOpacity={0.8}
                 >
                   <Ionicons name="construct-outline" size={20} color={role === 'worker' ? Colors.white : Colors.primary} />
-                  <Text style={role === 'worker' ? styles.roleTextActive : styles.roleText}>Jawan</Text>
+                  <Text style={role === 'worker' ? styles.roleTextActive : styles.roleText}>{t('jawan')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[styles.roleButton, role === 'supervisor' && styles.roleActive]} 
@@ -138,18 +140,18 @@ export default function RegisterScreen({ navigation }) {
                   activeOpacity={0.8}
                 >
                   <Ionicons name="shield-checkmark-outline" size={20} color={role === 'supervisor' ? Colors.white : Colors.primary} />
-                  <Text style={role === 'supervisor' ? styles.roleTextActive : styles.roleText}>Sanitary Inspector</Text>
+                  <Text style={role === 'supervisor' ? styles.roleTextActive : styles.roleText}>{t('sanitary_inspector')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Mobile Number</Text>
+              <Text style={styles.label}>{t('phone')}</Text>
               <View style={[styles.phoneContainer, phoneFocused && styles.phoneContainerFocused]}>
                 <Ionicons name="call-outline" size={20} color={phoneFocused ? Colors.primary : Colors.textSecondary} style={styles.inputIcon} />
                 <TextInput 
                   style={styles.phoneInput} 
-                  placeholder="10-digit mobile number" 
+                  placeholder={t('enter_phone')} 
                   placeholderTextColor={Colors.placeholder}
                   value={phone} 
                   onChangeText={setPhone} 
@@ -173,12 +175,12 @@ export default function RegisterScreen({ navigation }) {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Verification Code (OTP)</Text>
+              <Text style={styles.label}>{t('otp')}</Text>
               <View style={[styles.inputWrapper, otpFocused && styles.inputWrapperFocused]}>
                 <Ionicons name="keypad-outline" size={20} color={otpFocused ? Colors.primary : Colors.textSecondary} style={styles.inputIcon} />
                 <TextInput 
                   style={styles.input} 
-                  placeholder="Enter 6-digit OTP code" 
+                  placeholder={t('enter_otp')} 
                   placeholderTextColor={Colors.placeholder}
                   value={otp} 
                   onChangeText={setOtp} 
@@ -192,7 +194,7 @@ export default function RegisterScreen({ navigation }) {
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                {role === 'worker' ? 'Division Number' : 'Division Numbers (up to 15)'}
+                {role === 'worker' ? t('division_number') : t('division_numbers')}
               </Text>
               <View style={[styles.inputWrapper, divsFocused && styles.inputWrapperFocused]}>
                 <Ionicons name="grid-outline" size={20} color={divsFocused ? Colors.primary : Colors.textSecondary} style={styles.inputIcon} />
@@ -209,12 +211,12 @@ export default function RegisterScreen({ navigation }) {
             </View>
             
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>{t('password')}</Text>
               <View style={[styles.inputWrapper, passwordFocused && styles.inputWrapperFocused]}>
                 <Ionicons name="lock-closed-outline" size={20} color={passwordFocused ? Colors.primary : Colors.textSecondary} style={styles.inputIcon} />
                 <TextInput 
                   style={styles.passwordInput} 
-                  placeholder="Create a password" 
+                  placeholder={t('enter_password')} 
                   placeholderTextColor={Colors.placeholder}
                   value={password} 
                   onChangeText={setPassword} 
@@ -232,12 +234,12 @@ export default function RegisterScreen({ navigation }) {
               {loading ? (
                 <ActivityIndicator color={Colors.white} />
               ) : (
-                <Text style={styles.buttonText}>REGISTER</Text>
+                <Text style={styles.buttonText}>{t('register_btn')}</Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.linkContainer}>
-              <Text style={styles.linkText}>Already have an account? <Text style={styles.linkHighlight}>Login</Text></Text>
+              <Text style={styles.linkText}>{t('already_have_account')}<Text style={styles.linkHighlight}>{t('login')}</Text></Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

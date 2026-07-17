@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity
 import MapView, { Polygon, Polyline, Marker, RoadsLayer, Callout } from '../../components/MapViewWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 import api from '../../api/axios';
@@ -115,6 +116,7 @@ export default function CommissionerDashboard({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [selectedWard, setSelectedWard] = useState(null);
   const { logout } = useContext(AuthContext);
+  const { t } = useLocalization();
 
   const [activeTab, setActiveTab] = useState('map'); // 'map' or 'registrations'
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -517,7 +519,7 @@ export default function CommissionerDashboard({ navigation }) {
                   styles.regRoleText, 
                   { color: u.role === 'worker' ? Colors.primary : Colors.blue }
                 ]}>
-                  {u.role === 'worker' ? 'Jawan' : 'Inspector'}
+                  {u.role === 'worker' ? t('jawan') : t('inspector')}
                 </Text>
               </View>
             </View>
@@ -525,7 +527,7 @@ export default function CommissionerDashboard({ navigation }) {
             <View style={styles.regDetailRow}>
               <Ionicons name="grid-outline" size={16} color={Colors.textSecondary} />
               <Text style={styles.regDetailText}>
-                {u.role === 'worker' ? `Assigned Division: ${u.divisions}` : `Divisions List: ${u.divisions}`}
+                {u.role === 'worker' ? `${t('division_text')}: ${u.divisions}` : `${t('all_divisions')}: ${u.divisions}`}
               </Text>
             </View>
             
@@ -536,7 +538,7 @@ export default function CommissionerDashboard({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Ionicons name="close-circle-outline" size={16} color={Colors.white} />
-                <Text style={styles.regBtnText}>Reject</Text>
+                <Text style={styles.regBtnText}>{t('reject')}</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.regBtn, styles.approveBtn, Colors.shadowLow]} 
@@ -544,7 +546,7 @@ export default function CommissionerDashboard({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Ionicons name="checkmark-circle-outline" size={16} color={Colors.white} />
-                <Text style={styles.regBtnText}>Approve</Text>
+                <Text style={styles.regBtnText}>{t('approve')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -560,17 +562,17 @@ export default function CommissionerDashboard({ navigation }) {
           <View style={[styles.sidebarStatBox, { backgroundColor: Colors.successBg }, Colors.shadowLow]}>
             <Ionicons name="checkbox-outline" size={20} color={Colors.success} />
             <Text style={[styles.statVal, { color: Colors.success }]}>{statsValues.completed}</Text>
-            <Text style={styles.statLabel}>Cleaned</Text>
+            <Text style={styles.statLabel}>{t('cleaned')}</Text>
           </View>
           <View style={[styles.sidebarStatBox, { backgroundColor: Colors.warningBg }, Colors.shadowLow]}>
             <Ionicons name="hourglass-outline" size={20} color={Colors.warning} />
             <Text style={[styles.statVal, { color: Colors.warning }]}>{statsValues.active}</Text>
-            <Text style={styles.statLabel}>Active</Text>
+            <Text style={styles.statLabel}>{t('active')}</Text>
           </View>
           <View style={[styles.sidebarStatBox, { backgroundColor: Colors.errorBg }, Colors.shadowLow]}>
             <Ionicons name="alert-circle-outline" size={20} color={Colors.accent} />
             <Text style={[styles.statVal, { color: Colors.accent }]}>{statsValues.pending}</Text>
-            <Text style={styles.statLabel}>Pending</Text>
+            <Text style={styles.statLabel}>{t('pending')}</Text>
           </View>
           <View style={[styles.sidebarStatBox, { backgroundColor: `${Colors.blue}10` }, Colors.shadowLow]}>
             <Ionicons 
@@ -584,7 +586,7 @@ export default function CommissionerDashboard({ navigation }) {
                 : machines.length}
             </Text>
             <Text style={styles.statLabel}>
-              {selectedWardFilter === 'parks' ? 'Parks' : 'Trucks'}
+              {selectedWardFilter === 'parks' ? t('parks') : t('trucks')}
             </Text>
           </View>
       </View>
@@ -600,12 +602,12 @@ export default function CommissionerDashboard({ navigation }) {
           
           <View style={styles.sidebarHeader}>
             <View>
-              <Text style={styles.headerTitle}>Municipal Control</Text>
-              <Text style={styles.headerRole}>Commissioner panel</Text>
+              <Text style={styles.headerTitle}>{t('login_title')}</Text>
+              <Text style={styles.headerRole}>{t('login_subtitle')}</Text>
             </View>
             <TouchableOpacity style={styles.logout} onPress={logout} activeOpacity={0.8}>
               <Ionicons name="log-out-outline" size={16} color={Colors.accent} />
-              <Text style={styles.logoutText}>Logout</Text>
+              <Text style={styles.logoutText}>{t('logout')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -616,7 +618,7 @@ export default function CommissionerDashboard({ navigation }) {
               activeOpacity={0.8}
             >
               <Ionicons name="map-outline" size={18} color={activeTab === 'map' ? Colors.primary : Colors.textSecondary} />
-              <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>Overview Map</Text>
+              <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>{t('overview_map')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -625,7 +627,7 @@ export default function CommissionerDashboard({ navigation }) {
               activeOpacity={0.8}
             >
               <Ionicons name="people-outline" size={18} color={activeTab === 'registrations' ? Colors.primary : Colors.textSecondary} />
-              <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>Pending</Text>
+              <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>{t('pending')}</Text>
               {pendingCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{pendingCount}</Text>
@@ -647,10 +649,12 @@ export default function CommissionerDashboard({ navigation }) {
                     <Ionicons name="filter-outline" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
                     <Text style={styles.dropdownButtonText}>
                       {selectedWardFilter === 'parks'
-                        ? 'Parks'
+                        ? t('parks')
                         : selectedWardFilter 
-                          ? `Division: ${wardStats.find(w => w.id === selectedWardFilter)?.name}` 
-                          : 'All Wards / Divisions'}
+                          ? (wardStats.find(w => w.id === selectedWardFilter)?.name === 'Ward 61'
+                             ? t('highways')
+                             : `${t('division_text')}: ${wardStats.find(w => w.id === selectedWardFilter)?.name}`) 
+                          : t('all_divisions')}
                     </Text>
                   </View>
                   <Ionicons 
@@ -677,7 +681,7 @@ export default function CommissionerDashboard({ navigation }) {
                           styles.dropdownOptionText,
                           !selectedWardFilter && styles.dropdownOptionTextSelected
                         ]}>
-                          All Divisions
+                          {t('all_divisions')}
                         </Text>
                       </TouchableOpacity>
 
@@ -695,7 +699,7 @@ export default function CommissionerDashboard({ navigation }) {
                           styles.dropdownOptionText,
                           selectedWardFilter === 'parks' && styles.dropdownOptionTextSelected
                         ]}>
-                          Parks
+                          {t('parks')}
                         </Text>
                       </TouchableOpacity>
 
@@ -715,7 +719,7 @@ export default function CommissionerDashboard({ navigation }) {
                             styles.dropdownOptionText,
                             selectedWardFilter === ward.id && styles.dropdownOptionTextSelected
                           ]}>
-                            {ward.name}
+                            {ward.name === 'Ward 61' ? t('highways') : ward.name}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -867,12 +871,12 @@ export default function CommissionerDashboard({ navigation }) {
       
       <View style={[styles.header, Colors.shadowLow]}>
         <View>
-          <Text style={styles.headerTitle}>Municipal Control</Text>
-          <Text style={styles.headerRole}>Commissioner Panel</Text>
+          <Text style={styles.headerTitle}>{t('login_title')}</Text>
+          <Text style={styles.headerRole}>{t('login_subtitle')}</Text>
         </View>
         <TouchableOpacity style={styles.logout} onPress={logout} activeOpacity={0.8}>
           <Ionicons name="log-out-outline" size={16} color={Colors.accent} />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>{t('logout')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -883,7 +887,7 @@ export default function CommissionerDashboard({ navigation }) {
           activeOpacity={0.8}
         >
           <Ionicons name="map-outline" size={18} color={activeTab === 'map' ? Colors.primary : Colors.textSecondary} />
-          <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>Overview Map</Text>
+          <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>{t('overview_map')}</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
@@ -892,7 +896,7 @@ export default function CommissionerDashboard({ navigation }) {
           activeOpacity={0.8}
         >
           <Ionicons name="people-outline" size={18} color={activeTab === 'registrations' ? Colors.primary : Colors.textSecondary} />
-          <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>Pending</Text>
+          <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>{t('pending')}</Text>
           {pendingCount > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{pendingCount}</Text>
@@ -914,10 +918,12 @@ export default function CommissionerDashboard({ navigation }) {
                 <Ionicons name="filter-outline" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
                 <Text style={styles.dropdownButtonText}>
                   {selectedWardFilter === 'parks'
-                    ? 'Parks'
+                    ? t('parks')
                     : selectedWardFilter 
-                      ? `Division: ${wardStats.find(w => w.id === selectedWardFilter)?.name}` 
-                      : 'Select Division (All)'}
+                      ? (wardStats.find(w => w.id === selectedWardFilter)?.name === 'Ward 61'
+                         ? t('highways')
+                         : `${t('division_text')}: ${wardStats.find(w => w.id === selectedWardFilter)?.name}`) 
+                      : t('select_division')}
                 </Text>
               </View>
               <Ionicons 
@@ -944,7 +950,7 @@ export default function CommissionerDashboard({ navigation }) {
                       styles.dropdownOptionText,
                       !selectedWardFilter && styles.dropdownOptionTextSelected
                     ]}>
-                      All Divisions
+                      {t('all_divisions')}
                     </Text>
                   </TouchableOpacity>
 
@@ -962,7 +968,7 @@ export default function CommissionerDashboard({ navigation }) {
                       styles.dropdownOptionText,
                       selectedWardFilter === 'parks' && styles.dropdownOptionTextSelected
                     ]}>
-                      Parks
+                      {t('parks')}
                     </Text>
                   </TouchableOpacity>
 
@@ -982,7 +988,7 @@ export default function CommissionerDashboard({ navigation }) {
                         styles.dropdownOptionText,
                         selectedWardFilter === ward.id && styles.dropdownOptionTextSelected
                       ]}>
-                        {ward.name}
+                        {ward.name === 'Ward 61' ? t('highways') : ward.name}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -994,15 +1000,15 @@ export default function CommissionerDashboard({ navigation }) {
           <View style={styles.statsContainer}>
               <View style={[styles.statBox, { backgroundColor: Colors.successBg }, Colors.shadowLow]}>
                 <Text style={[styles.statVal, { color: Colors.success }]}>{getStatsValues().completed}</Text>
-                <Text style={styles.statLabel}>Cleaned</Text>
+                <Text style={styles.statLabel}>{t('cleaned')}</Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: Colors.warningBg }, Colors.shadowLow]}>
                 <Text style={[styles.statVal, { color: Colors.warning }]}>{getStatsValues().active}</Text>
-                <Text style={styles.statLabel}>Active</Text>
+                <Text style={styles.statLabel}>{t('active')}</Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: Colors.errorBg }, Colors.shadowLow]}>
                 <Text style={[styles.statVal, { color: Colors.accent }]}>{getStatsValues().pending}</Text>
-                <Text style={styles.statLabel}>Pending</Text>
+                <Text style={styles.statLabel}>{t('pending')}</Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: `${Colors.blue}10` }, Colors.shadowLow]}>
                 <Text style={[styles.statVal, { color: Colors.blue }]}>
@@ -1011,7 +1017,7 @@ export default function CommissionerDashboard({ navigation }) {
                     : machines.length}
                 </Text>
                 <Text style={styles.statLabel}>
-                  {selectedWardFilter === 'parks' ? 'Parks' : 'Trucks'}
+                  {selectedWardFilter === 'parks' ? t('parks') : t('trucks')}
                 </Text>
               </View>
           </View>
@@ -1090,55 +1096,55 @@ export default function CommissionerDashboard({ navigation }) {
               })}
             </MapView>
             
-             {/* Map Legend */}
-             <View style={[styles.legend, Colors.shadowMedium]}>
-                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.success }]} /><Text style={styles.legendText}>Cleaned</Text></View>
-                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.warning }]} /><Text style={styles.legendText}>Active</Text></View>
-                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.accent }]} /><Text style={styles.legendText}>Pending</Text></View>
-             </View>
+            {/* Map Legend */}
+            <View style={[styles.legend, Colors.shadowMedium]}>
+               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.success }]} /><Text style={styles.legendText}>{t('cleaned')}</Text></View>
+               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.warning }]} /><Text style={styles.legendText}>{t('active')}</Text></View>
+               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.accent }]} /><Text style={styles.legendText}>{t('pending')}</Text></View>
+            </View>
 
-             {/* Selected Ward Info Hover Overlay */}
-             {selectedWard && (
-               <View style={[styles.hoverBox, Colors.shadowMedium]}>
-                 <View style={styles.hoverHeader}>
-                   <Text style={styles.hoverTitle}>{selectedWard.name}</Text>
-                   <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn} activeOpacity={0.8}>
-                     <Ionicons name="close" size={14} color={Colors.textSecondary} />
-                   </TouchableOpacity>
-                 </View>
-                 <View style={styles.hoverContent}>
-                   <Text style={styles.hoverSubtitle}>👷 Assigned Jawans:</Text>
-                   {selectedWard.jawans && selectedWard.jawans.length > 0 ? (
-                     selectedWard.jawans.map((jawan, idx) => (
-                       <View key={idx} style={styles.jawanRow}>
-                         <Text style={styles.jawanName}>• {jawan.name || 'Unknown'}</Text>
-                         {jawan.phone ? (
-                           <Text style={styles.jawanPhone}>📞 {jawan.phone}</Text>
-                         ) : (
-                           <Text style={styles.jawanPhoneNo}>No mobile listed</Text>
-                         )}
-                       </View>
-                     ))
-                   ) : (
-                     <Text style={styles.noJawanText}>No jawans assigned to this ward</Text>
-                   )}
-                   
-                   <View style={styles.progressRow}>
-                     <Text style={styles.progressText}>
-                       Cleaned: <Text style={{color: Colors.success, fontWeight: '800'}}>{getStatsForWard(selectedWard).completed}</Text> | 
-                       Active: <Text style={{color: Colors.warning, fontWeight: '800'}}>{getStatsForWard(selectedWard).active}</Text> | 
-                       Pending: <Text style={{color: Colors.accent, fontWeight: '800'}}>{getStatsForWard(selectedWard).pending}</Text>
-                     </Text>
-                   </View>
-                 </View>
-               </View>
-             )}
+            {/* Selected Ward Info Hover Overlay */}
+            {selectedWard && (
+              <View style={[styles.hoverBox, Colors.shadowMedium]}>
+                <View style={styles.hoverHeader}>
+                  <Text style={styles.hoverTitle}>{selectedWard.name}</Text>
+                  <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn} activeOpacity={0.8}>
+                    <Ionicons name="close" size={14} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.hoverContent}>
+                  <Text style={styles.hoverSubtitle}>👷 {t('active_jawan')}:</Text>
+                  {selectedWard.jawans && selectedWard.jawans.length > 0 ? (
+                    selectedWard.jawans.map((jawan, idx) => (
+                      <View key={idx} style={styles.jawanRow}>
+                        <Text style={styles.jawanName}>• {jawan.name || 'Unknown'}</Text>
+                        {jawan.phone ? (
+                          <Text style={styles.jawanPhone}>📞 {jawan.phone}</Text>
+                        ) : (
+                          <Text style={styles.jawanPhoneNo}>{t('no_mobile_listed')}</Text>
+                        )}
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.noJawanText}>{t('no_jawans_assigned')}</Text>
+                  )}
+                  
+                  <View style={styles.progressRow}>
+                    <Text style={styles.progressText}>
+                      {t('cleaned')}: <Text style={{color: Colors.success, fontWeight: '800'}}>{getStatsForWard(selectedWard).completed}</Text> | 
+                      {t('active')}: <Text style={{color: Colors.warning, fontWeight: '800'}}>{getStatsForWard(selectedWard).active}</Text> | 
+                      {t('pending')}: <Text style={{color: Colors.accent, fontWeight: '800'}}>{getStatsForWard(selectedWard).pending}</Text>
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
 
-             {isZoomedOut && (
-               <View style={styles.zoomHintBox}>
-                 <Text style={styles.zoomHintText}>🔍 Zoom in to view detailed road networks</Text>
-               </View>
-             )}
+            {isZoomedOut && (
+              <View style={styles.zoomHintBox}>
+                <Text style={styles.zoomHintText}>🔍 {t('zoom_hint')}</Text>
+              </View>
+            )}
           </View>
         </>
       ) : (

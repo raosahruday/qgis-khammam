@@ -4,6 +4,7 @@ import MapView, { Polygon, Marker, Polyline } from '../../components/MapViewWrap
 import * as Location from 'expo-location';
 import api from '../../api/axios';
 import { AuthContext } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import Colors from '../../constants/Colors';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
@@ -81,6 +82,7 @@ function SwipeButton({ onSwipeComplete, title, disabled, color = '#1B5E20' }) {
 export default function ParkMapNavigationScreen({ route, navigation }) {
   const { taskId } = route.params;
   const { user } = useContext(AuthContext);
+  const { t } = useLocalization();
   const isFocused = useIsFocused();
 
   const [currentLocation, setCurrentLocation] = useState(null);
@@ -136,7 +138,7 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
 
     } catch (err) {
       console.error('Fetch task details error:', err);
-      Alert.alert('Error', 'Failed to fetch task details.');
+      Alert.alert(t('error'), t('failed_fetch_task'));
     } finally {
       setLoading(false);
     }
@@ -146,7 +148,7 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Error', 'Location permission is required.');
+        Alert.alert(t('error'), t('location_permission_required'));
         return;
       }
 
@@ -229,11 +231,11 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
 
       if (res.data && res.data.success) {
         setLiveTask(prev => ({ ...prev, status: 'in_progress' }));
-        Alert.alert('Task Started', 'Park cleaning task has started successfully. Please upload at least 4 photo proofs.');
+        Alert.alert(t('park_task_started_title'), t('park_task_started_body'));
       }
     } catch (err) {
       console.error('Start task error:', err);
-      Alert.alert('Error', err.response?.data?.error || 'Failed to start task.');
+      Alert.alert(t('error'), err.response?.data?.error || t('failed_update_status'));
     } finally {
       setLoading(false);
     }
@@ -253,12 +255,12 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
 
       if (res.data && res.data.success) {
         setLiveTask(prev => ({ ...prev, status: 'submitted' }));
-        Alert.alert('Success', 'Park cleaning photos submitted successfully for review.');
+        Alert.alert(t('success'), t('park_task_submitted_body'));
         navigation.navigate('ParkWorkerDashboard');
       }
     } catch (err) {
       console.error('Complete task error:', err);
-      Alert.alert('Error', err.response?.data?.error || 'Failed to complete task.');
+      Alert.alert(t('error'), err.response?.data?.error || t('failed_update_status'));
     } finally {
       setLoading(false);
     }
@@ -283,11 +285,11 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
 
   const getStatusLabel = (status) => {
     switch (status) {
-      case 'approved': return 'Approved';
-      case 'submitted': return 'Submitted';
-      case 'rejected': return 'Rejected';
-      case 'in_progress': return 'In Progress';
-      default: return 'Pending';
+      case 'approved': return t('approved');
+      case 'submitted': return t('submitted');
+      case 'rejected': return t('rejected');
+      case 'in_progress': return t('in_progress');
+      default: return t('pending');
     }
   };
 
@@ -308,7 +310,7 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle} numberOfLines={1}>{liveTask.title}</Text>
-          <Text style={styles.headerSubtitle}>Park Cleaning Task</Text>
+          <Text style={styles.headerSubtitle}>{t('park_cleaning_task')}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -378,7 +380,7 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
           <View style={styles.titleRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.panelTitle}>{liveTask.title}</Text>
-              <Text style={styles.panelWard}>📍 {liveTask.ward_name || 'Assigned Ward'}</Text>
+              <Text style={styles.panelWard}>📍 {liveTask.ward_name || t('assigned_ward')}</Text>
             </View>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(liveTask.status) + '15' }]}>
               <Text style={[styles.statusText, { color: getStatusColor(liveTask.status) }]}>
@@ -390,7 +392,7 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
           {/* Review Feedback */}
           {liveTask.status === 'rejected' && liveTask.review_comment && (
             <View style={styles.feedbackBox}>
-              <Text style={styles.feedbackTitle}>⚠️ SI Feedback (Rejected):</Text>
+              <Text style={styles.feedbackTitle}>{t('si_feedback_rejected')}</Text>
               <Text style={styles.feedbackBody}>{liveTask.review_comment}</Text>
             </View>
           )}
@@ -402,7 +404,7 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
           {liveTask.status === 'in_progress' && (
             <View style={styles.progressBox}>
               <Text style={styles.progressText}>
-                📸 Photos Uploaded: <Text style={{ fontWeight: '800', color: photos.length >= 4 ? Colors.success : '#EF4444' }}>{photos.length} / 4</Text> (Minimum 4 required)
+                📸 {t('photos_uploaded')}: <Text style={{ fontWeight: '800', color: photos.length >= 4 ? Colors.success : '#EF4444' }}>{photos.length} / 4</Text> {t('minimum_4_required')}
               </Text>
               <View style={styles.progressBarBg}>
                 <View style={[styles.progressBarFill, { width: `${Math.min(100, (photos.length / 4) * 100)}%`, backgroundColor: photos.length >= 4 ? Colors.success : '#EF4444' }]} />
@@ -413,7 +415,7 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
           {/* Photos Thumbnails list if uploaded */}
           {photos.length > 0 && (
             <View style={styles.photosSection}>
-              <Text style={styles.photosTitle}>Uploaded Proofs ({photos.length})</Text>
+              <Text style={styles.photosTitle}>{t('uploaded_proofs')} ({photos.length})</Text>
               <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
                 {photos.map((ph, idx) => (
                   <View key={`nav-photo-${idx}`} style={styles.photoContainer}>
@@ -437,7 +439,7 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
                   return (
                     <View style={styles.swipeButtonWrapper}>
                       <SwipeButton
-                        title={liveTask.status === 'rejected' ? 'Swipe to Re-do Task' : 'Swipe to Start Task'}
+                        title={liveTask.status === 'rejected' ? t('swipe_to_redo') : t('swipe_to_start')}
                         onSwipeComplete={handleStartTask}
                         color={liveTask.status === 'rejected' ? '#EF4444' : Colors.primary}
                       />
@@ -449,13 +451,13 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
                       <TouchableOpacity style={styles.photoButton} onPress={handleUploadPhoto} activeOpacity={0.8}>
                         <Ionicons name="camera" size={20} color="white" style={{ marginRight: 8 }} />
                         <Text style={styles.photoButtonText}>
-                          {photos.length === 0 ? 'Upload First Photo' : 'Upload Next Photo'}
+                          {photos.length === 0 ? t('upload_first_photo') : t('upload_next_photo')}
                         </Text>
                       </TouchableOpacity>
 
                       <View style={[styles.swipeButtonWrapper, { marginTop: 12 }]}>
                         <SwipeButton
-                          title={photos.length >= 4 ? 'Swipe to Complete' : 'Need 4 Photos to Complete'}
+                          title={photos.length >= 4 ? t('swipe_to_complete') : t('need_4_photos')}
                           disabled={photos.length < 4}
                           onSwipeComplete={handleCompleteTask}
                           color={Colors.success}
@@ -467,14 +469,14 @@ export default function ParkMapNavigationScreen({ route, navigation }) {
                   return (
                     <View style={styles.messageBox}>
                       <Ionicons name="hourglass-outline" size={24} color="#D97706" />
-                      <Text style={styles.messageText}>Under Review by Sanitary Inspector</Text>
+                      <Text style={styles.messageText}>{t('under_review_si')}</Text>
                     </View>
                   );
                 } else if (liveTask.status === 'approved') {
                   return (
                     <View style={[styles.messageBox, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
                       <Ionicons name="checkmark-circle" size={24} color="#059669" />
-                      <Text style={[styles.messageText, { color: '#047857' }]}>Task Approved & Closed</Text>
+                      <Text style={[styles.messageText, { color: '#047857' }]}>{t('task_approved_closed')}</Text>
                     </View>
                   );
                 }

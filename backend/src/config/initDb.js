@@ -243,7 +243,7 @@ const initDb = async () => {
         divisions VARCHAR(255),
         ward_id INT REFERENCES wards(id) ON DELETE SET NULL,
         current_machine_id INT,
-        CONSTRAINT users_role_check CHECK (role IN ('owner', 'worker', 'supervisor', 'commissioner', 'admin'))
+        CONSTRAINT users_role_check CHECK (role IN ('owner', 'worker', 'supervisor', 'commissioner', 'admin', 'park_jawan', 'park_inspector'))
       );
     `);
     console.log('✅ Users table checked.');

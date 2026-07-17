@@ -5,6 +5,7 @@ import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../api/axios';
 import { AuthContext } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 
@@ -20,6 +21,7 @@ export default function MapTaskCreationScreen({ navigation }) {
   const [rdName, setRdName] = useState('');
   const [loading, setLoading] = useState(false);
   const { user } = useContext(AuthContext);
+  const { t } = useLocalization();
 
   const [titleFocused, setTitleFocused] = useState(false);
   const [descFocused, setDescFocused] = useState(false);
@@ -114,7 +116,7 @@ export default function MapTaskCreationScreen({ navigation }) {
 
   const handleCreateTask = async () => {
     if (!title || coordinates.length < 2) {
-      Alert.alert('Error', 'Please provide a title and at least 2 points to draw a line on the map.');
+      Alert.alert(t('error'), t('draw_line_validation_alert'));
       return;
     }
 
@@ -130,10 +132,10 @@ export default function MapTaskCreationScreen({ navigation }) {
         lineId: lineId || null,
         rdName: rdName || title
       });
-      Alert.alert('Success', 'Road Task created successfully!');
+      Alert.alert(t('success'), t('road_task_created_success'));
       navigation.goBack();
     } catch (error) {
-      Alert.alert('Error', 'Failed to create task');
+      Alert.alert(t('error'), t('road_task_created_failed'));
       console.error(error);
     } finally {
       setLoading(false);
@@ -146,7 +148,7 @@ export default function MapTaskCreationScreen({ navigation }) {
       
       <View style={styles.infoBanner}>
         <Ionicons name="git-branch-outline" size={18} color={Colors.primary} />
-        <Text style={styles.infoBannerText}>Draw Road Segment (Tap map to add points)</Text>
+        <Text style={styles.infoBannerText}>{t('draw_road_segment_hint')}</Text>
       </View>
 
       <View style={styles.mapContainer}>
@@ -185,7 +187,7 @@ export default function MapTaskCreationScreen({ navigation }) {
                        const polyCoords = cList.map(c => ({ longitude: c[0], latitude: c[1] }));
                        setCoordinates(polyCoords);
                        
-                       Alert.alert('Road Selected', `Road: ${rdNameVal}\nLine ID: ${lineIdVal}`);
+                       Alert.alert(t('road_selected_alert'), `${t('road_label')}: ${rdNameVal}\n${t('line_label')}: ${lineIdVal}`);
                     }}
                   />
                 ));
@@ -246,27 +248,27 @@ export default function MapTaskCreationScreen({ navigation }) {
       <ScrollView style={styles.formContainer} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <View style={styles.headerRow}>
            <Text style={styles.helpText}>
-             {coordinates.length === 0 ? "Tap maps to start drawing" : `${coordinates.length} points marked`}
+             {coordinates.length === 0 ? t('tap_maps_to_start_drawing') : `${coordinates.length} ${t('points_marked')}`}
            </Text>
            {coordinates.length > 0 && (
               <View style={styles.drawingActions}>
                 <TouchableOpacity onPress={undoLastPoint} style={[styles.drawBtn, { marginRight: 8 }]} activeOpacity={0.8}>
                    <Ionicons name="arrow-undo-outline" size={14} color={Colors.primary} />
-                   <Text style={styles.undoText}>Undo</Text>
+                   <Text style={styles.undoText}>{t('undo')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={clearPoints} style={[styles.drawBtn, { backgroundColor: Colors.errorBg, borderColor: `${Colors.error}20` }]} activeOpacity={0.8}>
                    <Ionicons name="trash-outline" size={14} color={Colors.error} />
-                   <Text style={[styles.undoText, {color: Colors.error}]}>Clear</Text>
+                   <Text style={[styles.undoText, {color: Colors.error}]}>{t('clear')}</Text>
                 </TouchableOpacity>
               </View>
            )}
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Road Segment Title</Text>
+          <Text style={styles.label}>{t('road_segment_title')}</Text>
           <TextInput
             style={[styles.input, titleFocused && styles.inputFocused]}
-            placeholder="e.g. Gandhi Nagar Road B"
+            placeholder={t('eg_road_title')}
             placeholderTextColor={Colors.placeholder}
             value={title}
             onChangeText={setTitle}
@@ -276,10 +278,10 @@ export default function MapTaskCreationScreen({ navigation }) {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Instructions</Text>
+          <Text style={styles.label}>{t('instructions')}</Text>
           <TextInput
             style={[styles.input, {height: 72, textAlignVertical: 'top'}, descFocused && styles.inputFocused]}
-            placeholder="Clean both sides of the street..."
+            placeholder={t('eg_road_instructions')}
             placeholderTextColor={Colors.placeholder}
             value={description}
             onChangeText={setDescription}
@@ -290,14 +292,14 @@ export default function MapTaskCreationScreen({ navigation }) {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Assign Jawan (Optional)</Text>
+          <Text style={styles.label}>{t('assign_jawan_optional')}</Text>
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={selectedWorkerId}
               onValueChange={(itemValue) => setSelectedWorkerId(itemValue)}
               style={styles.picker}
             >
-              <Picker.Item label="-- Select Worker --" value="" style={styles.pickerPlaceholderItem} />
+              <Picker.Item label={t('select_worker_placeholder')} value="" style={styles.pickerPlaceholderItem} />
               {workers.map(worker => (
                 <Picker.Item 
                   key={worker.id} 
@@ -310,14 +312,14 @@ export default function MapTaskCreationScreen({ navigation }) {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Assign Ward Area</Text>
+          <Text style={styles.label}>{t('assign_ward_area')}</Text>
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={selectedWardId}
               onValueChange={(itemValue) => setSelectedWardId(itemValue)}
               style={styles.picker}
             >
-              <Picker.Item label="-- Select Ward --" value="" style={styles.pickerPlaceholderItem} />
+              <Picker.Item label={t('select_ward_placeholder')} value="" style={styles.pickerPlaceholderItem} />
               {wards.map(ward => (
                 <Picker.Item 
                   key={ward.id} 
@@ -340,7 +342,7 @@ export default function MapTaskCreationScreen({ navigation }) {
           ) : (
             <>
               <Ionicons name="checkmark-circle-outline" size={20} color={Colors.white} />
-              <Text style={styles.buttonText}>CREATE LINE TASK</Text>
+              <Text style={styles.buttonText}>{t('create_line_task').toUpperCase()}</Text>
             </>
           )}
         </TouchableOpacity>

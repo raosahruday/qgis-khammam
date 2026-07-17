@@ -2,9 +2,26 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import * as SecureStore from '../utils/storage';
 
-const API_URL = __DEV__
-  ? 'http://192.168.1.16:5000/api'
-  : 'https://qgis-khammam.onrender.com/api';
+let API_URL = 'https://qgis-khammam.onrender.com/api';
+
+if (__DEV__) {
+  if (Platform.OS === 'web') {
+    API_URL = 'http://localhost:5000/api';
+  } else {
+    try {
+      const getDevServer = require('react-native/Libraries/Core/Devtools/getDevServer');
+      const devServer = getDevServer();
+      if (devServer && devServer.url) {
+        const ip = devServer.url.split('://')[1].split(':')[0];
+        API_URL = `http://${ip}:5000/api`;
+      } else {
+        API_URL = 'http://192.168.1.16:5000/api';
+      }
+    } catch (e) {
+      API_URL = 'http://192.168.1.16:5000/api';
+    }
+  }
+}
 
 const api = axios.create({
   baseURL: API_URL,
