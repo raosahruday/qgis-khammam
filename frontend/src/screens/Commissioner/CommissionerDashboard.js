@@ -131,6 +131,14 @@ export default function CommissionerDashboard({ navigation }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const mapRef = useRef(null);
 
+  const roadsOnly = useMemo(() => {
+    return infrastructure.filter(item => item.type === 'road');
+  }, [infrastructure]);
+
+  const rowsOnly = useMemo(() => {
+    return infrastructure.filter(item => item.type === 'row');
+  }, [infrastructure]);
+
   const getDivisionList = () => {
     return [...wardStats].sort((a, b) => {
       const numA = parseInt(a.name?.replace(/\D/g, '')) || 0;
@@ -154,10 +162,9 @@ export default function CommissionerDashboard({ navigation }) {
 
   const getFilteredRoads = () => {
     if (selectedWardFilter === 'parks') return [];
-    const roads = infrastructure.filter(item => item.type === 'road');
     const wardNo = getSelectedWardNo();
-    if (!wardNo) return roads;
-    return roads.filter(road => {
+    if (!wardNo) return roadsOnly;
+    return roadsOnly.filter(road => {
       const props = road.properties || {};
       const roadWard = props.Ward_No || props.ward_no;
       return roadWard && roadWard.toString().trim() === wardNo.toString().trim();
@@ -166,12 +173,11 @@ export default function CommissionerDashboard({ navigation }) {
 
   const getFilteredRows = () => {
     if (selectedWardFilter === 'parks') return [];
-    const rows = infrastructure.filter(item => item.type === 'row');
     const wardNo = getSelectedWardNo();
-    if (!wardNo) return rows;
-    return rows.filter(row => {
+    if (!wardNo) return rowsOnly;
+    return rowsOnly.filter(row => {
       const props = row.properties || {};
-      const rowWard = props.Ward_No || props.ward_no;
+      const rowWard = props.Ward_No || props.row_no;
       return rowWard && rowWard.toString().trim() === wardNo.toString().trim();
     });
   };
@@ -216,8 +222,7 @@ export default function CommissionerDashboard({ navigation }) {
     const wardNo = match ? match[0] : wardObj.name;
     if (!wardNo) return { completed: 0, active: 0, pending: 0 };
 
-    const roads = infrastructure.filter(item => item.type === 'road');
-    const filteredRoads = roads.filter(road => {
+    const filteredRoads = roadsOnly.filter(road => {
       const props = road.properties || {};
       const roadWard = props.Ward_No || props.ward_no;
       return roadWard && roadWard.toString().trim() === wardNo.toString().trim();
@@ -263,8 +268,7 @@ export default function CommissionerDashboard({ navigation }) {
       return getStatsForWard(selectedWardObj);
     }
     
-    const roads = infrastructure.filter(item => item.type === 'road');
-    return getRoadStats(roads);
+    return getRoadStats(roadsOnly);
   };
 
   const handleWardSelect = (wardId) => {

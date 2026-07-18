@@ -455,6 +455,10 @@ const initDb = async () => {
     await db.query('CREATE INDEX IF NOT EXISTS idx_tasks_ward_id ON tasks(ward_id);');
     await db.query('CREATE INDEX IF NOT EXISTS idx_tasks_worker_id ON tasks(assigned_worker_id);');
     await db.query('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_infra_type ON infrastructure(type);');
+    await db.query("CREATE INDEX IF NOT EXISTS idx_infra_line_id ON infrastructure((properties->>'Line_ID'));");
+    await db.query('CREATE INDEX IF NOT EXISTS idx_tasks_line_id ON tasks(line_id);');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_tasks_task_type ON tasks(task_type);');
     
     try {
       await db.query('CREATE INDEX IF NOT EXISTS idx_tasks_geom_gist ON tasks USING GIST (geom);');

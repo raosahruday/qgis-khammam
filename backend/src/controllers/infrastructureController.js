@@ -1,5 +1,7 @@
 const db = require('../config/db');
 
+let duplicateLineIdsCache = null;
+
 exports.getInfrastructure = async (req, res) => {
     try {
         const { minLat, maxLat, minLng, maxLng, type, limit = 500, latDelta } = req.query;
@@ -223,15 +225,18 @@ exports.getInfrastructure = async (req, res) => {
 
         const result = await db.query(query, params);
 
-        // Fetch duplicate Line_IDs globally in the database
-        const dupRes = await db.query(
-          `SELECT properties->>'Line_ID' as line_id 
-           FROM infrastructure 
-           WHERE properties->>'Line_ID' IS NOT NULL 
-           GROUP BY properties->>'Line_ID' 
-           HAVING COUNT(*) > 1`
-        );
-        const duplicateLineIds = new Set(dupRes.rows.map(row => row.line_id));
+        // Fetch duplicate Line_IDs globally in the database (cached in-memory)
+        if (!duplicateLineIdsCache) {
+            const dupRes = await db.query(
+              `SELECT properties->>'Line_ID' as line_id 
+               FROM infrastructure 
+               WHERE properties->>'Line_ID' IS NOT NULL 
+               GROUP BY properties->>'Line_ID' 
+               HAVING COUNT(*) > 1`
+            );
+            duplicateLineIdsCache = new Set(dupRes.rows.map(row => row.line_id));
+        }
+        const duplicateLineIds = duplicateLineIdsCache;
 
         const processedRows = result.rows.map(r => {
             if (r.type === 'road' && r.properties && r.properties.Line_ID) {
