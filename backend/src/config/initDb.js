@@ -690,7 +690,7 @@ const initDb = async () => {
           if (highwayWorker) {
             assignedWorkerId = highwayWorker.id;
           }
-        } else if (wardNoStr === '8_1' || wardNoStr === '8_2') {
+        } else if (wardNoStr === '8_1' || wardNoStr === '8_2' || wardNoStr === '8') {
           const ward8Worker = workers.find(w => w.email.includes('jawan_8@') || w.name.includes('Sk Navab'));
           if (ward8Worker) {
             assignedWorkerId = ward8Worker.id;
@@ -794,7 +794,7 @@ const initDb = async () => {
     `);
     console.log('✅ Ward 61 tasks aligned and pruned to exactly 29 tasks for Highway Jawan.');
 
-    // Unconditionally align any existing tasks for ward 8_1 and 8_2 roads to jawan_8
+    // Unconditionally align any existing tasks for ward 8, 8_1 and 8_2 roads to jawan_8
     await db.query(`
       UPDATE tasks 
       SET assigned_worker_id = (SELECT id FROM users WHERE email = 'jawan_8@test.com')
@@ -802,14 +802,14 @@ const initDb = async () => {
         SELECT 1 
         FROM infrastructure r
         WHERE r.type = 'road' 
-          AND r.properties->>'Ward_No' IN ('8_1', '8_2')
+          AND r.properties->>'Ward_No' IN ('8', '8_1', '8_2')
           AND (
             tasks.line_id = r.properties->>'Line_ID'
             OR tasks.line_id = (r.properties->>'Line_ID' || '_' || r.id)
           )
       )
     `);
-    console.log('✅ Ward 8_1 & 8_2 tasks aligned to Jawan 8.');
+    console.log('✅ Ward 8, 8_1 & 8_2 tasks aligned to Jawan 8.');
 
     console.log('--- Database initialization complete ---');
   } catch (error) {
