@@ -11,7 +11,7 @@ async function run() {
         console.log('Clearing existing roads from infrastructure...');
         await db.query("DELETE FROM infrastructure WHERE type = 'road'");
         
-        const filePath = 'c:/khammam project/QGIS/QGIS/Export_Output_FINAL.shp';
+        const filePath = 'c:/khammam project/QGIS/QGIS/Export_Output_latest.shp';
         console.log(`Importing new roads from ${filePath}...`);
         
         const source = await shapefile.open(filePath);

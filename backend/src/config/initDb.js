@@ -370,7 +370,7 @@ const initDb = async () => {
       console.log('--- Database infrastructure is empty. Commencing Shapefile import... ---');
       const wardsShpFile = path.join(rootPath, 'Export_Output_2.shp');
       const rowShpFile = path.join(rootPath, 'Export_Output_3.shp');
-      const roadsShpFile = path.join(rootPath, 'Export_Output_4.shp');
+      const roadsShpFile = path.join(rootPath, 'Export_Output_latest.shp');
       
       if (fs.existsSync(wardsShpFile) && fs.existsSync(rowShpFile) && fs.existsSync(roadsShpFile)) {
         // Run imports
