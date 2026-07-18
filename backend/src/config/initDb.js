@@ -199,6 +199,136 @@ async function importRow(filePath) {
   }
 }
 
+async function importParks() {
+  console.log('Commencing Park & Jawan seeding...');
+  try {
+    const JAWAN_MAPPINGS = {
+      'P.Ravi': { email: 'ravi@kmc.com', phone: '8000000001' },
+      'Vamshi': { email: 'vamshi@kmc.com', phone: '8000000002' },
+      'V.Saidulu': { email: 'saidulu@kmc.com', phone: '8000000003' },
+      'Vijay': { email: 'vijay@kmc.com', phone: '8000000004' },
+      'Nageshwar Rao': { email: 'nageshwar@kmc.com', phone: '8000000005' },
+      'Balu': { email: 'balu@kmc.com', phone: '8000000006' },
+      'Shami': { email: 'shami@kmc.com', phone: '8000000007' },
+      'B.venkateshwarlu': { email: 'venkateshwarlu@kmc.com', phone: '8000000008' }
+    };
+    const PASSWORD_HASH = '$2b$10$iTuUYuWvHq4Wyx4FjoG0nuXzWzJ6Cz2nkOUjv9wQIWbGOZCFHW4I6'; // bcrypt hash for password123
+
+    // 1. Create Park Jawan users
+    const jawanIds = {};
+    for (const [name, info] of Object.entries(JAWAN_MAPPINGS)) {
+      const userRes = await db.query(
+        `INSERT INTO users (name, email, password, role, phone, approved, divisions)
+         VALUES ($1, $2, $3, 'park_jawan', $4, TRUE, 'All Wards')
+         ON CONFLICT (email) DO UPDATE SET 
+           name = EXCLUDED.name,
+           phone = EXCLUDED.phone,
+           role = 'park_jawan',
+           password = EXCLUDED.password,
+           approved = TRUE
+         RETURNING id`,
+        [name, info.email, PASSWORD_HASH, info.phone]
+      );
+      jawanIds[name] = userRes.rows[0].id;
+    }
+
+    // Create Park Inspector user
+    await db.query(
+      `INSERT INTO users (name, email, password, role, phone, approved, divisions)
+       VALUES ('Inspector', 'inspector@kmc.com', $1, 'park_inspector', '8000000009', TRUE, 'All Wards')
+       ON CONFLICT (email) DO UPDATE SET
+         name = EXCLUDED.name,
+         phone = EXCLUDED.phone,
+         role = 'park_inspector',
+         password = EXCLUDED.password,
+         approved = TRUE`,
+      [PASSWORD_HASH]
+    );
+
+    // 2. Read landmarks GeoJSON
+    const geojsonPath = 'c:\\khammam project\\QGIS\\landmarksfinally.geojson';
+    if (fs.existsSync(geojsonPath)) {
+      const rawData = fs.readFileSync(geojsonPath, 'utf8');
+      const geojson = JSON.parse(rawData);
+
+      let taskCount = 0;
+      for (const feature of geojson.features) {
+        const { properties, geometry } = feature;
+        if (!geometry || geometry.type !== 'Point' || !geometry.coordinates) continue;
+
+        const parkName = properties.Name || `Unnamed Park ${properties.fid}`;
+        const wardNo = properties.Ward_no ? parseInt(properties.Ward_no) : null;
+        const jawanName = properties.park_jawan;
+
+        let assignedWorkerId = null;
+        if (jawanName && jawanIds[jawanName]) {
+          assignedWorkerId = jawanIds[jawanName];
+        }
+
+        let wardId = null;
+        if (wardNo) {
+          const wardRes = await db.query(
+            "SELECT id FROM wards WHERE name ILIKE $1 LIMIT 1",
+            [`Ward ${wardNo}`]
+          );
+          if (wardRes.rows.length > 0) {
+            wardId = wardRes.rows[0].id;
+          }
+        }
+
+        const lng = geometry.coordinates[0];
+        const lat = geometry.coordinates[1];
+        const areaGeojson = [{ latitude: lat, longitude: lng }];
+
+        const taskCheck = await db.query(
+          "SELECT id FROM tasks WHERE title = $1 AND task_type = 'park'",
+          [parkName]
+        );
+
+        if (taskCheck.rows.length > 0) {
+          await db.query(
+            `UPDATE tasks 
+             SET assigned_worker_id = $1, 
+                 ward_id = $2, 
+                 area_geojson = $3,
+                 geom = ST_SetSRID(ST_Point($4, $5), 4326)
+             WHERE id = $6`,
+            [assignedWorkerId, wardId, JSON.stringify(areaGeojson), lng, lat, taskCheck.rows[0].id]
+          );
+        } else {
+          await db.query(
+            `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, rd_name)
+             VALUES ($1, 'Park maintenance and cleaning task', $2, ST_SetSRID(ST_Point($3, $4), 4326), $5, $6, 'park', $7, $8, 'pending', $1)`,
+            [
+              parkName,
+              JSON.stringify(areaGeojson),
+              lng,
+              lat,
+              assignedWorkerId,
+              wardId,
+              `START_PARK_${properties.fid}`,
+              `END_PARK_${properties.fid}`
+            ]
+          );
+        }
+
+        if (assignedWorkerId && wardId) {
+          await db.query(
+            "UPDATE users SET ward_id = $1 WHERE id = $2 AND ward_id IS NULL",
+            [wardId, assignedWorkerId]
+          );
+        }
+        taskCount++;
+      }
+      console.log(`✅ Seeded ${taskCount} park tasks.`);
+    } else {
+      console.warn(`⚠️ Landmarks GeoJSON not found at ${geojsonPath}. Skipping park tasks seeding.`);
+    }
+  } catch (err) {
+    console.error('Error importing parks and jawans:', err.message);
+  }
+}
+
 const initDb = async () => {
   try {
     console.log('--- Initializing database tables and seed data ---');
@@ -449,6 +579,13 @@ const initDb = async () => {
       }
     } else {
       console.log(`✅ Users already seeded (${usersCount} SIs/Jawans present).`);
+    }
+
+    // Seed Park Inspector/Jawans and tasks if not present
+    const parkUsersCheck = await db.query("SELECT COUNT(*) FROM users WHERE role = 'park_inspector'");
+    const parkUsersCount = parseInt(parkUsersCheck.rows[0].count);
+    if (parkUsersCount === 0) {
+      await importParks();
     }
 
     // 12. Task seeding if empty
