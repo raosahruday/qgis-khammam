@@ -652,6 +652,13 @@ const initDb = async () => {
         // Resolve ward
         let wardId = null;
         const wardNoStr = props.Ward_No || props.ward_no;
+        
+        // Skip non-highway roads that are in Ward 61 but lack a Rly_Name
+        const rlyName = props.Rly_Name || props.rly_name;
+        if (wardNoStr === '61' && !rlyName) {
+          continue;
+        }
+
         if (wardNoStr) {
           const wardNum = parseInt(wardNoStr);
           const matchedWard = wards.find(w => w.name.match(new RegExp(`Ward\\s+0*${wardNum}$`, 'i')) || w.name.match(new RegExp(`Ward\\s+0*${wardNum}\\b`, 'i')));
@@ -735,17 +742,38 @@ const initDb = async () => {
       console.log(`✅ Tasks already seeded (${tasksCount} tasks present).`);
     }
 
+    // Delete any Ward 61 tasks where the underlying road has no Rly_Name (to ensure exactly 29 tasks)
+    await db.query(`
+      DELETE FROM tasks 
+      WHERE EXISTS (
+        SELECT 1 
+        FROM infrastructure r 
+        WHERE r.type = 'road' 
+          AND r.properties->>'Ward_No' = '61' 
+          AND r.properties->>'Rly_Name' IS NULL 
+          AND (
+            tasks.line_id = r.properties->>'Line_ID' 
+            OR tasks.line_id = (r.properties->>'Line_ID' || '_' || r.id)
+          )
+      )
+    `);
+
     // Unconditionally align any existing tasks for ward 61 roads to jawan_highway
     await db.query(`
       UPDATE tasks 
       SET assigned_worker_id = (SELECT id FROM users WHERE email = 'jawan_highway@test.com')
-      WHERE line_id IN (
-        SELECT properties->>'Line_ID' 
-        FROM infrastructure 
-        WHERE type = 'road' AND properties->>'Ward_No' = '61'
+      WHERE EXISTS (
+        SELECT 1 
+        FROM infrastructure r
+        WHERE r.type = 'road' 
+          AND r.properties->>'Ward_No' = '61'
+          AND (
+            tasks.line_id = r.properties->>'Line_ID'
+            OR tasks.line_id = (r.properties->>'Line_ID' || '_' || r.id)
+          )
       )
     `);
-    console.log('✅ Ward 61 tasks aligned to Highway Jawan.');
+    console.log('✅ Ward 61 tasks aligned and pruned to exactly 29 tasks for Highway Jawan.');
 
     console.log('--- Database initialization complete ---');
   } catch (error) {
