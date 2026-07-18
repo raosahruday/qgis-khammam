@@ -66,7 +66,7 @@ exports.getInfrastructure = async (req, res) => {
 
         if (req.user && (req.user.role === 'worker' || req.user.role === 'park_jawan') && workerWardName) {
             const isParkJawan = req.user.role === 'park_jawan';
-            const isJawan61 = req.user.email === 'jawan_61';
+            const isHighwayJawan = req.user.email === 'jawan_highway@test.com' || req.user.email === 'jawan_highway' || req.user.email === 'jawan_61';
 
             if (isParkJawan) {
                 params.push(tolerance); // $1
@@ -101,8 +101,8 @@ exports.getInfrastructure = async (req, res) => {
                 const nextIdx = params.length + 1;
                 params.push(workerWardNum || ""); // $nextIdx
                 params.push(parseInt(limit)); // $nextIdx + 1
-
-                if (isJawan61) {
+ 
+                if (isHighwayJawan) {
                     query = `
                         SELECT r.id, r.name, r.type, r.properties,
                                ST_AsGeoJSON(ST_SimplifyPreserveTopology(r.geom, $2)) as geom_json

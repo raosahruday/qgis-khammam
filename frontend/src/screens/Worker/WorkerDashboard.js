@@ -444,7 +444,7 @@ export default function WorkerDashboard({ navigation }) {
             showsUserLocation={true}
           >
             {/* Ward Boundary (Explicit Layer) */}
-            {wardBoundary && user?.email !== 'jawan_61' && (() => {
+            {wardBoundary && user?.email !== 'jawan_61' && user?.email !== 'jawan_highway' && user?.email !== 'jawan_highway@test.com' && (() => {
                const geom = wardBoundary.parsedGeom;
                if (!geom) return null;
                const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;

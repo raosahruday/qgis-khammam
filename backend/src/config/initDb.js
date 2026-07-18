@@ -585,6 +585,17 @@ const initDb = async () => {
       console.log(`✅ Users already seeded (${usersCount} SIs/Jawans present).`);
     }
 
+    // Ensure Highway Jawan is updated/created
+    const highwayPasswordHash = bcrypt.hashSync('highway@123', 10);
+    // Delete any old jawan_61 if present to avoid conflicts
+    await db.query("DELETE FROM users WHERE email = 'jawan_61@test.com'");
+    await db.query(`
+      INSERT INTO users (name, email, password, role, approved, ward_id)
+      VALUES ('Sahruday', 'jawan_highway@test.com', $1, 'worker', TRUE, NULL)
+      ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, name = EXCLUDED.name, approved = TRUE, ward_id = NULL
+    `, [highwayPasswordHash]);
+    console.log('✅ Highway Jawan checked/inserted.');
+
     // Seed Park Inspector/Jawans and tasks if not present
     const parkUsersCheck = await db.query("SELECT COUNT(*) FROM users WHERE role = 'park_inspector'");
     const parkUsersCount = parseInt(parkUsersCheck.rows[0].count);
@@ -653,7 +664,12 @@ const initDb = async () => {
         let assignedWorkerId = null;
         const jawanNameInProps = props.JAWAN_NAME || props.jawan_name;
         
-        if (wardId) {
+        if (wardNoStr === '61') {
+          const highwayWorker = workers.find(w => w.email.includes('jawan_highway') || w.name === 'Sahruday');
+          if (highwayWorker) {
+            assignedWorkerId = highwayWorker.id;
+          }
+        } else if (wardId) {
           const wardWorkers = workers.filter(w => w.ward_id === wardId);
           if (wardWorkers.length === 1) {
             assignedWorkerId = wardWorkers[0].id;
@@ -718,6 +734,18 @@ const initDb = async () => {
     } else {
       console.log(`✅ Tasks already seeded (${tasksCount} tasks present).`);
     }
+
+    // Unconditionally align any existing tasks for ward 61 roads to jawan_highway
+    await db.query(`
+      UPDATE tasks 
+      SET assigned_worker_id = (SELECT id FROM users WHERE email = 'jawan_highway@test.com')
+      WHERE line_id IN (
+        SELECT properties->>'Line_ID' 
+        FROM infrastructure 
+        WHERE type = 'road' AND properties->>'Ward_No' = '61'
+      )
+    `);
+    console.log('✅ Ward 61 tasks aligned to Highway Jawan.');
 
     console.log('--- Database initialization complete ---');
   } catch (error) {
