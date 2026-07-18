@@ -129,6 +129,7 @@ router.post('/tasks/bulk-reset', authorizeRole(['owner', 'supervisor']), taskCon
 router.get('/tasks', taskController.getTasks);
 router.post('/tasks', authorizeRole(['owner', 'supervisor']), taskController.createTask);
 router.get('/workers', authorizeRole(['owner', 'supervisor', 'commissioner', 'park_inspector']), userController.getWorkers);
+router.put('/workers/:id/transfer', authorizeRole(['commissioner']), userController.transferWorker);
 router.get('/wards', authorizeRole(['owner', 'supervisor', 'commissioner']), userController.getWards);
 
 

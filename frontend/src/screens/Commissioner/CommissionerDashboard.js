@@ -118,9 +118,14 @@ export default function CommissionerDashboard({ navigation }) {
   const { logout } = useContext(AuthContext);
   const { t } = useLocalization();
 
-  const [activeTab, setActiveTab] = useState('map'); // 'map' or 'registrations'
+  const [activeTab, setActiveTab] = useState('map'); // 'map' or 'registrations' or 'workers'
   const [pendingUsers, setPendingUsers] = useState([]);
   const [pendingCount, setPendingCount] = useState(0);
+  
+  const [workers, setWorkers] = useState([]);
+  const [wardsList, setWardsList] = useState([]);
+  const [transferringJawan, setTransferringJawan] = useState(null);
+  const [selectedTargetWard, setSelectedTargetWard] = useState(null);
 
   const [selectedWardFilter, setSelectedWardFilter] = useState(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -338,7 +343,9 @@ export default function CommissionerDashboard({ navigation }) {
         api.get('/machines'),
         api.get('/tasks?limit=5000'),
         api.get('/tasks/summary'),
-        api.get('/registrations/pending')
+        api.get('/registrations/pending'),
+        api.get('/workers'),
+        api.get('/wards')
       ];
 
       const shouldFetchInfra = !hasLoadedInfra.current;
@@ -347,10 +354,10 @@ export default function CommissionerDashboard({ navigation }) {
       }
 
       const results = await Promise.all(promises);
-      const [statsRes, machinesRes, tasksRes, summaryRes, pendingRes] = results;
+      const [statsRes, machinesRes, tasksRes, summaryRes, pendingRes, workersRes, wardsRes] = results;
 
       if (shouldFetchInfra) {
-        const infraRes = results[5];
+        const infraRes = results[7];
         const parsedInfra = (infraRes.data || []).map(item => {
           try {
             item.parsedGeom = item.geom_json
@@ -382,6 +389,8 @@ export default function CommissionerDashboard({ navigation }) {
       setTotals(summaryRes.data);
       setPendingUsers(pendingRes.data || []);
       setPendingCount(pendingRes.data ? pendingRes.data.length : 0);
+      setWorkers(workersRes.data || []);
+      setWardsList(wardsRes.data || []);
       isFirstLoad.current = false;
     } catch (err) {
       console.warn('Failed to fetch data', err);
@@ -428,6 +437,25 @@ export default function CommissionerDashboard({ navigation }) {
         }
       ]
     );
+  };
+
+  const handleTransferJawan = async (workerId, targetWardId) => {
+    if (!targetWardId) {
+      Alert.alert(t('error'), t('select_target_ward'));
+      return;
+    }
+    try {
+      setLoading(true);
+      await api.put(`/workers/${workerId}/transfer`, { ward_id: targetWardId });
+      Alert.alert(t('success'), t('transfer_success'));
+      setTransferringJawan(null);
+      setSelectedTargetWard(null);
+      fetchData();
+    } catch (err) {
+      Alert.alert(t('error'), err.response?.data?.error || 'Failed to transfer jawan');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onRegionChangeComplete = (newRegion) => {
@@ -555,6 +583,128 @@ export default function CommissionerDashboard({ navigation }) {
     );
   };
 
+  const renderWorkerManagement = () => {
+    const roadWorkers = workers.filter(w => w.role !== 'park_jawan');
+    
+    return (
+      <View style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.registrationsList} showsVerticalScrollIndicator={false}>
+          {roadWorkers.map(w => {
+            const isCustomWard61 = w.ward_name === 'Ward 61';
+            const displayedWardName = isCustomWard61 ? t('highways') : (w.ward_name || 'Unassigned');
+
+            return (
+              <View key={w.id} style={[styles.regCard, Colors.shadowLow]}>
+                <View style={styles.regHeader}>
+                  <View>
+                    <Text style={styles.regName}>{w.name}</Text>
+                    <Text style={styles.regPhone}>{w.email}</Text>
+                  </View>
+                  <View style={[styles.regRoleTag, { backgroundColor: `${Colors.primary}12` }]}>
+                    <Text style={[styles.regRoleText, { color: Colors.primary }]}>
+                      {t('jawan_label')}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.regDetailRow}>
+                  <Ionicons name="location-outline" size={16} color={Colors.textSecondary} />
+                  <Text style={styles.regDetailText}>
+                    {t('current_ward')}: {displayedWardName}
+                  </Text>
+                </View>
+
+                <View style={styles.regDetailRow}>
+                  <Ionicons name="list-outline" size={16} color={Colors.textSecondary} />
+                  <Text style={styles.regDetailText}>
+                    Active/Pending Tasks: {w.active_task_count || 0}
+                  </Text>
+                </View>
+                
+                <View style={styles.regActions}>
+                  <TouchableOpacity 
+                    style={[styles.regBtn, styles.approveBtn, { backgroundColor: Colors.primary }, Colors.shadowLow]} 
+                    onPress={() => {
+                      setTransferringJawan(w);
+                      setSelectedTargetWard(w.ward_id);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="swap-horizontal-outline" size={16} color={Colors.white} />
+                    <Text style={styles.regBtnText}>{t('transfer')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        {/* Custom Transfer Modal overlay */}
+        {transferringJawan && (
+          <View style={styles.modalOverlay}>
+            <View style={[styles.transferModal, Colors.shadowHigh]}>
+              <Text style={styles.modalTitle}>
+                {t('transfer')}: {transferringJawan.name}
+              </Text>
+              
+              <Text style={styles.modalSub}>{t('select_target_ward')}</Text>
+              
+              <View style={styles.modalWardsListWrapper}>
+                <ScrollView style={{ flex: 1 }} nestedScrollEnabled={true}>
+                  {wardsList.map(ward => {
+                    const isSelected = selectedTargetWard === ward.id;
+                    const isWard61 = ward.name === 'Ward 61';
+                    const wardDisplayName = isWard61 ? t('highways') : ward.name;
+
+                    return (
+                      <TouchableOpacity
+                        key={ward.id}
+                        style={[
+                          styles.modalWardItem,
+                          isSelected && styles.modalWardItemSelected
+                        ]}
+                        onPress={() => setSelectedTargetWard(ward.id)}
+                      >
+                        <Text style={[
+                          styles.modalWardItemText,
+                          isSelected && styles.modalWardItemTextSelected
+                        ]}>
+                          {wardDisplayName}
+                        </Text>
+                        {isSelected && (
+                          <Ionicons name="checkmark" size={16} color={Colors.white} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+              
+              <View style={styles.modalActions}>
+                <TouchableOpacity 
+                  style={[styles.modalBtn, styles.modalCancelBtn]} 
+                  onPress={() => {
+                    setTransferringJawan(null);
+                    setSelectedTargetWard(null);
+                  }}
+                >
+                  <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.modalBtn, styles.modalConfirmBtn]} 
+                  onPress={() => handleTransferJawan(transferringJawan.id, selectedTargetWard)}
+                >
+                  <Text style={styles.modalConfirmBtnText}>Confirm</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const renderLargeSidebarStats = () => {
     const statsValues = getStatsValues();
     return (
@@ -633,6 +783,15 @@ export default function CommissionerDashboard({ navigation }) {
                   <Text style={styles.badgeText}>{pendingCount}</Text>
                 </View>
               )}
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === 'workers' && styles.activeTabButton]}
+              onPress={() => setActiveTab('workers')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="swap-horizontal-outline" size={18} color={activeTab === 'workers' ? Colors.primary : Colors.textSecondary} />
+              <Text style={[styles.tabText, activeTab === 'workers' && styles.activeTabText]}>{t('manage_jawans')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -730,8 +889,10 @@ export default function CommissionerDashboard({ navigation }) {
 
               {renderLargeSidebarStats()}
             </View>
-          ) : (
+          ) : activeTab === 'registrations' ? (
             renderRegistrationRequests()
+          ) : (
+            renderWorkerManagement()
           )}
         </View>
 
@@ -902,6 +1063,15 @@ export default function CommissionerDashboard({ navigation }) {
               <Text style={styles.badgeText}>{pendingCount}</Text>
             </View>
           )}
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.tabButton, activeTab === 'workers' && styles.activeTabButton]}
+          onPress={() => setActiveTab('workers')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="swap-horizontal-outline" size={18} color={activeTab === 'workers' ? Colors.primary : Colors.textSecondary} />
+          <Text style={[styles.tabText, activeTab === 'workers' && styles.activeTabText]}>{t('manage_jawans')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -1147,8 +1317,10 @@ export default function CommissionerDashboard({ navigation }) {
             )}
           </View>
         </>
-      ) : (
+      ) : activeTab === 'registrations' ? (
         renderRegistrationRequests()
+      ) : (
+        renderWorkerManagement()
       )}
     </View>
   );
@@ -1640,5 +1812,94 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#64748B',
     marginTop: 2,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  transferModal: {
+    width: '90%',
+    maxWidth: 420,
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  modalSub: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  modalWardsListWrapper: {
+    height: 250,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  modalWardItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalWardItemSelected: {
+    backgroundColor: Colors.primary,
+  },
+  modalWardItemText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  modalWardItemTextSelected: {
+    color: Colors.white,
+    fontWeight: '800',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  modalBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  modalCancelBtn: {
+    backgroundColor: 'rgba(100,116,139,0.15)',
+  },
+  modalConfirmBtn: {
+    backgroundColor: Colors.primary,
+  },
+  modalCancelBtnText: {
+    color: Colors.textSecondary,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  modalConfirmBtnText: {
+    color: Colors.white,
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

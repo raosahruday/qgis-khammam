@@ -5,12 +5,13 @@ exports.getWorkers = async (req, res) => {
     const user = req.user;
     const targetRole = (user && user.role === 'park_inspector') ? 'park_jawan' : 'worker';
     const query = `
-      SELECT u.id, u.name, u.email, 
+      SELECT u.id, u.name, u.email, u.ward_id, w.name as ward_name,
              COUNT(t.id) as active_task_count
       FROM users u
+      LEFT JOIN wards w ON u.ward_id = w.id
       LEFT JOIN tasks t ON u.id = t.assigned_worker_id AND t.status IN ('pending', 'submitted')
       WHERE u.role = $1
-      GROUP BY u.id, u.name, u.email
+      GROUP BY u.id, u.name, u.email, u.ward_id, w.name
       ORDER BY u.name ASC;
     `;
     const result = await db.query(query, [targetRole]);
@@ -128,6 +129,40 @@ exports.rejectRegistration = async (req, res) => {
   } catch (error) {
     console.error('Reject registration error:', error);
     res.status(500).json({ error: 'Server error rejecting registration' });
+  }
+};
+
+exports.transferWorker = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ward_id } = req.body;
+
+    if (!ward_id) {
+      return res.status(400).json({ error: 'ward_id is required' });
+    }
+
+    // Verify if ward exists
+    const wardRes = await db.query('SELECT * FROM wards WHERE id = $1', [ward_id]);
+    if (wardRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Ward not found' });
+    }
+
+    // Verify if user exists and is a worker/jawan
+    const userRes = await db.query('SELECT * FROM users WHERE id = $1 AND role IN (\'worker\', \'park_jawan\')', [id]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Jawan not found' });
+    }
+
+    // Update worker's ward
+    await db.query('UPDATE users SET ward_id = $1 WHERE id = $2', [ward_id, id]);
+
+    // Also update any of the Jawan's pending/active tasks to have this new ward_id, to keep database consistency
+    await db.query('UPDATE tasks SET ward_id = $1 WHERE assigned_worker_id = $2 AND status IN (\'pending\', \'submitted\', \'in_progress\')', [ward_id, id]);
+
+    res.json({ message: 'Jawan transferred successfully' });
+  } catch (error) {
+    console.error('Transfer worker error:', error);
+    res.status(500).json({ error: 'Server error transferring jawan' });
   }
 };
 
