@@ -167,7 +167,10 @@ export default function CommissionerDashboard({ navigation }) {
     return roadsOnly.filter(road => {
       const props = road.properties || {};
       const roadWard = props.Ward_No || props.ward_no;
-      return roadWard && roadWard.toString().trim() === wardNo.toString().trim();
+      if (!roadWard) return false;
+      const roadWardStr = roadWard.toString().trim();
+      const wardNoStr = wardNo.toString().trim();
+      return roadWardStr === wardNoStr || roadWardStr.startsWith(wardNoStr + '_') || roadWardStr.startsWith(wardNoStr + '.');
     });
   };
 
@@ -178,7 +181,10 @@ export default function CommissionerDashboard({ navigation }) {
     return rowsOnly.filter(row => {
       const props = row.properties || {};
       const rowWard = props.Ward_No || props.row_no;
-      return rowWard && rowWard.toString().trim() === wardNo.toString().trim();
+      if (!rowWard) return false;
+      const rowWardStr = rowWard.toString().trim();
+      const wardNoStr = wardNo.toString().trim();
+      return rowWardStr === wardNoStr || rowWardStr.startsWith(wardNoStr + '_') || rowWardStr.startsWith(wardNoStr + '.');
     });
   };
 
@@ -225,7 +231,10 @@ export default function CommissionerDashboard({ navigation }) {
     const filteredRoads = roadsOnly.filter(road => {
       const props = road.properties || {};
       const roadWard = props.Ward_No || props.ward_no;
-      return roadWard && roadWard.toString().trim() === wardNo.toString().trim();
+      if (!roadWard) return false;
+      const roadWardStr = roadWard.toString().trim();
+      const wardNoStr = wardNo.toString().trim();
+      return roadWardStr === wardNoStr || roadWardStr.startsWith(wardNoStr + '_') || roadWardStr.startsWith(wardNoStr + '.');
     });
 
     return getRoadStats(filteredRoads);
