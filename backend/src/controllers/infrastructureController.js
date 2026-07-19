@@ -137,6 +137,7 @@ exports.getInfrastructure = async (req, res) => {
                             OR (r.type = 'road' AND (
                               r.properties->>'Ward_No' = $${nextIdx} 
                               OR ( $${nextIdx} = '8' AND (r.properties->>'Ward_No' = '8_1' OR r.properties->>'Ward_No' = '8_2') )
+                              OR ( $${nextIdx} = '15' AND (r.properties->>'Ward_No' = '15_1' OR r.properties->>'Ward_No' = '15_2') )
                               OR EXISTS (
                                 SELECT 1 FROM infrastructure w 
                                 WHERE w.type = 'ward' AND LOWER(w.name) = LOWER($1) 

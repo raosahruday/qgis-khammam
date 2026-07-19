@@ -610,6 +610,20 @@ const initDb = async () => {
     `, [jawan8PasswordHash, ward8Id]);
     console.log('✅ Jawan 8 checked/inserted.');
 
+    // Ensure Jawan 15 (Ward 15_1 & 15_2 merge) is updated/created
+    const jawan15PasswordHash = bcrypt.hashSync('jawan15@123', 10);
+    // Delete any old jawan_15_1 and jawan_15_2 if present to avoid conflicts
+    await db.query("DELETE FROM users WHERE email IN ('jawan_15_1@test.com', 'jawan_15_2@test.com')");
+    // Find Ward 15 ID
+    const ward15Res = await db.query("SELECT id FROM wards WHERE name = 'Ward 15' OR name = 'Ward 15' LIMIT 1");
+    const ward15Id = ward15Res.rows.length > 0 ? ward15Res.rows[0].id : null;
+    await db.query(`
+      INSERT INTO users (name, email, password, role, approved, ward_id)
+      VALUES ('K Srikanth / P Naresh', 'jawan_15@test.com', $1, 'worker', TRUE, $2)
+      ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, name = EXCLUDED.name, approved = TRUE, ward_id = EXCLUDED.ward_id
+    `, [jawan15PasswordHash, ward15Id]);
+    console.log('✅ Jawan 15 checked/inserted.');
+
     // Seed Park Inspector/Jawans and tasks if not present
     const parkUsersCheck = await db.query("SELECT COUNT(*) FROM users WHERE role = 'park_inspector'");
     const parkUsersCount = parseInt(parkUsersCheck.rows[0].count);
@@ -694,6 +708,11 @@ const initDb = async () => {
           const ward8Worker = workers.find(w => w.email.includes('jawan_8@') || w.name.includes('Sk Navab'));
           if (ward8Worker) {
             assignedWorkerId = ward8Worker.id;
+          }
+        } else if (wardNoStr === '15_1' || wardNoStr === '15_2' || wardNoStr === '15') {
+          const ward15Worker = workers.find(w => w.email.includes('jawan_15@') || w.name.includes('Srikanth'));
+          if (ward15Worker) {
+            assignedWorkerId = ward15Worker.id;
           }
         } else if (wardId) {
           const wardWorkers = workers.filter(w => w.ward_id === wardId);
@@ -810,6 +829,23 @@ const initDb = async () => {
       )
     `);
     console.log('✅ Ward 8, 8_1 & 8_2 tasks aligned to Jawan 8.');
+
+    // Unconditionally align any existing tasks for ward 15, 15_1 and 15_2 roads to jawan_15
+    await db.query(`
+      UPDATE tasks 
+      SET assigned_worker_id = (SELECT id FROM users WHERE email = 'jawan_15@test.com')
+      WHERE EXISTS (
+        SELECT 1 
+        FROM infrastructure r
+        WHERE r.type = 'road' 
+          AND r.properties->>'Ward_No' IN ('15', '15_1', '15_2')
+          AND (
+            tasks.line_id = r.properties->>'Line_ID'
+            OR tasks.line_id = (r.properties->>'Line_ID' || '_' || r.id)
+          )
+      )
+    `);
+    console.log('✅ Ward 15, 15_1 & 15_2 tasks aligned to Jawan 15.');
 
     console.log('--- Database initialization complete ---');
   } catch (error) {
