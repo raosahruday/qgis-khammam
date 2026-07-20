@@ -15,10 +15,10 @@ if (__DEV__) {
         const ip = devServer.url.split('://')[1].split(':')[0];
         API_URL = `http://${ip}:5000/api`;
       } else {
-        API_URL = 'http://192.168.0.114:5000/api';
+        API_URL = 'http://192.168.1.11:5000/api';
       }
     } catch (e) {
-      API_URL = 'http://192.168.0.114:5000/api';
+      API_URL = 'http://192.168.1.11:5000/api';
     }
   }
 }
