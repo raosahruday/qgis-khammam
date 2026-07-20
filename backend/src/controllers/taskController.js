@@ -302,7 +302,8 @@ exports.getTasks = async (req, res) => {
 
     
     let query = `
-      SELECT t.*, ST_AsGeoJSON(t.geom) as geom_json, u.name as worker_name, w.name as ward_name
+      SELECT t.*, ST_AsGeoJSON(t.geom) as geom_json, u.name as worker_name,
+             COALESCE(w.name, CASE WHEN t.assigned_worker_id = (SELECT id FROM users WHERE email = 'jawan_highway@test.com') THEN 'Highway' ELSE NULL END) as ward_name
       FROM tasks t 
       LEFT JOIN users u ON t.assigned_worker_id = u.id
       LEFT JOIN wards w ON t.ward_id = w.id
@@ -384,7 +385,8 @@ exports.getTaskById = async (req, res) => {
         const targetLineId = (isWard61 && isDuplicate) ? `${lineId}_${road.id}` : lineId;
 
         const existingTask = await db.query(`
-          SELECT t.*, ST_AsGeoJSON(t.geom) as geom_json, u.name as worker_name, w.name as ward_name
+          SELECT t.*, ST_AsGeoJSON(t.geom) as geom_json, u.name as worker_name,
+                 COALESCE(w.name, CASE WHEN t.assigned_worker_id = (SELECT id FROM users WHERE email = 'jawan_highway@test.com') THEN 'Highway' ELSE NULL END) as ward_name
           FROM tasks t
           LEFT JOIN users u ON t.assigned_worker_id = u.id
           LEFT JOIN wards w ON t.ward_id = w.id
@@ -466,7 +468,8 @@ exports.getTaskById = async (req, res) => {
     }
 
     const taskRes = await db.query(`
-      SELECT t.*, ST_AsGeoJSON(t.geom) as geom_json, u.name as worker_name, w.name as ward_name
+      SELECT t.*, ST_AsGeoJSON(t.geom) as geom_json, u.name as worker_name,
+             COALESCE(w.name, CASE WHEN t.assigned_worker_id = (SELECT id FROM users WHERE email = 'jawan_highway@test.com') THEN 'Highway' ELSE NULL END) as ward_name
       FROM tasks t
       LEFT JOIN users u ON t.assigned_worker_id = u.id
       LEFT JOIN wards w ON t.ward_id = w.id

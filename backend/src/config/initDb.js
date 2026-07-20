@@ -796,10 +796,11 @@ const initDb = async () => {
       )
     `);
 
-    // Unconditionally align any existing tasks for ward 61 roads to jawan_highway
+    // Unconditionally align any existing tasks for ward 61 roads to jawan_highway and clear ward_id
     await db.query(`
       UPDATE tasks 
-      SET assigned_worker_id = (SELECT id FROM users WHERE email = 'jawan_highway@test.com')
+      SET assigned_worker_id = (SELECT id FROM users WHERE email = 'jawan_highway@test.com'),
+          ward_id = NULL
       WHERE EXISTS (
         SELECT 1 
         FROM infrastructure r

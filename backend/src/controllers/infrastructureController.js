@@ -279,6 +279,16 @@ exports.getInfrastructure = async (req, res) => {
 exports.getWorkerWard = async (req, res) => {
     try {
         const workerId = req.user.id;
+        const isHighwayJawan = req.user.email === 'jawan_highway@test.com' || req.user.email === 'jawan_highway' || req.user.email === 'jawan_61';
+
+        if (isHighwayJawan) {
+            return res.json({
+                wardName: 'Highway',
+                id: 9999,
+                geom_json: null,
+                bbox: null
+            });
+        }
 
         // Find the ward name from the worker's user record first
         const userRes = await db.query(
