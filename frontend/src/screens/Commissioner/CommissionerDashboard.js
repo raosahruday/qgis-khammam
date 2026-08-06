@@ -208,7 +208,7 @@ export default function CommissionerDashboard({ navigation }) {
       if (matchingTask) {
         if (matchingTask.status === 'approved') {
           completed++;
-        } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
+        } else if (matchingTask.status === 'submitted') {
           active++;
         } else {
           pending++;
@@ -244,8 +244,8 @@ export default function CommissionerDashboard({ navigation }) {
     switch (status?.toLowerCase()) {
       case 'approved': return '#10B981'; // Green
       case 'submitted': 
-      case 'in_progress': 
         return '#F59E0B'; // Yellow/Amber
+      case 'in_progress':
       case 'rejected': 
       default: 
         return '#EF4444'; // Red
@@ -262,7 +262,7 @@ export default function CommissionerDashboard({ navigation }) {
       parkTasks.forEach(t => {
         if (t.status === 'approved') {
           completed++;
-        } else if (t.status === 'submitted' || t.status === 'in_progress') {
+        } else if (t.status === 'submitted') {
           active++;
         } else {
           pending++;
@@ -503,7 +503,7 @@ export default function CommissionerDashboard({ navigation }) {
         pending.push(entry);
       } else if (task.status === 'approved') {
         completed.push(entry);
-      } else if (task.status === 'submitted' || task.status === 'in_progress') {
+      } else if (task.status === 'submitted') {
         active.push(entry);
       } else {
         pending.push(entry);

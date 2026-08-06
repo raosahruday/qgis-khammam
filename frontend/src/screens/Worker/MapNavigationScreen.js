@@ -327,7 +327,7 @@ export default function MapNavigationScreen({ route, navigation }) {
 
     if (matchingTask) {
       if (matchingTask.status === 'approved') return Colors.success;
-      if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') return Colors.warning;
+      if (matchingTask.status === 'submitted') return Colors.warning;
     }
 
     const matchesLive = liveTask && (
@@ -340,7 +340,7 @@ export default function MapNavigationScreen({ route, navigation }) {
 
     if (matchesLive) {
       if (liveTask.status === 'approved') return Colors.success;
-      if (liveTask.status === 'submitted' || liveTask.status === 'in_progress') return Colors.warning;
+      if (liveTask.status === 'submitted') return Colors.warning;
     }
     return Colors.accent;
   };
@@ -582,12 +582,12 @@ export default function MapNavigationScreen({ route, navigation }) {
             coordinates={mappedPoints} 
             fillColor={
               liveTask.status === 'approved' ? 'rgba(16, 185, 129, 0.25)' :
-              (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? 'rgba(245, 158, 11, 0.25)' :
+              liveTask.status === 'submitted' ? 'rgba(245, 158, 11, 0.25)' :
               'rgba(239, 68, 68, 0.25)'
             } 
             strokeColor={
               liveTask.status === 'approved' ? Colors.success :
-              (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? Colors.warning :
+              liveTask.status === 'submitted' ? Colors.warning :
               Colors.accent
             }
             strokeWidth={2.5}
@@ -601,7 +601,7 @@ export default function MapNavigationScreen({ route, navigation }) {
             coordinates={mappedPoints} 
             strokeColor={
               liveTask.status === 'approved' ? Colors.success :
-              (liveTask.status === 'submitted' || liveTask.status === 'in_progress') ? Colors.warning :
+              liveTask.status === 'submitted' ? Colors.warning :
               Colors.accent
             } 
             strokeWidth={4.5} 

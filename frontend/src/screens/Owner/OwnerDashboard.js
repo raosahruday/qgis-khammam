@@ -291,7 +291,7 @@ export default function OwnerDashboard({ navigation }) {
     combined.forEach(t => {
       if (t.status === 'approved') {
         completed++;
-      } else if (t.status === 'submitted' || t.status === 'in_progress') {
+      } else if (t.status === 'submitted') {
         active++;
       } else {
         pending++;
@@ -304,9 +304,8 @@ export default function OwnerDashboard({ navigation }) {
   const getBadgeStyle = (status) => {
     switch (status) {
       case 'approved': return { bg: Colors.successBg, text: Colors.successText };
-      case 'submitted':
-      case 'in_progress':
-        return { bg: Colors.warningBg, text: Colors.warningText };
+      case 'submitted': return { bg: Colors.warningBg, text: Colors.warningText };
+      case 'in_progress': return { bg: Colors.infoBg, text: Colors.infoText };
       default: return { bg: Colors.errorBg, text: Colors.errorText };
     }
   };
@@ -528,7 +527,7 @@ export default function OwnerDashboard({ navigation }) {
                   if (matchingTask) {
                     if (matchingTask.status === 'approved') {
                       roadColor = Colors.success; // Completed (Green)
-                    } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
+                    } else if (matchingTask.status === 'submitted') {
                       roadColor = Colors.warning; // Active/Submitted (Yellow)
                     }
                   }

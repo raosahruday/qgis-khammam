@@ -195,7 +195,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
                  if (matchingTask) {
                    if (matchingTask.status === 'approved') {
                      roadColor = Colors.success; // Completed (Green)
-                   } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
+                   } else if (matchingTask.status === 'submitted') {
                      roadColor = Colors.warning; // Active/Submitted (Yellow)
                    }
                  }

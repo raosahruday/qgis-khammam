@@ -18,6 +18,11 @@ const pool = new Pool(
       }
 );
 
+// Add event listener to handle unexpected connection terminations on idle clients
+pool.on('error', (err) => {
+  console.error('Unexpected database connection error:', err.message || err);
+});
+
 pool.connect((err) => {
   if (err) {
     console.error('Database connection error:', err.stack);
@@ -29,3 +34,4 @@ pool.connect((err) => {
 module.exports = {
   query: (text, params) => pool.query(text, params),
 };
+

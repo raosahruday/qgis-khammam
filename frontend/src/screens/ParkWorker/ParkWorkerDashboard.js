@@ -125,8 +125,8 @@ export default function ParkWorkerDashboard({ navigation }) {
       case 'approved': 
         return Colors.success || '#10B981'; // Green
       case 'submitted': 
-      case 'in_progress': 
         return '#F59E0B'; // Yellow/Amber
+      case 'in_progress':
       case 'rejected': 
       default: 
         return '#EF4444'; // Red

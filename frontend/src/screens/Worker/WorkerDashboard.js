@@ -179,8 +179,9 @@ export default function WorkerDashboard({ navigation }) {
       case 'approved':
         return { bg: Colors.successBg, text: Colors.successText };
       case 'submitted':
-      case 'in_progress':
         return { bg: Colors.warningBg, text: Colors.warningText };
+      case 'in_progress':
+        return { bg: Colors.infoBg, text: Colors.infoText };
       default:
         return { bg: Colors.errorBg, text: Colors.errorText };
     }
@@ -201,7 +202,7 @@ export default function WorkerDashboard({ navigation }) {
 
     if (task) {
       if (task.status === 'approved') return Colors.success;
-      if (task.status === 'submitted' || task.status === 'in_progress') return Colors.warning;
+      if (task.status === 'submitted') return Colors.warning;
     }
     return Colors.accent; // Default pending (Red)
   };
@@ -247,7 +248,7 @@ export default function WorkerDashboard({ navigation }) {
       let roadColor = Colors.accent; // Red (Pending)
       if (status === 'approved') {
         roadColor = Colors.success; // Emerald Green (Completed)
-      } else if (status === 'submitted' || status === 'in_progress') {
+      } else if (status === 'submitted') {
         roadColor = Colors.warning; // Amber (Active)
       }
       

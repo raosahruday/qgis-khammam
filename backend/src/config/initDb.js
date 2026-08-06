@@ -376,6 +376,19 @@ const initDb = async () => {
         CONSTRAINT users_role_check CHECK (role IN ('owner', 'worker', 'supervisor', 'commissioner', 'admin', 'park_jawan', 'park_inspector'))
       );
     `);
+    
+    // Drop outdated check constraint and apply the updated one
+    try {
+      await db.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;`);
+      await db.query(`
+        ALTER TABLE users 
+        ADD CONSTRAINT users_role_check 
+        CHECK (role IN ('owner', 'worker', 'supervisor', 'commissioner', 'admin', 'park_jawan', 'park_inspector'));
+      `);
+      console.log('✅ Users table role check constraint updated successfully.');
+    } catch (e) {
+      console.warn('Could not update users table check constraint:', e.message);
+    }
     console.log('✅ Users table checked.');
 
     // 4. Create Machines table
@@ -421,6 +434,18 @@ const initDb = async () => {
     } catch (e) {
       console.warn('Could not add geometry or utility columns to tasks:', e.message);
     }
+
+    try {
+      await db.query(`ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_status_check;`);
+      await db.query(`
+        ALTER TABLE tasks 
+        ADD CONSTRAINT tasks_status_check 
+        CHECK (status IN ('pending', 'in_progress', 'submitted', 'approved', 'rejected'));
+      `);
+      console.log('✅ Tasks table status check constraint updated successfully.');
+    } catch (e) {
+      console.warn('Could not update tasks table check constraint:', e.message);
+    }
     console.log('✅ Tasks table checked.');
 
     // 6. Create Photos table
@@ -436,6 +461,13 @@ const initDb = async () => {
         public_id VARCHAR(255)
       );
     `);
+
+    try {
+      await db.query(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS public_id VARCHAR(255);`);
+      console.log('✅ Photos table public_id column verified.');
+    } catch (e) {
+      console.warn('Could not add public_id column to photos:', e.message);
+    }
     console.log('✅ Photos table checked.');
 
     // 7. Create Infrastructure table
