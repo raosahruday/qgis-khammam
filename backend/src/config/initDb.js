@@ -379,7 +379,22 @@ const initDb = async () => {
     
     // Drop outdated check constraint and apply the updated one
     try {
-      await db.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;`);
+      await db.query(`
+        DO $$
+        DECLARE
+            r RECORD;
+        BEGIN
+            FOR r IN (
+                SELECT conname 
+                FROM pg_constraint 
+                WHERE conrelid = 'users'::regclass 
+                  AND contype = 'c' 
+                  AND pg_get_constraintdef(oid) LIKE '%role%'
+            ) LOOP
+                EXECUTE 'ALTER TABLE users DROP CONSTRAINT ' || quote_ident(r.conname);
+            END LOOP;
+        END $$;
+      `);
       await db.query(`
         ALTER TABLE users 
         ADD CONSTRAINT users_role_check 
@@ -436,7 +451,22 @@ const initDb = async () => {
     }
 
     try {
-      await db.query(`ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_status_check;`);
+      await db.query(`
+        DO $$
+        DECLARE
+            r RECORD;
+        BEGIN
+            FOR r IN (
+                SELECT conname 
+                FROM pg_constraint 
+                WHERE conrelid = 'tasks'::regclass 
+                  AND contype = 'c' 
+                  AND pg_get_constraintdef(oid) LIKE '%status%'
+            ) LOOP
+                EXECUTE 'ALTER TABLE tasks DROP CONSTRAINT ' || quote_ident(r.conname);
+            END LOOP;
+        END $$;
+      `);
       await db.query(`
         ALTER TABLE tasks 
         ADD CONSTRAINT tasks_status_check 
