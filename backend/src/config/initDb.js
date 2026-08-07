@@ -709,11 +709,11 @@ const initDb = async () => {
       await importParks();
     }
 
-    // 12. Task seeding if road tasks count doesn't match roadsCount (3271)
+    // 12. Task seeding if road tasks table is empty
     const roadTasksCheck = await db.query("SELECT COUNT(*) FROM tasks WHERE task_type = 'road'");
     const roadTasksCount = parseInt(roadTasksCheck.rows[0].count);
-    if (roadTasksCount !== roadsCount) {
-      console.log(`--- Road tasks count (${roadTasksCount}) is out of sync with roads count (${roadsCount}). Regenerating tasks for all ${roadsCount} roads... ---`);
+    if (roadTasksCount === 0) {
+      console.log(`--- Road tasks table is empty (${roadTasksCount}). Seeding tasks for all ${roadsCount} roads... ---`);
       await db.query("DELETE FROM tasks WHERE task_type = 'road';");
       
       // Fetch all workers and their wards
