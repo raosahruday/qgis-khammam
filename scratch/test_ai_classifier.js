@@ -1,6 +1,6 @@
+const path = require('path');
 const { evaluateTaskPhoto } = require('../backend/src/services/aiVisionService');
 const fs = require('fs');
-const path = require('path');
 
 async function runTests() {
   console.log('--- Testing AI Vision Road Classifier ---');
