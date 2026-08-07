@@ -13,12 +13,16 @@ if (__DEV__) {
       const devServer = getDevServer();
       if (devServer && devServer.url) {
         const ip = devServer.url.split('://')[1].split(':')[0];
-        API_URL = `http://${ip}:5000/api`;
+        if (ip === 'localhost' || ip === '127.0.0.1') {
+          API_URL = 'https://qgis-khammam.onrender.com/api';
+        } else {
+          API_URL = `http://${ip}:5000/api`;
+        }
       } else {
-        API_URL = 'http://192.168.1.11:5000/api';
+        API_URL = 'https://qgis-khammam.onrender.com/api';
       }
     } catch (e) {
-      API_URL = 'http://192.168.1.11:5000/api';
+      API_URL = 'https://qgis-khammam.onrender.com/api';
     }
   }
 }
@@ -36,6 +40,23 @@ api.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const { config, response } = error;
+    if (response && (response.status === 502 || response.status === 503 || response.status === 504)) {
+      config._retryCount = config._retryCount || 0;
+      if (config._retryCount < 2) {
+        config._retryCount += 1;
+        console.log(`[Axios] Server initialising (HTTP ${response.status}). Retrying attempt #${config._retryCount}...`);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        return api(config);
+      }
+    }
+    return Promise.reject(error);
+  }
 );
 
 export default api;
