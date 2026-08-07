@@ -563,8 +563,9 @@ const initDb = async () => {
     const rootPath = path.join(__dirname, '..', '..', '..'); // Repository root
     
     if (roadsCount !== 3271) {
-      console.log(`--- Database roads count is ${roadsCount} (expected 3271). Clearing and re-importing updated shapefiles... ---`);
-      await db.query('TRUNCATE TABLE infrastructure RESTART IDENTITY;');
+      console.log(`--- Database roads count is ${roadsCount} (expected 3271). Clearing tasks and re-importing updated shapefiles... ---`);
+      await db.query('TRUNCATE TABLE tasks RESTART IDENTITY CASCADE;');
+      await db.query('TRUNCATE TABLE infrastructure RESTART IDENTITY CASCADE;');
 
       const wardsShpFile = path.join(rootPath, 'Export_Output_2.shp');
       const rowShpFile = path.join(rootPath, 'Export_Output_3.shp');
@@ -695,11 +696,12 @@ const initDb = async () => {
       await importParks();
     }
 
-    // 12. Task seeding if empty
+    // 12. Task seeding if empty or out of sync with road count
     const tasksCheck = await db.query('SELECT COUNT(*) FROM tasks');
     const tasksCount = parseInt(tasksCheck.rows[0].count);
-    if (tasksCount === 0) {
-      console.log('--- Tasks table is empty. Commencing automatic pending task generation... ---');
+    if (tasksCount === 0 || tasksCount > roadsCount) {
+      console.log(`--- Tasks table count (${tasksCount}) is out of sync with roads (${roadsCount}). Regenerating tasks... ---`);
+      await db.query('TRUNCATE TABLE tasks RESTART IDENTITY CASCADE;');
       
       // Fetch all workers and their wards
       const workersRes = await db.query(`
