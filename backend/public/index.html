@@ -5,32 +5,55 @@
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <title>Khammam Cleanup</title>
-    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <!-- The `react-native-web` recommended style reset -->
     <style id="expo-reset">
-      /* These styles make the body full-height */
       html,
       body {
         height: 100%;
       }
-      /* These styles disable body scrolling if you are using <ScrollView> */
       body {
         overflow: hidden;
       }
-      /* These styles make the root element full-height */
       #root {
         display: flex;
         height: 100%;
         flex: 1;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      }
+    </style>
+    <!-- React Native Web Vector Icons Font-Face Definitions -->
+    <style id="expo-vector-icons">
+      @font-face {
+        font-family: 'Ionicons';
+        src: url('https://cdn.jsdelivr.net/npm/@expo/vector-icons@14.0.0/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf') format('truetype');
+      }
+      @font-face {
+        font-family: 'MaterialCommunityIcons';
+        src: url('https://cdn.jsdelivr.net/npm/@expo/vector-icons@14.0.0/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf') format('truetype');
+      }
+      @font-face {
+        font-family: 'MaterialIcons';
+        src: url('https://cdn.jsdelivr.net/npm/@expo/vector-icons@14.0.0/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf') format('truetype');
+      }
+      @font-face {
+        font-family: 'FontAwesome';
+        src: url('https://cdn.jsdelivr.net/npm/@expo/vector-icons@14.0.0/build/vendor/react-native-vector-icons/Fonts/FontAwesome.ttf') format('truetype');
+      }
+      @font-face {
+        font-family: 'Octicons';
+        src: url('https://cdn.jsdelivr.net/npm/@expo/vector-icons@14.0.0/build/vendor/react-native-vector-icons/Fonts/Octicons.ttf') format('truetype');
+      }
+      @font-face {
+        font-family: 'Feather';
+        src: url('https://cdn.jsdelivr.net/npm/@expo/vector-icons@14.0.0/build/vendor/react-native-vector-icons/Fonts/Feather.ttf') format('truetype');
       }
     </style>
   <link rel="icon" href="/favicon.ico" /></head>
 
   <body>
-    <!-- Use static rendering with Expo Router to support running without JavaScript. -->
     <noscript>
       You need to enable JavaScript to run this app.
     </noscript>
-    <!-- The root element for your Expo app. -->
     <div id="root"></div>
   <script src="/_expo/static/js/web/index-a11f8297f6f790c77741dd9a016fd443.js" defer></script>
 </body>

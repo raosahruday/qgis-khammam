@@ -584,6 +584,12 @@ const initDb = async () => {
       console.log(`✅ Database already populated with ${roadsCount} road infrastructure features.`);
     }
 
+    // Always ensure wards table is deduplicated
+    await db.query(`
+      DELETE FROM wards a USING wards b
+      WHERE a.id > b.id AND a.name = b.name;
+    `);
+
     // 11. User seeding if empty
     const usersCheck = await db.query("SELECT COUNT(*) FROM users WHERE email = 'jawan_1@test.com'");
     const usersCount = parseInt(usersCheck.rows[0].count);
