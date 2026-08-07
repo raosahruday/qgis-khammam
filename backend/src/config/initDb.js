@@ -908,7 +908,7 @@ const initDb = async () => {
 
       console.log(`✅ Seeded ${totalTasksCreated} pending road tasks in batch mode.`);
     } else {
-      console.log(`✅ Tasks already seeded (${tasksCount} tasks present).`);
+      console.log(`✅ Tasks already seeded (${roadTasksCount} tasks present).`);
     }
 
     // Delete any Ward 61 tasks where the underlying road has no Rly_Name (to ensure exactly 29 tasks)
