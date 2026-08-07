@@ -751,6 +751,8 @@ const initDb = async () => {
 
       let totalTasksCreated = 0;
 
+      // Prepare task rows in memory
+      const taskRows = [];
       for (const road of roads) {
         try {
           const props = road.properties || {};
@@ -849,18 +851,62 @@ const initDb = async () => {
           const sourceQr = `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
           const destinationQr = `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
-          await db.query(
-            `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
-             VALUES ($1, $2, $3, $4, $5, $6, 'road', $7, $8, 'pending', $9, $10)`,
-            [rdName, `Clean ${rdName}`, JSON.stringify(areaGeojson), road.geom, assignedWorkerId, wardId, sourceQr, destinationQr, lineId, rdName]
-          );
-          totalTasksCreated++;
+          taskRows.push({
+            title: rdName,
+            description: `Clean ${rdName}`,
+            areaGeojson: JSON.stringify(areaGeojson),
+            geom: road.geom,
+            assignedWorkerId,
+            wardId,
+            sourceQr,
+            destinationQr,
+            lineId,
+            rdName
+          });
         } catch (err) {
-          console.warn(`Error generating task for road ${road.id}:`, err.message);
+          console.warn(`Error preparing task row for road ${road.id}:`, err.message);
         }
       }
 
-      console.log(`✅ Seeded ${totalTasksCreated} pending road tasks for jawans.`);
+      // Execute high-speed batch inserts (300 rows per batch)
+      const BATCH_SIZE = 300;
+      let totalTasksCreated = 0;
+
+      for (let i = 0; i < taskRows.length; i += BATCH_SIZE) {
+        const batch = taskRows.slice(i, i + BATCH_SIZE);
+        const valuePlaceholders = [];
+        const queryParams = [];
+        let pIndex = 1;
+
+        batch.forEach(r => {
+          valuePlaceholders.push(
+            `($${pIndex}, $${pIndex + 1}, $${pIndex + 2}, $${pIndex + 3}, $${pIndex + 4}, $${pIndex + 5}, 'road', $${pIndex + 6}, $${pIndex + 7}, 'pending', $${pIndex + 8}, $${pIndex + 9})`
+          );
+          queryParams.push(
+            r.title,
+            r.description,
+            r.areaGeojson,
+            r.geom,
+            r.assignedWorkerId,
+            r.wardId,
+            r.sourceQr,
+            r.destinationQr,
+            r.lineId,
+            r.rdName
+          );
+          pIndex += 10;
+        });
+
+        const queryStr = `
+          INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
+          VALUES ${valuePlaceholders.join(', ')}
+        `;
+
+        await db.query(queryStr, queryParams);
+        totalTasksCreated += batch.length;
+      }
+
+      console.log(`✅ Seeded ${totalTasksCreated} pending road tasks in batch mode.`);
     } else {
       console.log(`✅ Tasks already seeded (${tasksCount} tasks present).`);
     }
