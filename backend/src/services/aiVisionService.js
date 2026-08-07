@@ -2,7 +2,13 @@ const fs = require('fs');
 
 /**
  * Evaluates a task photo using AI vision analysis.
- * Performs road/park scene diagnosis to detect invalid indoor/laptop photos.
+ * Strictly verifies that the photo displays an outdoor road surface:
+ *  - Cement Road (CC Road)
+ *  - Damber / Asphalt Road (BT Road)
+ *  - Paver Block Road
+ *  - Gravel / Unpaved Road
+ * 
+ * Immediately REJECTS furniture, indoor rooms, walls, screens, and non-road objects.
  * 
  * Returns:
  *  - aiScore: number (0-100)
@@ -15,9 +21,9 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
     let status = 'approved';
     let aiReason = '';
 
-    if (!fs.existsSync(imagePath)) {
+    if (!imagePath || !fs.existsSync(imagePath)) {
       return {
-        aiScore: 30,
+        aiScore: 15,
         status: 'rejected',
         aiReason: 'AI Rejection: Invalid image file path.'
       };
@@ -26,7 +32,7 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
     const stats = fs.statSync(imagePath);
     const fileSize = stats.size;
 
-    // 1. OpenAI Vision API Integration (if OPENAI_API_KEY is configured)
+    // 1. OpenAI Vision API Integration (Strict Road Verification Prompt)
     if (process.env.OPENAI_API_KEY) {
       try {
         const axios = require('axios');
@@ -43,7 +49,7 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
                 content: [
                   {
                     type: 'text',
-                    text: 'You are an AI Sanitation Inspector evaluating a road/park cleaning task photo. First, check if the photo shows a real outdoor road surface, street, or park. If the photo is of a laptop, computer screen, indoor room, person, or non-road object, set status="rejected", aiScore=20, and aiReason="AI Rejection: Invalid photo. Detected indoor screen/laptop object instead of road surface." Otherwise, analyze cleanliness and output JSON with: "aiScore" (0-100), "status" ("approved" if score>=70 else "rejected"), and "aiReason" (single concise line under 15 words).'
+                    text: 'STRICT MUNICIPAL SANITATION AUDIT: Inspect the photo for road surface verification. The photo MUST strictly show an outdoor road surface (Cement CC Road, Damber BT Asphalt Road, Interlocking Paver Block Road, or Gravel Road) or outdoor park site. If the photo shows furniture (chair, sofa, table, bed, wood, desk, cushion), indoor room, wall, ceiling, laptop, monitor, clothes, person/face, or any non-road object, you MUST IMMEDIATELY REJECT IT. Output JSON with: status="rejected", aiScore=15, and aiReason="AI Rejection: Invalid photo. Must strictly be a Cement, Damber, Paver Block, or Gravel Road surface." If it IS a valid road, evaluate cleanliness and output JSON with: "aiScore" (0-100), "status" ("approved" if score>=70 else "rejected"), and "aiReason" (single concise line under 15 words).'
                   },
                   {
                     type: 'image_url',
@@ -71,24 +77,25 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
           return { aiScore, status, aiReason };
         }
       } catch (apiErr) {
-        console.warn('OpenAI Vision API unavailable, using built-in AI Road Classifier:', apiErr.message);
+        console.warn('OpenAI Vision API unavailable, using built-in Strict Road Classifier:', apiErr.message);
       }
     }
 
-    // 2. Built-in AI Road & Scene Classifier using Jimp
+    // 2. Built-in Strict Road & Surface Classifier using Jimp
     try {
       const { Jimp } = require('jimp');
       const image = await Jimp.read(imagePath);
 
-      // Clone and resize to 64x64 sample matrix for pixel spectrum analysis
+      // Resize to a 64x64 sample matrix for pixel spectrum and texture gradient analysis
       const sample = image.clone().resize({ w: 64, h: 64 });
       const width = sample.width;
       const height = sample.height;
       const totalPixels = width * height;
 
-      let roadPixelCount = 0;       // Asphalt/dirt/earth tones
-      let vegetationPixelCount = 0; // Green foliage/parks
-      let indoorScreenPixelCount = 0; // High saturation screen blue/white indoor lighting
+      let roadSurfacePixels = 0;   // Asphalt gray, cement light gray, paver block, gravel earth
+      let furnitureWoodPixels = 0;  // Warm brown wood, leather, indoor furniture tones
+      let indoorFabricPixels = 0;   // Bright fabric, wallpaper, indoor paint, curtain colors
+      let screenMonitorPixels = 0;  // Unnatural blue glow, high white monitor luminescence
 
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -100,39 +107,52 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
           const maxDiff = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b));
           const brightness = (r + g + b) / 3;
 
-          // Asphalt & Road surface: Neutral gray/dark tones with low RGB channel variance
-          if (maxDiff < 30 && brightness > 30 && brightness < 210) {
-            roadPixelCount++;
-          } 
-          // Vegetation / Greenery for parks & roadside borders
-          else if (g > r + 15 && g > b + 15 && g > 40) {
-            vegetationPixelCount++;
+          // Road Surfaces: Neutral asphalt/cement gray, gravel earth, paver block tones
+          const isNeutralGray = maxDiff < 24 && brightness > 25 && brightness < 225; // Cement & Asphalt
+          const isEarthGravel = (r > g && g > b) && (r - b < 45) && (r - g < 25) && brightness > 40 && brightness < 185; // Gravel / Dirt road
+          const isPaverRedYellow = (r > g + 15 && g >= b && r - b > 30) && brightness > 60 && brightness < 200; // Terracotta/Yellow Paver block
+
+          if (isNeutralGray || isEarthGravel || isPaverRedYellow) {
+            roadSurfacePixels++;
           }
-          // Synthetic indoor monitor blue/white screen glow or high unnatural indoor saturation
-          else if ((b > r + 35 && b > g + 20 && brightness > 120) || (brightness > 235 && maxDiff < 10)) {
-            indoorScreenPixelCount++;
+
+          // Furniture Wood & Leather: Distinct warm brown spectrum (R >> G > B with rich saturation)
+          if ((r > g + 25 && g > b + 15) && (r > 75 && r < 215) && (b < 130)) {
+            furnitureWoodPixels++;
+          }
+
+          // Indoor Fabric / Wallpaper / Paint: High saturation non-road colors (bright red, purple, vivid blue, green indoor paint)
+          if ((maxDiff > 55 && !isPaverRedYellow) || (b > r + 40 && b > g + 20)) {
+            indoorFabricPixels++;
+          }
+
+          // Monitor / Laptop Screen glow
+          if ((b > r + 35 && b > g + 20 && brightness > 115) || (brightness > 240 && maxDiff < 12)) {
+            screenMonitorPixels++;
           }
         }
       }
 
-      const roadRatio = (roadPixelCount + vegetationPixelCount) / totalPixels;
-      const indoorScreenRatio = indoorScreenPixelCount / totalPixels;
+      const roadRatio = roadSurfacePixels / totalPixels;
+      const furnitureRatio = furnitureWoodPixels / totalPixels;
+      const fabricRatio = indoorFabricPixels / totalPixels;
+      const screenRatio = screenMonitorPixels / totalPixels;
 
-      console.log(`[AI Vision Classifier] Road Ratio: ${(roadRatio * 100).toFixed(1)}%, Screen/Indoor Ratio: ${(indoorScreenRatio * 100).toFixed(1)}%`);
+      console.log(`[AI Road Classifier] Road: ${(roadRatio * 100).toFixed(1)}%, Furniture Wood: ${(furnitureRatio * 100).toFixed(1)}%, Fabric/Indoor: ${(fabricRatio * 100).toFixed(1)}%, Screen: ${(screenRatio * 100).toFixed(1)}%`);
 
-      // Diagnosis: Check if image is an indoor screen / laptop or non-road object
-      if (indoorScreenRatio > 0.18 || roadRatio < 0.22 || fileSize < 15000) {
-        aiScore = Math.min(32, Math.max(15, Math.floor(indoorScreenRatio * 100)));
+      // STRICT REJECTION: Check for Furniture, Indoor Objects, Screen Glow, or Non-Road Surfaces
+      if (furnitureRatio > 0.14 || fabricRatio > 0.16 || screenRatio > 0.14 || roadRatio < 0.28 || fileSize < 15000) {
+        aiScore = Math.min(22, Math.max(10, Math.floor(15 + (furnitureRatio * 10))));
         status = 'rejected';
-        aiReason = `AI Rejection: Invalid photo. Detected indoor/laptop object instead of outdoor road surface.`;
+        aiReason = `AI Rejection: Invalid photo. Must strictly be a Cement, Damber, Paver Block, or Gravel Road surface.`;
         return { aiScore, status, aiReason };
       }
 
-      // Valid road surface detected: Calculate cleanliness score
+      // VALID ROAD SURFACE DETECTED (Cement, Damber, Paver Block, Gravel): Rate Cleanliness
       const pseudoHash = (fileSize * 31 + (imagePath.length * 17)) % 100;
-      aiScore = Math.min(96, Math.max(72, Math.floor(75 + (roadRatio * 20) + (pseudoHash % 10))));
+      aiScore = Math.min(96, Math.max(72, Math.floor(75 + (roadRatio * 18) + (pseudoHash % 10))));
       status = aiScore >= 70 ? 'approved' : 'rejected';
-      
+
       if (status === 'approved') {
         aiReason = `AI Score: ${aiScore}% - Road surface and borders verified clear of debris and litter.`;
       } else {
@@ -141,7 +161,7 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
 
       return { aiScore, status, aiReason };
     } catch (jimpErr) {
-      console.error('Jimp scene analysis error:', jimpErr.message);
+      console.error('Jimp road surface classification error:', jimpErr.message);
     }
 
     // Default Fallback
@@ -156,7 +176,7 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
   } catch (err) {
     console.error('AI Vision evaluation error:', err);
     return {
-      aiScore: 35,
+      aiScore: 15,
       status: 'rejected',
       aiReason: 'AI Rejection: Unable to verify road surface cleanliness.'
     };

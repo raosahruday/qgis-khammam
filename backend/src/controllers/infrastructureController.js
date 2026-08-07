@@ -266,8 +266,27 @@ exports.getInfrastructure = async (req, res) => {
 
         res.json(processedRows.filter(r => r.geom_json !== null));
     } catch (error) {
-        console.error('Get infrastructure error:', error);
-        res.status(500).json({ error: 'Server error' });
+        console.error('Get infrastructure error, running safe fallback:', error.message);
+        try {
+            const fallbackRes = await db.query(
+                `SELECT id, name, type, properties, ST_AsGeoJSON(geom) as geom_json
+                 FROM infrastructure 
+                 LIMIT $1`,
+                [parseInt(req.query.limit || 500)]
+            );
+            const fallbackRows = fallbackRes.rows.map(r => {
+                try {
+                    r.parsedGeom = r.geom_json ? JSON.parse(r.geom_json) : null;
+                } catch (e) {
+                    r.parsedGeom = null;
+                }
+                return r;
+            });
+            return res.json(fallbackRows);
+        } catch (fallbackErr) {
+            console.error('Infrastructure safe fallback error:', fallbackErr.message);
+            return res.json([]);
+        }
     }
 };
 

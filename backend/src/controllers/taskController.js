@@ -747,11 +747,6 @@ exports.uploadPhoto = async (req, res) => {
         imageUrl = uploadResult.secure_url;
         publicId = uploadResult.public_id;
         console.log('Cloudinary upload successful:', imageUrl, publicId);
-
-        // Delete the temporary local file asynchronously to clean up disk space
-        fs.unlink(req.file.path, (err) => {
-          if (err) console.error('Error deleting local temp file:', err);
-        });
       } catch (uploadError) {
         console.error('Cloudinary upload failed, falling back to local file:', uploadError);
       }
@@ -764,6 +759,13 @@ exports.uploadPhoto = async (req, res) => {
 
     // Automated AI Inspection
     const aiResult = await evaluateTaskPhoto(req.file.path, task.task_type, task.title);
+
+    // Clean up temporary local upload file after AI inspection
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error('Error deleting local temp file:', err);
+      });
+    }
 
     // Auto-update task status, AI score, and AI reason
     await db.query(
