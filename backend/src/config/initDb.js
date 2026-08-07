@@ -745,106 +745,112 @@ const initDb = async () => {
       let totalTasksCreated = 0;
 
       for (const road of roads) {
-        const props = road.properties || {};
-        let lineId = props.Line_ID || props.line_id || `RD_${road.id}`;
-        const rdName = props.Rd_Name || props.rd_name || road.name || `Road ${road.id}`;
+        try {
+          const props = road.properties || {};
+          let lineId = props.Line_ID || props.line_id || `RD_${road.id}`;
+          const rdName = props.Rd_Name || props.rd_name || road.name || `Road ${road.id}`;
 
-        // Resolve ward
-        let wardId = null;
-        const wardNoStr = props.Ward_No || props.ward_no;
-        
-        // Skip non-highway roads that are in Ward 61 but lack a Rly_Name
-        const rlyName = props.Rly_Name || props.rly_name;
-        if (wardNoStr === '61' && !rlyName) {
-          continue;
-        }
+          // Resolve ward
+          let wardId = null;
+          const wardNoStr = props.Ward_No || props.ward_no;
+          
+          // Skip non-highway roads that are in Ward 61 but lack a Rly_Name
+          const rlyName = props.Rly_Name || props.rly_name;
+          if (wardNoStr === '61' && !rlyName) {
+            continue;
+          }
 
-        if (wardNoStr) {
-          const wardNum = parseInt(wardNoStr);
-          const matchedWard = wards.find(w => w.name.match(new RegExp(`Ward\\s+0*${wardNum}$`, 'i')) || w.name.match(new RegExp(`Ward\\s+0*${wardNum}\\b`, 'i')));
-          if (matchedWard) {
-            wardId = matchedWard.id;
+          if (wardNoStr) {
+            const wardNum = parseInt(wardNoStr);
+            if (!isNaN(wardNum)) {
+              const matchedWard = wards.find(w => w.name === `Ward ${wardNum}` || w.name === `Ward 0${wardNum}`);
+              if (matchedWard) {
+                wardId = matchedWard.id;
+              }
+            }
           }
-        }
 
-        // Resolve Jawan/Worker
-        let assignedWorkerId = null;
-        const jawanNameInProps = props.JAWAN_NAME || props.jawan_name;
-        
-        if (wardNoStr === '61') {
-          const highwayWorker = workers.find(w => w.email.includes('jawan_highway') || w.name === 'Sahruday');
-          if (highwayWorker) {
-            assignedWorkerId = highwayWorker.id;
-          }
-        } else if (wardNoStr === '8_1' || wardNoStr === '8_2' || wardNoStr === '8') {
-          const ward8Worker = workers.find(w => w.email.includes('jawan_8@') || w.name.includes('Sk Navab'));
-          if (ward8Worker) {
-            assignedWorkerId = ward8Worker.id;
-          }
-        } else if (wardNoStr === '15_1' || wardNoStr === '15_2' || wardNoStr === '15') {
-          const ward15Worker = workers.find(w => w.email.includes('jawan_15@') || w.name.includes('Srikanth'));
-          if (ward15Worker) {
-            assignedWorkerId = ward15Worker.id;
-          }
-        } else if (wardId) {
-          const wardWorkers = workers.filter(w => w.ward_id === wardId);
-          if (wardWorkers.length === 1) {
-            assignedWorkerId = wardWorkers[0].id;
-          } else if (wardWorkers.length > 1) {
-            if (jawanNameInProps) {
-              const matchedWorker = wardWorkers.find(w => isJawanMatch(jawanNameInProps, w.name));
-              if (matchedWorker) {
-                assignedWorkerId = matchedWorker.id;
+          // Resolve Jawan/Worker
+          let assignedWorkerId = null;
+          const jawanNameInProps = props.JAWAN_NAME || props.jawan_name;
+          
+          if (wardNoStr === '61') {
+            const highwayWorker = workers.find(w => w.email.includes('jawan_highway') || w.name === 'Sahruday');
+            if (highwayWorker) {
+              assignedWorkerId = highwayWorker.id;
+            }
+          } else if (wardNoStr === '8_1' || wardNoStr === '8_2' || wardNoStr === '8') {
+            const ward8Worker = workers.find(w => w.email.includes('jawan_8@') || w.name.includes('Sk Navab'));
+            if (ward8Worker) {
+              assignedWorkerId = ward8Worker.id;
+            }
+          } else if (wardNoStr === '15_1' || wardNoStr === '15_2' || wardNoStr === '15') {
+            const ward15Worker = workers.find(w => w.email.includes('jawan_15@') || w.name.includes('Srikanth'));
+            if (ward15Worker) {
+              assignedWorkerId = ward15Worker.id;
+            }
+          } else if (wardId) {
+            const wardWorkers = workers.filter(w => w.ward_id === wardId);
+            if (wardWorkers.length === 1) {
+              assignedWorkerId = wardWorkers[0].id;
+            } else if (wardWorkers.length > 1) {
+              if (jawanNameInProps) {
+                const matchedWorker = wardWorkers.find(w => isJawanMatch(jawanNameInProps, w.name));
+                if (matchedWorker) {
+                  assignedWorkerId = matchedWorker.id;
+                } else {
+                  assignedWorkerId = wardWorkers[0].id;
+                }
               } else {
                 assignedWorkerId = wardWorkers[0].id;
               }
-            } else {
-              assignedWorkerId = wardWorkers[0].id;
             }
           }
-        }
 
-        // Fallback: match by name globally if not matched by ward (skip Ward 0)
-        if (!assignedWorkerId && jawanNameInProps && wardNoStr !== '0') {
-          const matchedWorker = workers.find(w => isJawanMatch(jawanNameInProps, w.name));
-          if (matchedWorker) {
-            assignedWorkerId = matchedWorker.id;
-            if (!wardId && matchedWorker.ward_id) {
-              wardId = matchedWorker.ward_id;
+          // Fallback: match by name globally if not matched by ward (skip Ward 0)
+          if (!assignedWorkerId && jawanNameInProps && wardNoStr !== '0') {
+            const matchedWorker = workers.find(w => isJawanMatch(jawanNameInProps, w.name));
+            if (matchedWorker) {
+              assignedWorkerId = matchedWorker.id;
+              if (!wardId && matchedWorker.ward_id) {
+                wardId = matchedWorker.ward_id;
+              }
             }
           }
-        }
 
-        // Format geom
-        let areaGeojson = null;
-        if (road.geom_json) {
-          const parsed = JSON.parse(road.geom_json);
-          if (parsed.type === 'LineString') {
-            areaGeojson = parsed.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
-          } else if (parsed.type === 'MultiLineString') {
-            const aligned = sortAndAlignSegments(parsed.coordinates);
-            areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
-          } else if (parsed.type === 'Polygon') {
-            areaGeojson = parsed.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }));
-          } else if (parsed.type === 'MultiPolygon') {
-            areaGeojson = parsed.coordinates.flat(2).map(c => ({ longitude: c[0], latitude: c[1] }));
+          // Format geom
+          let areaGeojson = null;
+          if (road.geom_json) {
+            const parsed = JSON.parse(road.geom_json);
+            if (parsed.type === 'LineString') {
+              areaGeojson = parsed.coordinates.map(c => ({ longitude: c[0], latitude: c[1] }));
+            } else if (parsed.type === 'MultiLineString') {
+              const aligned = sortAndAlignSegments(parsed.coordinates);
+              areaGeojson = aligned.map(c => ({ longitude: c[0], latitude: c[1] }));
+            } else if (parsed.type === 'Polygon') {
+              areaGeojson = parsed.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }));
+            } else if (parsed.type === 'MultiPolygon') {
+              areaGeojson = parsed.coordinates.flat(2).map(c => ({ longitude: c[0], latitude: c[1] }));
+            }
           }
+
+          // Suffix duplicate line ids globally to avoid ID collisions on the map
+          if (lineId && duplicateLineIds.has(lineId)) {
+            lineId = `${lineId}_${road.id}`;
+          }
+
+          const sourceQr = `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+          const destinationQr = `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+          await db.query(
+            `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
+             VALUES ($1, $2, $3, $4, $5, $6, 'road', $7, $8, 'pending', $9, $10)`,
+            [rdName, `Clean ${rdName}`, JSON.stringify(areaGeojson), road.geom, assignedWorkerId, wardId, sourceQr, destinationQr, lineId, rdName]
+          );
+          totalTasksCreated++;
+        } catch (err) {
+          console.warn(`Error generating task for road ${road.id}:`, err.message);
         }
-
-        // Suffix duplicate line ids globally to avoid ID collisions on the map
-        if (lineId && duplicateLineIds.has(lineId)) {
-          lineId = `${lineId}_${road.id}`;
-        }
-
-        const sourceQr = `START_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-        const destinationQr = `END_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-
-        await db.query(
-          `INSERT INTO tasks (title, description, area_geojson, geom, assigned_worker_id, ward_id, task_type, source_qr_id, destination_qr_id, status, line_id, rd_name)
-           VALUES ($1, $2, $3, $4, $5, $6, 'road', $7, $8, 'pending', $9, $10)`,
-          [rdName, `Clean ${rdName}`, JSON.stringify(areaGeojson), road.geom, assignedWorkerId, wardId, sourceQr, destinationQr, lineId, rdName]
-        );
-        totalTasksCreated++;
       }
 
       console.log(`✅ Seeded ${totalTasksCreated} pending road tasks for jawans.`);
