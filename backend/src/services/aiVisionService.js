@@ -68,25 +68,24 @@ exports.evaluateTaskPhoto = async (imageInput, taskType = 'road', rdName = '') =
       for (const modelName of modelsToTry) {
         try {
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`;
-          const promptText = `STRICT MUNICIPAL SANITATION AUDIT FOR KHAMMAM ROADS:
-Inspect this photo for authentic outdoor road surface verification and sanitation scoring.
+          const promptText = `STRICT MUNICIPAL SANITATION & DUST AUDIT FOR KHAMMAM ROADS:
+Inspect this photo thoroughly for authentic outdoor road surface verification, dust accumulation, and cleanliness scoring.
 
-ROAD TYPE REQUIREMENT:
+1. ROAD SURFACE VERIFICATION:
 The photo MUST strictly show an outdoor road surface (Cement CC Road, Damber BT Asphalt Road, Interlocking Paver Block Road, or Gravel Road).
+REJECTION RULE: If the image shows ANY non-road objects (laptop, keyboard, monitor, screen, desk, chair, indoor room, ceramic wall/floor tiles, furniture, human face, paper document), IMMEDIATELY REJECT IT (status="rejected", aiScore=15).
 
-CRITICAL REJECTION RULES:
-If the image contains ANY non-road objects (laptop, keyboard, monitor, screen, desk, chair, indoor room, wall, ceiling, furniture, human face/body, mobile phone, paper document), YOU MUST IMMEDIATELY REJECT IT (status="rejected", aiScore=15).
-
-STRICT DUST & CLEANLINESS GRADING RULES:
-1. CLEAN SWEPT ROAD: Fully swept concrete/asphalt, clear of dust, mud, and litter -> Score 85-98 (Approved).
-2. DUSTY / SOIL-COVERED / UNSWEPT ROAD: Road surface has accumulated dust, silt, loose soil layer, sand, or un-swept dirt -> DEDUCT 10 TO 15 POINTS MAXIMUM! Score 72-76 (Approved with minor dust warning).
-3. LITTER / GARBAGE HEAPS: Remaining plastic, waste, or trash dumps -> Score 15-45 (Rejected).
+2. HYPER-THOROUGH DUST & SILT INSPECTION:
+Look closely at the road surface (including under daytime or night lighting) for accumulated fine dust, silt patches, un-swept sand, or soil layers.
+- FULLY SWEPT & CLEAN ROAD: Pristine, fully swept surface, free of dust, silt, and litter -> Score 85-98 (Approved).
+- ACCUMULATED DUST / SILT / UNSWEPT SOIL: Road surface has visible dust accumulation, silt patches, sand, or loose dirt layers -> DEDUCT 15-25 POINTS! Set Score 58-68 (STATUS="rejected" - Needs Sweeping!).
+- LITTER / WASTE / GARBAGE HEAPS: Plastic waste, paper litter, or garbage piles -> Set Score 15-45 (STATUS="rejected").
 
 Output strictly JSON:
 {
   "status": "approved" | "rejected",
-  "aiScore": number (0 to 100, set score below 70 if road is dusty, dirty, or littered),
-  "aiReason": "Single concise line under 15 words explaining status and dust/sanitation deduction."
+  "aiScore": number (0 to 100, set score BELOW 70 if road has dust, silt, dirt layer, or litter),
+  "aiReason": "Single concise line under 15 words explaining status and dust/sanitation audit deduction."
 }`;
 
           const response = await axios.post(
@@ -141,7 +140,7 @@ Output strictly JSON:
                 content: [
                   {
                     type: 'text',
-                    text: 'STRICT MUNICIPAL SANITATION AUDIT FOR KHAMMAM ROADS: Inspect the photo for outdoor road surface verification. If laptop, keyboard, monitor, screen, indoor room, wall, furniture, or non-road object, IMMEDIATELY REJECT (status="rejected", aiScore=15). If the road surface has accumulated dust, silt, or loose soil layer, DEDUCT 10 TO 15 POINTS MAXIMUM (Score 72-76, status="approved"). Only clean swept roads score 85-98 (approved). Output JSON with status ("approved"|"rejected"), aiScore (0-100), and aiReason (single concise line under 15 words).'
+                    text: 'STRICT MUNICIPAL SANITATION & DUST AUDIT FOR KHAMMAM ROADS: Inspect the photo thoroughly. If laptop, keyboard, monitor, screen, indoor room, wall, ceramic floor tiles, furniture, or non-road object, IMMEDIATELY REJECT (status="rejected", aiScore=15). If the road surface has accumulated fine dust, silt patches, un-swept sand, or soil layers, set aiScore to 58-68 and status="rejected" (Needs Sweeping!). Only pristine, fully swept roads score 85-98 (approved). Output JSON with status, aiScore, and aiReason.'
                   },
                   {
                     type: 'image_url',
