@@ -64,9 +64,11 @@ exports.evaluateTaskPhoto = async (imageInput, taskType = 'road', rdName = '') =
     // 1. Google Gemini Vision API Integration (Preferred Free Tier / High Accuracy)
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (geminiKey) {
-      try {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
-        const promptText = `STRICT MUNICIPAL SANITATION AUDIT: Inspect this photo for authentic outdoor road surface verification.
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+      for (const modelName of modelsToTry) {
+        try {
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`;
+          const promptText = `STRICT MUNICIPAL SANITATION AUDIT: Inspect this photo for authentic outdoor road surface verification.
 The photo MUST strictly show an outdoor road surface:
 - Cement CC Road (Concrete surface, expansion joints, roadside curb)
 - Damber BT Asphalt Road (Bitumen asphalt texture, aggregate)
@@ -83,41 +85,42 @@ Output strictly JSON:
   "aiReason": "Single concise line under 15 words explaining the decision."
 }`;
 
-        const response = await axios.post(
-          geminiUrl,
-          {
-            contents: [
-              {
-                parts: [
-                  { text: promptText },
-                  {
-                    inline_data: {
-                      mime_type: 'image/jpeg',
-                      data: base64Image
+          const response = await axios.post(
+            geminiUrl,
+            {
+              contents: [
+                {
+                  parts: [
+                    { text: promptText },
+                    {
+                      inline_data: {
+                        mime_type: 'image/jpeg',
+                        data: base64Image
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
+              ],
+              generationConfig: {
+                response_mime_type: 'application/json'
               }
-            ],
-            generationConfig: {
-              response_mime_type: 'application/json'
-            }
-          },
-          { timeout: 12000 }
-        );
+            },
+            { timeout: 12000 }
+          );
 
-        const textResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (textResponse) {
-          const result = JSON.parse(textResponse);
-          if (result.aiScore !== undefined) {
-            aiScore = parseInt(result.aiScore);
-            status = result.status || (aiScore >= 70 ? 'approved' : 'rejected');
-            aiReason = result.aiReason || (status === 'approved' ? `AI Score: ${aiScore}% - Road surface verified clean.` : `AI Rejection: Non-road or laptop photo detected.`);
-            return { aiScore, status, aiReason };
+          const textResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (textResponse) {
+            const result = JSON.parse(textResponse);
+            if (result.aiScore !== undefined) {
+              aiScore = parseInt(result.aiScore);
+              status = result.status || (aiScore >= 70 ? 'approved' : 'rejected');
+              aiReason = result.aiReason || (status === 'approved' ? `AI Score: ${aiScore}% - Road surface verified clean.` : `AI Rejection: Non-road or laptop photo detected.`);
+              return { aiScore, status, aiReason };
+            }
           }
+        } catch (geminiErr) {
+          console.warn(`Gemini Vision API (${modelName}) failed:`, geminiErr.message);
         }
-      } catch (geminiErr) {
-        console.warn('Gemini Vision API call failed, falling back:', geminiErr.message);
       }
     }
 
