@@ -32,11 +32,30 @@ app.use(express.json());
 // Serve static files for uploaded photos
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Serve static web dashboard frontend files
+const publicDir = path.join(__dirname, 'public');
+const fs = require('fs');
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
+}
+
 // API Routes
 app.use('/api', apiRoutes);
- 
-// Root route for simple health check
-app.get('/', (req, res) => {
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.send('Cleaning Task API is running');
+});
+
+// Fallback to index.html for Web Dashboard single page application routing
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+    return next();
+  }
+  const indexPath = path.join(publicDir, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
   res.send('Cleaning Task API is running');
 });
 
