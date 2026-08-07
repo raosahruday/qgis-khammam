@@ -782,17 +782,17 @@ const initDb = async () => {
           const jawanNameInProps = props.JAWAN_NAME || props.jawan_name;
           
           if (wardNoStr === '61') {
-            const highwayWorker = workers.find(w => w.email.includes('jawan_highway') || w.name === 'Sahruday');
+            const highwayWorker = workers.find(w => w.email?.includes('jawan_highway') || w.name === 'Sahruday');
             if (highwayWorker) {
               assignedWorkerId = highwayWorker.id;
             }
           } else if (wardNoStr === '8_1' || wardNoStr === '8_2' || wardNoStr === '8') {
-            const ward8Worker = workers.find(w => w.email.includes('jawan_8@') || w.name.includes('Sk Navab'));
+            const ward8Worker = workers.find(w => w.email?.includes('jawan_8@') || w.name?.includes('Sk Navab'));
             if (ward8Worker) {
               assignedWorkerId = ward8Worker.id;
             }
           } else if (wardNoStr === '15_1' || wardNoStr === '15_2' || wardNoStr === '15') {
-            const ward15Worker = workers.find(w => w.email.includes('jawan_15@') || w.name.includes('Srikanth'));
+            const ward15Worker = workers.find(w => w.email?.includes('jawan_15@') || w.name?.includes('Srikanth'));
             if (ward15Worker) {
               assignedWorkerId = ward15Worker.id;
             }
