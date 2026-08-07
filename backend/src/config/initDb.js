@@ -557,13 +557,15 @@ const initDb = async () => {
 
     console.log('✅ Default users checked/inserted.');
 
-    // 10. Shapefile auto-import if empty
-    const infraCheck = await db.query('SELECT COUNT(*) FROM infrastructure');
-    const infraCount = parseInt(infraCheck.rows[0].count);
+    // 10. Shapefile auto-import if not matching updated Export_Output_APP count (3271)
+    const roadsCheck = await db.query("SELECT COUNT(*) FROM infrastructure WHERE type = 'road'");
+    const roadsCount = parseInt(roadsCheck.rows[0].count);
     const rootPath = path.join(__dirname, '..', '..', '..'); // Repository root
     
-    if (infraCount === 0) {
-      console.log('--- Database infrastructure is empty. Commencing Shapefile import... ---');
+    if (roadsCount !== 3271) {
+      console.log(`--- Database roads count is ${roadsCount} (expected 3271). Clearing and re-importing updated shapefiles... ---`);
+      await db.query('TRUNCATE TABLE infrastructure RESTART IDENTITY;');
+
       const wardsShpFile = path.join(rootPath, 'Export_Output_2.shp');
       const rowShpFile = path.join(rootPath, 'Export_Output_3.shp');
       const roadsShpFile = path.join(rootPath, 'Export_Output_APP.shp');
@@ -578,7 +580,7 @@ const initDb = async () => {
         console.warn(`⚠️ Shapefiles not found in repo root at ${rootPath}. Skipping import.`);
       }
     } else {
-      console.log(`✅ Database already populated with ${infraCount} infrastructure features.`);
+      console.log(`✅ Database already populated with ${roadsCount} road infrastructure features.`);
     }
 
     // 11. User seeding if empty
