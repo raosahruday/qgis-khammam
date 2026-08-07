@@ -78,9 +78,9 @@ CRITICAL REJECTION RULES:
 If the image contains ANY non-road objects (laptop, keyboard, monitor, screen, desk, chair, indoor room, wall, ceiling, furniture, human face/body, mobile phone, paper document), YOU MUST IMMEDIATELY REJECT IT (status="rejected", aiScore=15).
 
 STRICT DUST & CLEANLINESS GRADING RULES:
-1. CLEAN SWEPT ROAD: Fully swept concrete/asphalt, clear of dust, mud, and litter -> Score 88-98 (Approved).
-2. DUSTY / SOIL-COVERED ROAD: Road surface has light dust, silt, or loose soil -> DEDUCT AT MOST 8 TO 10 POINTS MAX! Score 75-84 (Approved with minor dust note).
-3. HEAVY LITTER / GARBAGE HEAPS: Remaining plastic, waste, or trash dumps -> Score 15-50 (Rejected).
+1. CLEAN SWEPT ROAD: Fully swept concrete/asphalt, clear of dust, mud, and litter -> Score 85-98 (Approved).
+2. DUSTY / SOIL-COVERED / UNSWEPT ROAD: Road surface has accumulated dust, silt, loose soil layer, sand, or un-swept dirt -> DEDUCT 10 TO 15 POINTS MAXIMUM! Score 72-76 (Approved with minor dust warning).
+3. LITTER / GARBAGE HEAPS: Remaining plastic, waste, or trash dumps -> Score 15-45 (Rejected).
 
 Output strictly JSON:
 {
@@ -141,7 +141,7 @@ Output strictly JSON:
                 content: [
                   {
                     type: 'text',
-                    text: 'STRICT MUNICIPAL SANITATION AUDIT FOR KHAMMAM ROADS: Inspect the photo for outdoor road surface verification. If laptop, keyboard, monitor, screen, indoor room, wall, furniture, or non-road object, IMMEDIATELY REJECT (status="rejected", aiScore=15). If the road surface has light dust, silt, or loose soil layer, DEDUCT AT MOST 8 TO 10 POINTS MAX (Score 75-84, status="approved"). Only heavy litter/trash dumps score below 70. Output JSON with status ("approved"|"rejected"), aiScore (0-100), and aiReason (single concise line under 15 words).'
+                    text: 'STRICT MUNICIPAL SANITATION AUDIT FOR KHAMMAM ROADS: Inspect the photo for outdoor road surface verification. If laptop, keyboard, monitor, screen, indoor room, wall, furniture, or non-road object, IMMEDIATELY REJECT (status="rejected", aiScore=15). If the road surface has accumulated dust, silt, or loose soil layer, DEDUCT 10 TO 15 POINTS MAXIMUM (Score 72-76, status="approved"). Only clean swept roads score 85-98 (approved). Output JSON with status ("approved"|"rejected"), aiScore (0-100), and aiReason (single concise line under 15 words).'
                   },
                   {
                     type: 'image_url',
