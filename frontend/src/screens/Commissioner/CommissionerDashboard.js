@@ -140,15 +140,20 @@ export default function CommissionerDashboard({ navigation }) {
   }, [infrastructure]);
 
   const getDivisionList = () => {
-    return [...wardStats].sort((a, b) => {
+    const list = [...wardStats].sort((a, b) => {
       const numA = parseInt(a.name?.replace(/\D/g, '')) || 0;
       const numB = parseInt(b.name?.replace(/\D/g, '')) || 0;
       return numA - numB;
     });
+    if (!list.some(w => w.name === 'Ward 61' || w.id === 'ward_61')) {
+      list.push({ id: 'ward_61', name: 'Ward 61' });
+    }
+    return list;
   };
 
   const getSelectedWardNo = () => {
     if (!selectedWardFilter) return null;
+    if (selectedWardFilter === 'ward_61') return '61';
     const selectedWardObj = wardStats.find(w => w.id === selectedWardFilter);
     if (!selectedWardObj) return null;
     const match = selectedWardObj.name?.match(/\d+/);
@@ -222,10 +227,13 @@ export default function CommissionerDashboard({ navigation }) {
   };
 
   const getStatsForWard = (wardObj) => {
-    if (!wardObj) return { completed: 0, active: 0, pending: 0 };
-    
-    const match = wardObj.name?.match(/\d+/);
-    const wardNo = match ? match[0] : wardObj.name;
+    let wardNo = null;
+    if (selectedWardFilter === 'ward_61' || wardObj?.name === 'Ward 61') {
+      wardNo = '61';
+    } else if (wardObj) {
+      const match = wardObj.name?.match(/\d+/);
+      wardNo = match ? match[0] : wardObj.name;
+    }
     if (!wardNo) return { completed: 0, active: 0, pending: 0 };
 
     const filteredRoads = roadsOnly.filter(road => {
