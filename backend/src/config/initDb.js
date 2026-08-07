@@ -246,7 +246,7 @@ async function importParks() {
     );
 
     // 2. Read landmarks GeoJSON
-    const geojsonPath = 'c:\\khammam project\\QGIS\\landmarksfinally.geojson';
+    const geojsonPath = path.join(__dirname, '..', '..', '..', 'landmarksfinally.geojson');
     if (fs.existsSync(geojsonPath)) {
       const rawData = fs.readFileSync(geojsonPath, 'utf8');
       const geojson = JSON.parse(rawData);
@@ -279,6 +279,13 @@ async function importParks() {
         const lng = geometry.coordinates[0];
         const lat = geometry.coordinates[1];
         const areaGeojson = [{ latitude: lat, longitude: lng }];
+
+        // Insert into infrastructure table
+        await db.query(
+          `INSERT INTO infrastructure (name, type, geom, properties)
+           VALUES ($1, 'park', ST_SetSRID(ST_Point($2, $3), 4326), $4)`,
+          [parkName, lng, lat, JSON.stringify({ ...properties, Ward_No: wardNo })]
+        );
 
         const taskCheck = await db.query(
           "SELECT id FROM tasks WHERE title = $1 AND task_type = 'park'",
@@ -320,7 +327,7 @@ async function importParks() {
         }
         taskCount++;
       }
-      console.log(`✅ Seeded ${taskCount} park tasks.`);
+      console.log(`✅ Seeded ${taskCount} parks & park tasks.`);
     } else {
       console.warn(`⚠️ Landmarks GeoJSON not found at ${geojsonPath}. Skipping park tasks seeding.`);
     }
@@ -695,10 +702,10 @@ const initDb = async () => {
     `, [jawan15PasswordHash, ward15Id]);
     console.log('✅ Jawan 15 checked/inserted.');
 
-    // Seed Park Inspector/Jawans and tasks if not present
-    const parkUsersCheck = await db.query("SELECT COUNT(*) FROM users WHERE role = 'park_inspector'");
-    const parkUsersCount = parseInt(parkUsersCheck.rows[0].count);
-    if (parkUsersCount === 0) {
+    // Seed Park Inspector/Jawans and tasks if not present in infrastructure
+    const parksCountCheck = await db.query("SELECT COUNT(*) FROM infrastructure WHERE type = 'park'");
+    const parksCount = parseInt(parksCountCheck.rows[0].count);
+    if (parksCount === 0) {
       await importParks();
     }
 
