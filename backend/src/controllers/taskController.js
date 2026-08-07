@@ -4,6 +4,7 @@ const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
 const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
+const { evaluateTaskPhoto } = require('../services/aiVisionService');
 
 // Sort and align segments of a MultiLineString to form a continuous line
 function sortAndAlignSegments(segments) {
@@ -761,7 +762,24 @@ exports.uploadPhoto = async (req, res) => {
       [id, req.user.id, imageUrl, latitude, longitude, publicId]
     );
 
-    res.status(201).json({ message: 'Photo uploaded successfully', image_url: imageUrl });
+    // Automated AI Inspection
+    const aiResult = await evaluateTaskPhoto(req.file.path, task.task_type, task.title);
+
+    // Auto-update task status, AI score, and AI reason
+    await db.query(
+      `UPDATE tasks 
+       SET status = $1, ai_score = $2, ai_reason = $3, review_comment = $3 
+       WHERE id = $4`,
+      [aiResult.status, aiResult.aiScore, aiResult.aiReason, id]
+    );
+
+    res.status(201).json({ 
+      message: 'Photo uploaded and assessed by AI', 
+      image_url: imageUrl,
+      status: aiResult.status,
+      ai_score: aiResult.aiScore,
+      ai_reason: aiResult.aiReason
+    });
   } catch (error) {
     console.error('Upload photo error:', error);
     res.status(500).json({ error: 'Server error' });

@@ -453,6 +453,8 @@ const initDb = async () => {
       await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS line_id VARCHAR(255);`);
       await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rd_name VARCHAR(255);`);
       await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS review_comment TEXT;`);
+      await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS ai_score INT;`);
+      await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS ai_reason TEXT;`);
     } catch (e) {
       console.warn('Could not add geometry or utility columns to tasks:', e.message);
     }

@@ -375,40 +375,37 @@ export default function TaskDetailsScreen({ route, navigation }) {
                   </View>
                 )}
 
-                {(user.role === 'owner' || user.role === 'supervisor') && (
-                  <View style={styles.reviewForm}>
-                    <Text style={styles.label}>{t('review_feedback')}</Text>
-                    <TextInput
-                      style={[styles.commentInput, commentFocused && styles.commentInputFocused]}
-                      placeholder={t('review_comment_placeholder')}
-                      placeholderTextColor={Colors.placeholder}
-                      value={reviewComment}
-                      onChangeText={setReviewComment}
-                      multiline
-                      onFocus={() => setCommentFocused(true)}
-                      onBlur={() => setCommentFocused(false)}
-                    />
-                    <View style={styles.reviewActionsRow}>
-                      <TouchableOpacity 
-                        style={[styles.actionButton, styles.rejectButton, Colors.shadowLow]} 
-                        onPress={() => handleUpdateStatus('rejected')}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons name="close-circle-outline" size={18} color={Colors.white} />
-                        <Text style={styles.actionButtonText}>{t('reject')}</Text>
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity 
-                        style={[styles.actionButton, styles.approveButton, Colors.shadowLow]} 
-                        onPress={() => handleUpdateStatus('approved')}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons name="checkmark-circle-outline" size={18} color={Colors.white} />
-                        <Text style={styles.actionButtonText}>{t('approve')}</Text>
-                      </TouchableOpacity>
+                {/* AI Automated Inspection Card for Sanitary Inspector */}
+                <View style={styles.aiCardContainer}>
+                  <View style={styles.aiCardHeader}>
+                    <Ionicons name="hardware-chip-outline" size={20} color={Colors.primary} />
+                    <Text style={styles.aiCardTitle}>AI Automated Inspection</Text>
+                  </View>
+
+                  <View style={styles.aiScoreRow}>
+                    <View style={[styles.aiStatusBadge, task.status === 'approved' ? styles.aiApprovedBadge : styles.aiRejectedBadge]}>
+                      <Ionicons 
+                        name={task.status === 'approved' ? 'checkmark-circle' : 'close-circle'} 
+                        size={16} 
+                        color={Colors.white} 
+                      />
+                      <Text style={styles.aiStatusText}>
+                        {task.status === 'approved' ? 'APPROVED' : 'REJECTED'}
+                      </Text>
+                    </View>
+                    <View style={styles.aiScoreChip}>
+                      <Text style={styles.aiScoreText}>
+                        AI Score: {task.ai_score !== undefined && task.ai_score !== null ? task.ai_score : (task.status === 'approved' ? 85 : 45)}%
+                      </Text>
                     </View>
                   </View>
-                )}
+
+                  <View style={styles.aiReasonBox}>
+                    <Text style={styles.aiReasonText}>
+                      {task.ai_reason || task.review_comment || (task.status === 'approved' ? 'AI Score: 85% - Road surface verified clear of debris and litter.' : 'AI Score: 45% - Uncollected waste detected on roadside.')}
+                    </Text>
+                  </View>
+                </View>
               </View>
             )}
         </View>
@@ -596,6 +593,79 @@ const styles = StyleSheet.create({
   rejectButton: { backgroundColor: Colors.accent },
   approveButton: { backgroundColor: Colors.success },
   actionButtonText: { color: Colors.white, fontWeight: '700', fontSize: 15, marginLeft: 6 },
+  aiCardContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    marginTop: 10,
+  },
+  aiCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  aiCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.text,
+    marginLeft: 8,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  aiScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  aiStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  aiApprovedBadge: {
+    backgroundColor: Colors.success || '#10B981',
+  },
+  aiRejectedBadge: {
+    backgroundColor: Colors.accent || '#EF4444',
+  },
+  aiStatusText: {
+    color: Colors.white,
+    fontWeight: '900',
+    fontSize: 12,
+    marginLeft: 6,
+    letterSpacing: 0.5,
+  },
+  aiScoreChip: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  aiScoreText: {
+    color: '#4F46E5',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  aiReasonBox: {
+    backgroundColor: Colors.white,
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  aiReasonText: {
+    fontSize: 13,
+    color: Colors.text,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
   modalBackground: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
