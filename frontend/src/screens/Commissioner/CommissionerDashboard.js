@@ -833,7 +833,7 @@ export default function CommissionerDashboard({ navigation }) {
                         : selectedWardFilter 
                           ? (wardStats.find(w => w.id === selectedWardFilter)?.name === 'Ward 61'
                              ? t('highways')
-                             : `${t('division_text')}: ${wardStats.find(w => w.id === selectedWardFilter)?.name}`) 
+                             : `${t('division_text')}: ${wardStats.find(w => w.id === selectedWardFilter)?.name || (typeof selectedWardFilter === 'string' ? selectedWardFilter : t('all_divisions'))}`) 
                           : t('all_divisions')}
                     </Text>
                   </View>
@@ -1113,7 +1113,7 @@ export default function CommissionerDashboard({ navigation }) {
                     : selectedWardFilter 
                       ? (wardStats.find(w => w.id === selectedWardFilter)?.name === 'Ward 61'
                          ? t('highways')
-                         : `${t('division_text')}: ${wardStats.find(w => w.id === selectedWardFilter)?.name}`) 
+                         : `${t('division_text')}: ${wardStats.find(w => w.id === selectedWardFilter)?.name || (typeof selectedWardFilter === 'string' ? selectedWardFilter : t('all_divisions'))}`) 
                       : t('select_division')}
                 </Text>
               </View>
@@ -1190,18 +1190,27 @@ export default function CommissionerDashboard({ navigation }) {
 
           <View style={styles.statsContainer}>
               <View style={[styles.statBox, { backgroundColor: Colors.successBg }, Colors.shadowLow]}>
+                <Ionicons name="checkbox-outline" size={20} color={Colors.success} style={{ marginBottom: 2 }} />
                 <Text style={[styles.statVal, { color: Colors.success }]}>{getStatsValues().completed}</Text>
                 <Text style={styles.statLabel}>{t('cleaned')}</Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: Colors.warningBg }, Colors.shadowLow]}>
+                <Ionicons name="hourglass-outline" size={20} color={Colors.warning} style={{ marginBottom: 2 }} />
                 <Text style={[styles.statVal, { color: Colors.warning }]}>{getStatsValues().active}</Text>
                 <Text style={styles.statLabel}>{t('active')}</Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: Colors.errorBg }, Colors.shadowLow]}>
+                <Ionicons name="alert-circle-outline" size={20} color={Colors.accent} style={{ marginBottom: 2 }} />
                 <Text style={[styles.statVal, { color: Colors.accent }]}>{getStatsValues().pending}</Text>
                 <Text style={styles.statLabel}>{t('pending')}</Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: `${Colors.blue}10` }, Colors.shadowLow]}>
+                <Ionicons 
+                  name={selectedWardFilter === 'parks' ? "leaf-outline" : "bus-outline"} 
+                  size={20} 
+                  color={Colors.blue} 
+                  style={{ marginBottom: 2 }}
+                />
                 <Text style={[styles.statVal, { color: Colors.blue }]}>
                   {selectedWardFilter === 'parks'
                     ? tasks.filter(t => t.task_type === 'park').length
