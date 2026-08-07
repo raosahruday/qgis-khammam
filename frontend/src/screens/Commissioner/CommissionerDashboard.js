@@ -38,28 +38,35 @@ const MemoizedWards = React.memo(({ wardStats, selectedWardId, onWardPress }) =>
 });
 
 // --- Batched road layer: renders all roads of one status as a SINGLE GeoJSON layer ---
-const MemoizedRoadLayers = React.memo(({ pendingRoads, activeRoads, completedRoads, isZoomedOut, onRoadPress }) => {
+const MemoizedRoadLayers = React.memo(({ pendingRoads, activeRoads, completedRoads, rejectedRoads, isZoomedOut, onRoadPress }) => {
   const w = isZoomedOut ? 1.0 : 1.75;
   return (
     <>
-      {/* Pending roads — Red, lowest priority */}
+      {/* Pending & Uncleaned roads — Red */}
       <RoadsLayer
         features={pendingRoads}
-        color={Colors.accent}
+        color={Colors.accent || '#EF4444'}
         weight={w}
+        onFeaturePress={onRoadPress}
+      />
+      {/* Rejected (Invalid Photo / Laptop) roads — Orange */}
+      <RoadsLayer
+        features={rejectedRoads}
+        color={Colors.orange || '#F97316'}
+        weight={w + 0.25}
         onFeaturePress={onRoadPress}
       />
       {/* Completed roads — Green */}
       <RoadsLayer
         features={completedRoads}
-        color={Colors.success}
+        color={Colors.success || '#10B981'}
         weight={w + 0.5}
         onFeaturePress={onRoadPress}
       />
-      {/* Active roads — Yellow, highest priority */}
+      {/* Active / Submitted roads — Yellow */}
       <RoadsLayer
         features={activeRoads}
-        color={Colors.warning}
+        color={Colors.warning || '#F59E0B'}
         weight={w + 0.75}
         onFeaturePress={onRoadPress}
       />
@@ -69,6 +76,7 @@ const MemoizedRoadLayers = React.memo(({ pendingRoads, activeRoads, completedRoa
   return prevProps.pendingRoads === nextProps.pendingRoads &&
          prevProps.activeRoads === nextProps.activeRoads &&
          prevProps.completedRoads === nextProps.completedRoads &&
+         prevProps.rejectedRoads === nextProps.rejectedRoads &&
          prevProps.isZoomedOut === nextProps.isZoomedOut;
 });
 
@@ -487,7 +495,7 @@ export default function CommissionerDashboard({ navigation }) {
     }
   };
 
-  const { pendingRoads, activeRoads, completedRoads } = useMemo(() => {
+  const { pendingRoads, activeRoads, completedRoads, rejectedRoads } = useMemo(() => {
     const filteredRoads = getFilteredRoads();
     const taskMap = {};
     tasks.forEach(t => {
@@ -497,6 +505,7 @@ export default function CommissionerDashboard({ navigation }) {
     const pending = [];
     const active = [];
     const completed = [];
+    const rejected = [];
 
     filteredRoads.forEach(road => {
       const geom = road.parsedGeom;
@@ -511,14 +520,16 @@ export default function CommissionerDashboard({ navigation }) {
         pending.push(entry);
       } else if (task.status === 'approved') {
         completed.push(entry);
-      } else if (task.status === 'submitted') {
-        active.push(entry);
+      } else if (task.status === 'rejected') {
+        rejected.push(entry); // Invalid photo / Laptop (Orange)
+      } else if (task.status === 'submitted' || task.status === 'in_progress') {
+        active.push(entry); // Active (Yellow)
       } else {
-        pending.push(entry);
+        pending.push(entry); // Uncleaned / Pending (Red)
       }
     });
 
-    return { pendingRoads: pending, activeRoads: active, completedRoads: completed };
+    return { pendingRoads: pending, activeRoads: active, completedRoads: completed, rejectedRoads: rejected };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [infrastructure, tasks, selectedWardFilter]);
 
@@ -936,6 +947,7 @@ export default function CommissionerDashboard({ navigation }) {
               pendingRoads={pendingRoads}
               activeRoads={activeRoads}
               completedRoads={completedRoads}
+              rejectedRoads={rejectedRoads}
               isZoomedOut={isZoomedOut}
               onRoadPress={handleRoadPress}
             />
@@ -994,9 +1006,10 @@ export default function CommissionerDashboard({ navigation }) {
           
            {/* Map Legend */}
            <View style={[styles.legend, Colors.shadowMedium]}>
-              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.success }]} /><Text style={styles.legendText}>Cleaned</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.warning }]} /><Text style={styles.legendText}>Active</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.accent }]} /><Text style={styles.legendText}>Pending</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.success || '#10B981' }]} /><Text style={styles.legendText}>Cleaned (Green)</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.warning || '#F59E0B' }]} /><Text style={styles.legendText}>Active (Yellow)</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.uncleaned || '#EF4444' }]} /><Text style={styles.legendText}>Uncleaned (Red)</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.rejected || '#F97316' }]} /><Text style={styles.legendText}>Rejected Photo (Orange)</Text></View>
            </View>
 
            {/* Selected Ward Info Hover Overlay */}
@@ -1240,6 +1253,7 @@ export default function CommissionerDashboard({ navigation }) {
                 pendingRoads={pendingRoads}
                 activeRoads={activeRoads}
                 completedRoads={completedRoads}
+                rejectedRoads={rejectedRoads}
                 isZoomedOut={isZoomedOut}
                 onRoadPress={handleRoadPress}
               />
@@ -1298,9 +1312,10 @@ export default function CommissionerDashboard({ navigation }) {
             
             {/* Map Legend */}
             <View style={[styles.legend, Colors.shadowMedium]}>
-               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.success }]} /><Text style={styles.legendText}>{t('cleaned')}</Text></View>
-               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.warning }]} /><Text style={styles.legendText}>{t('active')}</Text></View>
-               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.accent }]} /><Text style={styles.legendText}>{t('pending')}</Text></View>
+               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.success || '#10B981' }]} /><Text style={styles.legendText}>{t('cleaned')} (Green)</Text></View>
+               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.warning || '#F59E0B' }]} /><Text style={styles.legendText}>{t('active')} (Yellow)</Text></View>
+               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.uncleaned || '#EF4444' }]} /><Text style={styles.legendText}>Uncleaned (Red)</Text></View>
+               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.rejected || '#F97316' }]} /><Text style={styles.legendText}>Rejected (Orange)</Text></View>
             </View>
 
             {/* Selected Ward Info Hover Overlay */}

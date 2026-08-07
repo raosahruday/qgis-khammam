@@ -12,11 +12,20 @@ export default {
   error: '#EF4444',         // Modern Red
   success: '#10B981',       // Modern Emerald Green
   warning: '#F59E0B',       // Modern Amber
+  orange: '#F97316',        // Vibrant Orange for Invalid Photo Rejections
   blue: '#3B82F6',          // Modern Royal Blue
 
   // Status Badge Colors (Soft backgrounds with solid text)
+  approved: '#10B981',      // Approved Road (Green)
+  uncleaned: '#EF4444',     // Uncleaned / Dirty Road (Red)
+  rejected: '#F97316',      // Invalid Photo / Laptop (Orange)
+
   successBg: '#E6F4EA',
   successText: '#137333',
+  uncleanedBg: '#FCE8E6',
+  uncleanedText: '#C5221F',
+  rejectedBg: '#FFF7ED',
+  rejectedText: '#C2410C',
   warningBg: '#FEF7E0',
   warningText: '#B06000',
   errorBg: '#FCE8E6',

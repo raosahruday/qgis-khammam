@@ -77,15 +77,15 @@ REJECTION RULE: If the image shows ANY non-road objects (laptop, keyboard, monit
 
 2. HYPER-THOROUGH DUST & SILT INSPECTION:
 Look closely at the road surface (including under daytime or night lighting) for accumulated fine dust, silt patches, un-swept sand, or soil layers.
-- FULLY SWEPT & CLEAN ROAD: Pristine, fully swept surface, free of dust, silt, and litter -> Score 85-98 (Approved).
-- ACCUMULATED DUST / SILT / UNSWEPT SOIL: Road surface has visible dust accumulation, silt patches, sand, or loose dirt layers -> DEDUCT 15-25 POINTS! Set Score 58-68 (STATUS="rejected" - Needs Sweeping!).
-- LITTER / WASTE / GARBAGE HEAPS: Plastic waste, paper litter, or garbage piles -> Set Score 15-45 (STATUS="rejected").
+- FULLY SWEPT & CLEAN ROAD: Pristine, fully swept surface, free of dust, silt, and litter -> Score 85-98 (STATUS="approved").
+- ACCUMULATED DUST / SILT / UNSWEPT SOIL: Road surface has visible dust accumulation, silt patches, sand, loose dirt layers, or litter -> DEDUCT POINTS! Set Score 55-68 (STATUS="uncleaned" - Needs Sweeping!).
+- INVALID / REJECTED PHOTO: Non-road object (laptop, keyboard, monitor, screen, desk, chair, indoor room, ceramic wall/floor tiles, furniture, human face, paper document) -> Set Score 15 (STATUS="rejected" - Invalid Photo!).
 
 Output strictly JSON:
 {
-  "status": "approved" | "rejected",
-  "aiScore": number (0 to 100, set score BELOW 70 if road has dust, silt, dirt layer, or litter),
-  "aiReason": "Single concise line under 15 words explaining status and dust/sanitation audit deduction."
+  "status": "approved" | "uncleaned" | "rejected",
+  "aiScore": number (0 to 100),
+  "aiReason": "Single concise line under 15 words explaining status and deduction."
 }`;
 
           const response = await axios.post(
@@ -116,8 +116,14 @@ Output strictly JSON:
             const result = JSON.parse(textResponse);
             if (result.aiScore !== undefined) {
               aiScore = parseInt(result.aiScore);
-              status = result.status || (aiScore >= 70 ? 'approved' : 'rejected');
-              aiReason = result.aiReason || (status === 'approved' ? `AI Score: ${aiScore}% - Road surface verified clean.` : `AI Rejection: Non-road or laptop photo detected.`);
+              if (result.status === 'rejected' || aiScore <= 25) {
+                status = 'rejected';
+              } else if (aiScore < 70 || result.status === 'uncleaned') {
+                status = 'uncleaned';
+              } else {
+                status = 'approved';
+              }
+              aiReason = result.aiReason || (status === 'approved' ? `AI Score: ${aiScore}% - Road surface verified clean.` : status === 'uncleaned' ? `AI Score: ${aiScore}% - Uncleaned road with accumulated dust/litter.` : `AI Rejection: Non-road or laptop photo detected.`);
               return { aiScore, status, aiReason };
             }
           }
@@ -163,8 +169,14 @@ Output strictly JSON:
         const result = JSON.parse(response.data.choices[0].message.content);
         if (result.aiScore !== undefined) {
           aiScore = parseInt(result.aiScore);
-          status = result.status || (aiScore >= 70 ? 'approved' : 'rejected');
-          aiReason = result.aiReason || (status === 'approved' ? `AI Score: ${aiScore}% - Sanitation standard met.` : `AI Rejection: Non-road photo detected.`);
+          if (result.status === 'rejected' || aiScore <= 25) {
+            status = 'rejected';
+          } else if (aiScore < 70 || result.status === 'uncleaned') {
+            status = 'uncleaned';
+          } else {
+            status = 'approved';
+          }
+          aiReason = result.aiReason || (status === 'approved' ? `AI Score: ${aiScore}% - Sanitation standard met.` : status === 'uncleaned' ? `AI Score: ${aiScore}% - Uncleaned road with accumulated dust/litter.` : `AI Rejection: Non-road photo detected.`);
           return { aiScore, status, aiReason };
         }
       } catch (apiErr) {

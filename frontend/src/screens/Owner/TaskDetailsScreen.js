@@ -147,19 +147,25 @@ export default function TaskDetailsScreen({ route, navigation }) {
      longitudeDelta: 0.01,
   } : { latitude: 17.2473, longitude: 80.1514, latitudeDelta: 0.05, longitudeDelta: 0.05 };
 
-  let strokeColor = Colors.accent;
-  if (task.status === 'submitted') {
+  let strokeColor = Colors.uncleaned; // Default: Uncleaned (Red)
+  if (task.status === 'submitted' || task.status === 'in_progress') {
       strokeColor = Colors.warning;
   } else if (task.status === 'approved') {
-      strokeColor = Colors.success;
+      strokeColor = Colors.success; // Green
+  } else if (task.status === 'uncleaned') {
+      strokeColor = Colors.uncleaned; // Red
+  } else if (task.status === 'rejected') {
+      strokeColor = Colors.rejected; // Orange
   }
 
   const getStatusBadgeColors = (status) => {
     switch (status) {
-      case 'approved': return { bg: Colors.successBg, text: Colors.successText };
-      case 'submitted': return { bg: Colors.warningBg, text: Colors.warningText };
-      case 'in_progress': return { bg: Colors.infoBg, text: Colors.infoText };
-      default: return { bg: Colors.errorBg, text: Colors.errorText };
+      case 'approved': return { bg: Colors.successBg, text: Colors.successText, label: 'APPROVED ROAD' };
+      case 'uncleaned': return { bg: Colors.uncleanedBg, text: Colors.uncleanedText, label: 'UNCLEANED ROAD' };
+      case 'rejected': return { bg: Colors.rejectedBg, text: Colors.rejectedText, label: 'REJECTED PHOTO' };
+      case 'submitted': return { bg: Colors.warningBg, text: Colors.warningText, label: 'SUBMITTED' };
+      case 'in_progress': return { bg: Colors.infoBg, text: Colors.infoText, label: 'IN PROGRESS' };
+      default: return { bg: Colors.uncleanedBg, text: Colors.uncleanedText, label: (status || 'PENDING').toUpperCase() };
     }
   };
 
@@ -191,11 +197,15 @@ export default function TaskDetailsScreen({ route, navigation }) {
                    lineId && t.line_id === lineId.toString()
                  );
 
-                 let roadColor = Colors.accent; // Default: Pending (Red)
+                 let roadColor = Colors.uncleaned; // Default: Red
                  if (matchingTask) {
                    if (matchingTask.status === 'approved') {
-                     roadColor = Colors.success; // Completed (Green)
-                   } else if (matchingTask.status === 'submitted') {
+                     roadColor = Colors.success; // Approved (Green)
+                   } else if (matchingTask.status === 'uncleaned') {
+                     roadColor = Colors.uncleaned; // Uncleaned Road (Red)
+                   } else if (matchingTask.status === 'rejected') {
+                     roadColor = Colors.rejected; // Invalid Photo / Laptop (Orange)
+                   } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
                      roadColor = Colors.warning; // Active/Submitted (Yellow)
                    }
                  }
@@ -303,7 +313,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
           </View>
           <View style={[styles.statusBadge, { backgroundColor: badgeColors.bg }]}>
             <Text style={[styles.statusText, { color: badgeColors.text }]}>
-              {t(task.status.toLowerCase()) || task.status.replace('_', ' ').toUpperCase()}
+              {badgeColors.label}
             </Text>
           </View>
         </View>
@@ -344,70 +354,76 @@ export default function TaskDetailsScreen({ route, navigation }) {
                 </View>
             </View>
 
-            {(task.status === 'submitted' || task.status === 'in_progress') && (
-              <View style={styles.reviewSection}>
-                {photos.length > 0 ? (
-                  <View style={styles.photoGallerySection}>
-                    <Text style={styles.galleryLabel}>📸 {t('uploaded_proofs')} ({photos.length})</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
-                      {photos.map((item) => (
-                        <TouchableOpacity 
-                          key={item.id} 
-                          style={[styles.photoWrapper, Colors.shadowLow]}
-                          onPress={() => setSelectedPhoto(getImageUrl(item.image_url))}
-                          activeOpacity={0.9}
-                        >
-                          <Image source={{ uri: getImageUrl(item.image_url) }} style={styles.galleryImage} />
-                          <View style={styles.photoMeta}>
-                            <Ionicons name="calendar-outline" size={10} color={Colors.textSecondary} />
-                            <Text style={styles.photoDate}>
-                              {new Date(item.uploaded_at).toLocaleDateString()} {new Date(item.uploaded_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                ) : (
-                  <View style={styles.noPhotosBox}>
-                    <Ionicons name="images-outline" size={24} color={Colors.textSecondary} />
-                    <Text style={styles.noPhotosText}>{t('no_photos')}</Text>
-                  </View>
-                )}
+            {/* Photos & AI Review Card (Always visible to SI after photo upload / AI review) */}
+            <View style={styles.reviewSection}>
+              {photos.length > 0 ? (
+                <View style={styles.photoGallerySection}>
+                  <Text style={styles.galleryLabel}>📸 {t('uploaded_proofs')} ({photos.length})</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+                    {photos.map((item) => (
+                      <TouchableOpacity 
+                        key={item.id} 
+                        style={[styles.photoWrapper, Colors.shadowLow]}
+                        onPress={() => setSelectedPhoto(getImageUrl(item.image_url))}
+                        activeOpacity={0.9}
+                      >
+                        <Image source={{ uri: getImageUrl(item.image_url) }} style={styles.galleryImage} />
+                        <View style={styles.photoMeta}>
+                          <Ionicons name="calendar-outline" size={10} color={Colors.textSecondary} />
+                          <Text style={styles.photoDate}>
+                            {new Date(item.uploaded_at).toLocaleDateString()} {new Date(item.uploaded_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : (
+                <View style={styles.noPhotosBox}>
+                  <Ionicons name="images-outline" size={24} color={Colors.textSecondary} />
+                  <Text style={styles.noPhotosText}>{t('no_photos')}</Text>
+                </View>
+              )}
 
-                {/* AI Automated Inspection Card for Sanitary Inspector */}
-                <View style={styles.aiCardContainer}>
-                  <View style={styles.aiCardHeader}>
-                    <Ionicons name="hardware-chip-outline" size={20} color={Colors.primary} />
-                    <Text style={styles.aiCardTitle}>AI Automated Inspection</Text>
-                  </View>
+              {/* AI Automated Inspection Card for Sanitary Inspector */}
+              <View style={styles.aiCardContainer}>
+                <View style={styles.aiCardHeader}>
+                  <Ionicons name="hardware-chip-outline" size={20} color={Colors.primary} />
+                  <Text style={styles.aiCardTitle}>AI Automated Inspection</Text>
+                </View>
 
-                  <View style={styles.aiScoreRow}>
-                    <View style={[styles.aiStatusBadge, task.status === 'approved' ? styles.aiApprovedBadge : styles.aiRejectedBadge]}>
-                      <Ionicons 
-                        name={task.status === 'approved' ? 'checkmark-circle' : 'close-circle'} 
-                        size={16} 
-                        color={Colors.white} 
-                      />
-                      <Text style={styles.aiStatusText}>
-                        {task.status === 'approved' ? 'APPROVED' : 'REJECTED'}
-                      </Text>
-                    </View>
-                    <View style={styles.aiScoreChip}>
-                      <Text style={styles.aiScoreText}>
-                        AI Score: {task.ai_score !== undefined && task.ai_score !== null ? task.ai_score : (task.status === 'approved' ? 85 : 45)}%
-                      </Text>
-                    </View>
+                <View style={styles.aiScoreRow}>
+                  <View style={[
+                    styles.aiStatusBadge, 
+                    task.status === 'approved' 
+                      ? styles.aiApprovedBadge 
+                      : task.status === 'uncleaned' 
+                        ? styles.aiUncleanedBadge 
+                        : styles.aiRejectedBadge
+                  ]}>
+                    <Ionicons 
+                      name={task.status === 'approved' ? 'checkmark-circle' : task.status === 'uncleaned' ? 'alert-circle' : 'close-circle'} 
+                      size={16} 
+                      color={Colors.white} 
+                    />
+                    <Text style={styles.aiStatusText}>
+                      {task.status === 'approved' ? 'APPROVED' : task.status === 'uncleaned' ? 'UNCLEANED ROAD' : 'REJECTED PHOTO'}
+                    </Text>
                   </View>
-
-                  <View style={styles.aiReasonBox}>
-                    <Text style={styles.aiReasonText}>
-                      {task.ai_reason || task.review_comment || (task.status === 'approved' ? 'AI Score: 85% - Road surface verified clear of debris and litter.' : 'AI Score: 45% - Uncollected waste detected on roadside.')}
+                  <View style={styles.aiScoreChip}>
+                    <Text style={styles.aiScoreText}>
+                      AI Score: {task.ai_score !== undefined && task.ai_score !== null ? task.ai_score : (task.status === 'approved' ? 85 : 45)}%
                     </Text>
                   </View>
                 </View>
+
+                <View style={styles.aiReasonBox}>
+                  <Text style={styles.aiReasonText}>
+                    {task.ai_reason || task.review_comment || (task.status === 'approved' ? 'AI Score: 85% - Road surface verified clear of debris and litter.' : 'AI Score: 45% - Uncollected waste detected on roadside.')}
+                  </Text>
+                </View>
               </View>
-            )}
+            </View>
         </View>
       </ScrollView>
 
@@ -628,10 +644,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   aiApprovedBadge: {
-    backgroundColor: Colors.success || '#10B981',
+    backgroundColor: Colors.success || '#10B981', // Green
+  },
+  aiUncleanedBadge: {
+    backgroundColor: Colors.uncleaned || '#EF4444', // Red
   },
   aiRejectedBadge: {
-    backgroundColor: Colors.accent || '#EF4444',
+    backgroundColor: Colors.rejected || '#F97316', // Orange
   },
   aiStatusText: {
     color: Colors.white,
