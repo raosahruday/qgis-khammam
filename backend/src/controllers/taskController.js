@@ -206,11 +206,11 @@ exports.swipeStatus = async (req, res) => {
       await db.query('DELETE FROM photos WHERE task_id = $1', [id]);
     }
 
-    if (type === 'complete') {
+    if (type === 'complete' || type === 'submit') {
       const isPark = task.task_type === 'park';
       const minPhotosRequired = isPark ? 4 : 1;
-      const photosCheck = await db.query('SELECT COUNT(*) FROM photos WHERE task_id = $1', [id]);
-      const currentCount = parseInt(photosCheck.rows[0].count);
+      const photosCheck = await db.query('SELECT image_url FROM photos WHERE task_id = $1 ORDER BY uploaded_at DESC', [id]);
+      const currentCount = photosCheck.rows.length;
       
       if (currentCount < minPhotosRequired) {
         return res.status(400).json({ 
@@ -219,6 +219,32 @@ exports.swipeStatus = async (req, res) => {
             : 'Please upload a photo proof first before completing the task.' 
         });
       }
+
+      // Automated AI Inspection triggered ONLY when Complete Task button is pressed
+      const photoUrl = photosCheck.rows[0].image_url;
+      const fullPhotoUrl = photoUrl.startsWith('http') 
+        ? photoUrl 
+        : `${req.protocol}://${req.get('host')}${photoUrl}`;
+
+      console.log(`[AI Assessment] Inspecting task photo upon completion click: ${fullPhotoUrl}`);
+      const aiResult = await evaluateTaskPhoto(fullPhotoUrl, task.task_type, task.title);
+
+      await db.query(
+        `UPDATE tasks 
+         SET status = $1, ai_score = $2, ai_reason = $3, review_comment = $3 
+         WHERE id = $4`,
+        [aiResult.status, aiResult.aiScore, aiResult.aiReason, id]
+      );
+
+      return res.json({ 
+        success: true, 
+        status: aiResult.status, 
+        ai_score: aiResult.aiScore,
+        ai_reason: aiResult.aiReason,
+        message: aiResult.status === 'approved' 
+          ? `Task completed & AI approved (${aiResult.aiScore}%).`
+          : `Task completed but AI rejected (${aiResult.aiScore}%): ${aiResult.aiReason}` 
+      });
     }
 
     const newStatus = type === 'start' ? 'in_progress' : 'submitted';
@@ -757,30 +783,16 @@ exports.uploadPhoto = async (req, res) => {
       [id, req.user.id, imageUrl, latitude, longitude, publicId]
     );
 
-    // Automated AI Inspection
-    const aiResult = await evaluateTaskPhoto(req.file.path, task.task_type, task.title);
-
-    // Clean up temporary local upload file after AI inspection
+    // Clean up temporary local upload file after saving
     if (req.file && req.file.path && fs.existsSync(req.file.path)) {
       fs.unlink(req.file.path, (err) => {
         if (err) console.error('Error deleting local temp file:', err);
       });
     }
 
-    // Auto-update task status, AI score, and AI reason
-    await db.query(
-      `UPDATE tasks 
-       SET status = $1, ai_score = $2, ai_reason = $3, review_comment = $3 
-       WHERE id = $4`,
-      [aiResult.status, aiResult.aiScore, aiResult.aiReason, id]
-    );
-
     res.status(201).json({ 
-      message: 'Photo uploaded and assessed by AI', 
-      image_url: imageUrl,
-      status: aiResult.status,
-      ai_score: aiResult.aiScore,
-      ai_reason: aiResult.aiReason
+      message: 'Photo uploaded successfully. Press Complete Task to initiate AI inspection.', 
+      image_url: imageUrl
     });
   } catch (error) {
     console.error('Upload photo error:', error);

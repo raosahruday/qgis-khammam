@@ -1,7 +1,9 @@
 const fs = require('fs');
+const axios = require('axios');
 
 /**
  * Evaluates a task photo using AI vision analysis.
+ * Accepts either a local file path or a remote HTTP/HTTPS image URL.
  * Strictly verifies that the photo displays an outdoor road surface:
  *  - Cement Road (CC Road)
  *  - Damber / Asphalt Road (BT Road)
@@ -15,28 +17,52 @@ const fs = require('fs');
  *  - status: 'approved' | 'rejected'
  *  - aiReason: single-line explanation string
  */
-exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') => {
+exports.evaluateTaskPhoto = async (imageInput, taskType = 'road', rdName = '') => {
   try {
     let aiScore = 85;
     let status = 'approved';
     let aiReason = '';
 
-    if (!imagePath || !fs.existsSync(imagePath)) {
+    if (!imageInput) {
       return {
         aiScore: 15,
         status: 'rejected',
-        aiReason: 'AI Rejection: Invalid image file path.'
+        aiReason: 'AI Rejection: Missing photo submission.'
       };
     }
 
-    const stats = fs.statSync(imagePath);
-    const fileSize = stats.size;
+    let imageBuffer = null;
+    let isRemoteUrl = typeof imageInput === 'string' && (imageInput.startsWith('http://') || imageInput.startsWith('https://'));
+
+    if (isRemoteUrl) {
+      try {
+        const response = await axios.get(imageInput, { responseType: 'arraybuffer', timeout: 10000 });
+        imageBuffer = Buffer.from(response.data);
+      } catch (dlErr) {
+        console.error('Failed to download photo from remote URL for AI inspection:', dlErr.message);
+        return {
+          aiScore: 15,
+          status: 'rejected',
+          aiReason: 'AI Rejection: Unable to download photo for inspection.'
+        };
+      }
+    } else if (typeof imageInput === 'string' && fs.existsSync(imageInput)) {
+      imageBuffer = fs.readFileSync(imageInput);
+    } else if (Buffer.isBuffer(imageInput)) {
+      imageBuffer = imageInput;
+    } else {
+      return {
+        aiScore: 15,
+        status: 'rejected',
+        aiReason: 'AI Rejection: Invalid photo file path or URL.'
+      };
+    }
+
+    const fileSize = imageBuffer.length;
 
     // 1. OpenAI Vision API Integration (Strict Road Verification Prompt)
     if (process.env.OPENAI_API_KEY) {
       try {
-        const axios = require('axios');
-        const imageBuffer = fs.readFileSync(imagePath);
         const base64Image = imageBuffer.toString('base64');
 
         const response = await axios.post(
@@ -65,7 +91,7 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
               Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
               'Content-Type': 'application/json'
             },
-            timeout: 10000
+            timeout: 12000
           }
         );
 
@@ -84,7 +110,7 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
     // 2. Built-in Strict Road & Surface Classifier using Jimp
     try {
       const { Jimp } = require('jimp');
-      const image = await Jimp.read(imagePath);
+      const image = await Jimp.read(imageBuffer);
 
       // Resize to a 64x64 sample matrix for pixel spectrum and texture gradient analysis
       const sample = image.clone().resize({ w: 64, h: 64 });
@@ -121,7 +147,7 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
             furnitureWoodPixels++;
           }
 
-          // Indoor Fabric / Wallpaper / Paint: High saturation non-road colors (bright red, purple, vivid blue, green indoor paint)
+          // Indoor Fabric / Wallpaper / Paint: High saturation non-road colors
           if ((maxDiff > 55 && !isPaverRedYellow) || (b > r + 40 && b > g + 20)) {
             indoorFabricPixels++;
           }
@@ -141,7 +167,7 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
       console.log(`[AI Road Classifier] Road: ${(roadRatio * 100).toFixed(1)}%, Furniture Wood: ${(furnitureRatio * 100).toFixed(1)}%, Fabric/Indoor: ${(fabricRatio * 100).toFixed(1)}%, Screen: ${(screenRatio * 100).toFixed(1)}%`);
 
       // STRICT REJECTION: Check for Furniture, Indoor Objects, Screen Glow, or Non-Road Surfaces
-      if (furnitureRatio > 0.14 || fabricRatio > 0.16 || screenRatio > 0.14 || roadRatio < 0.28 || fileSize < 15000) {
+      if (furnitureRatio > 0.14 || fabricRatio > 0.16 || screenRatio > 0.14 || roadRatio < 0.28 || fileSize < 12000) {
         aiScore = Math.min(22, Math.max(10, Math.floor(15 + (furnitureRatio * 10))));
         status = 'rejected';
         aiReason = `AI Rejection: Invalid photo. Must strictly be a Cement, Damber, Paver Block, or Gravel Road surface.`;
@@ -149,14 +175,14 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
       }
 
       // VALID ROAD SURFACE DETECTED (Cement, Damber, Paver Block, Gravel): Rate Cleanliness
-      const pseudoHash = (fileSize * 31 + (imagePath.length * 17)) % 100;
+      const pseudoHash = (fileSize * 31 + (imageInput.length * 17)) % 100;
       aiScore = Math.min(96, Math.max(72, Math.floor(75 + (roadRatio * 18) + (pseudoHash % 10))));
       status = aiScore >= 70 ? 'approved' : 'rejected';
 
       if (status === 'approved') {
         aiReason = `AI Score: ${aiScore}% - Road surface and borders verified clear of debris and litter.`;
       } else {
-        aiReason = `AI Score: ${aiScore}% - Remaining litter and uncollected waste detected on roadside.`;
+        aiReason = `AI Score: ${aiReason}% - Remaining litter and uncollected waste detected on roadside.`;
       }
 
       return { aiScore, status, aiReason };
@@ -165,7 +191,7 @@ exports.evaluateTaskPhoto = async (imagePath, taskType = 'road', rdName = '') =>
     }
 
     // Default Fallback
-    const pseudoHash = (fileSize * 31 + (imagePath.length * 17)) % 100;
+    const pseudoHash = (fileSize * 31 + (imageInput.length * 17)) % 100;
     aiScore = Math.min(92, Math.max(72, 75 + (pseudoHash % 18)));
     status = aiScore >= 70 ? 'approved' : 'rejected';
     aiReason = status === 'approved' 
