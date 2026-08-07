@@ -76,6 +76,12 @@ export default function CapturePhotoScreen({ route, navigation }) {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('upload_photo_proof')}</Text>
         <Text style={styles.headerSubtitle}>{t('capture_evidence')}</Text>
+        <View style={styles.roadHintBadge}>
+          <Ionicons name="information-circle-outline" size={16} color={Colors.warning} />
+          <Text style={styles.roadHintText}>
+            AI Audit Enforced: Capture outdoor road surface only (Cement, Asphalt, Pavers, Gravel). Laptops/indoor photos will be rejected.
+          </Text>
+        </View>
       </View>
  
       <View style={[styles.previewContainer, Colors.shadowMedium]}>
@@ -125,6 +131,25 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', marginTop: 20 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
   headerSubtitle: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18, paddingHorizontal: 10 },
+  roadHintBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FCD34D',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 10,
+    maxWidth: '100%',
+  },
+  roadHintText: {
+    fontSize: 11.5,
+    color: '#92400E',
+    fontWeight: '600',
+    marginLeft: 6,
+    flexShrink: 1,
+  },
   
   previewContainer: {
     width: '100%',
