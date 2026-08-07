@@ -870,7 +870,7 @@ const initDb = async () => {
 
       // Execute high-speed batch inserts (300 rows per batch)
       const BATCH_SIZE = 300;
-      let totalTasksCreated = 0;
+      totalTasksCreated = 0;
 
       for (let i = 0; i < taskRows.length; i += BATCH_SIZE) {
         const batch = taskRows.slice(i, i + BATCH_SIZE);
