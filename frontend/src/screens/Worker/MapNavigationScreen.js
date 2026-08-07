@@ -365,6 +365,21 @@ export default function MapNavigationScreen({ route, navigation }) {
      longitudeDelta: 0.01,
   } : { latitude: 17.2473, longitude: 80.1514, latitudeDelta: 0.02, longitudeDelta: 0.02 };
 
+  const getMinDistanceToRoad = (loc, points) => {
+    if (!loc || !points || points.length === 0) return Infinity;
+    let minDist = Infinity;
+    for (let i = 0; i < points.length; i++) {
+      const pt = points[i];
+      if (pt && pt.latitude !== undefined && pt.longitude !== undefined) {
+        const dist = getDist(loc.latitude, loc.longitude, parseFloat(pt.latitude), parseFloat(pt.longitude));
+        if (dist < minDist) {
+          minDist = dist;
+        }
+      }
+    }
+    return minDist;
+  };
+
   const handleSwipeStatus = async (type) => {
     if (mappedPoints.length === 0) {
       Alert.alert(t('error'), t('no_coordinates_alert'));
@@ -406,18 +421,14 @@ export default function MapNavigationScreen({ route, navigation }) {
 
       const isWard61 = liveTask.ward_name && liveTask.ward_name.includes('61');
       if (!isWard61) {
-        const targetPoint = mappedPoints[0];
-        const dist = getDist(
-          loc.latitude,
-          loc.longitude,
-          targetPoint.latitude,
-          targetPoint.longitude
-        );
+        const minDist = getMinDistanceToRoad(loc, mappedPoints);
 
-        if (dist > 150) {
+        if (minDist > 150) {
           Alert.alert(
             t('too_far_away'),
-            t('te') ? `మీరు ప్రస్తుతం రోడ్డు ప్రారంభ స్థానానికి ${Math.round(dist)}మీటర్ల దూరంలో ఉన్నారు. ప్రారంభించడానికి మీరు 150 మీటర్ల లోపల ఉండాలి.` : `You are currently ${Math.round(dist)}m away from the Start Point of the road. You must be within 150 meters to start.`
+            t('te')
+              ? `మీరు ప్రస్తుతం రోడ్డుకు ${Math.round(minDist)}మీటర్ల దూరంలో ఉన్నారు. ప్రారంభించడానికి మీరు రోడ్డులోని ఏ బిందువుకైనా 150 మీటర్ల లోపల ఉండాలి.`
+              : `You are currently ${Math.round(minDist)}m away from the road. You must be within 150 meters of any point on the road to start.`
           );
           return;
         }
