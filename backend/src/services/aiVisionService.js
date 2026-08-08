@@ -146,7 +146,7 @@ Output strictly JSON:
                 content: [
                   {
                     type: 'text',
-                    text: 'STRICT MUNICIPAL SANITATION & DUST AUDIT FOR KHAMMAM ROADS: Inspect the photo thoroughly. If laptop, keyboard, monitor, screen, indoor room, wall, ceramic floor tiles, furniture, or non-road object, IMMEDIATELY REJECT (status="rejected", aiScore=15). If the road surface has accumulated fine dust, silt patches, un-swept sand, or soil layers, set aiScore to 58-68 and status="rejected" (Needs Sweeping!). Only pristine, fully swept roads score 85-98 (approved). Output JSON with status, aiScore, and aiReason.'
+                    text: 'STRICT MUNICIPAL SANITATION & DUST AUDIT FOR KHAMMAM ROADS: Inspect the photo thoroughly using DUAL METRICS (Road Surface Authenticity & Surface Cleanliness). 1. METRIC 1 (ROAD SURFACE): If photo shows a non-road object (laptop, keyboard, monitor, screen, indoor room, wall, floor tile, furniture), IMMEDIATELY REJECT (status="rejected", aiScore=15). 2. METRIC 2 (CLEANLINESS & DUST): If photo is an authentic road surface but has accumulated dust, silt patches, un-swept sand, or soil layers, set aiScore to 55-68 and status="uncleaned" (Red - Needs Sweeping!). Pristine, fully swept roads score 85-98 (status="approved", Green). Output JSON with status, aiScore, and aiReason.'
                   },
                   {
                     type: 'image_url',
