@@ -97,7 +97,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
   useEffect(() => {
     fetchTaskDetails();
     fetchTasks();
-    if (taskId && !taskId.toString().startsWith('virtual-')) {
+    if (taskId) {
       fetchPhotos();
     }
   }, [taskId]);

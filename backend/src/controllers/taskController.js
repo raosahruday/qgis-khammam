@@ -801,11 +801,27 @@ exports.uploadPhoto = async (req, res) => {
 
 exports.getTaskPhotos = async (req, res) => {
   try {
-    const { id } = req.params;
+    let { id } = req.params;
     
-    // Check type of task for segregation
+    // Check type of task for segregation & resolve virtual road IDs to primary task IDs
     if (typeof id === 'string' && id.startsWith('virtual-')) {
-      return res.json([]); // virtual tasks have no photos
+      const roadId = parseInt(id.split('-')[1]);
+      const roadResult = await db.query('SELECT properties FROM infrastructure WHERE id = $1', [roadId]);
+      if (roadResult.rows.length > 0) {
+        const lineId = roadResult.rows[0].properties?.Line_ID || roadResult.rows[0].properties?.line_id;
+        if (lineId) {
+          const existingTask = await db.query('SELECT id FROM tasks WHERE line_id = $1', [lineId]);
+          if (existingTask.rows.length > 0) {
+            id = existingTask.rows[0].id;
+          } else {
+            return res.json([]);
+          }
+        } else {
+          return res.json([]);
+        }
+      } else {
+        return res.json([]);
+      }
     }
 
     const taskResult = await db.query('SELECT task_type FROM tasks WHERE id = $1', [id]);
