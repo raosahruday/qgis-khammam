@@ -832,10 +832,25 @@ exports.getTaskPhotos = async (req, res) => {
 
 exports.updateTaskStatus = async (req, res) => {
   try {
-    const { id } = req.params;
+    let { id } = req.params;
     const { status, comment } = req.body;
     
     console.log(`Updating task ${id} to status: ${status}, comment: ${comment}`);
+
+    if (typeof id === 'string' && id.startsWith('virtual-')) {
+      const roadId = parseInt(id.split('-')[1]);
+      const roadResult = await db.query('SELECT *, ST_AsGeoJSON(geom) as geom_json FROM infrastructure WHERE id = $1', [roadId]);
+      if (roadResult.rows.length > 0) {
+        const road = roadResult.rows[0];
+        let lineId = road.properties?.Line_ID || road.properties?.line_id || null;
+        if (lineId) {
+          const existingTask = await db.query('SELECT id FROM tasks WHERE line_id = $1', [lineId]);
+          if (existingTask.rows.length > 0) {
+            id = existingTask.rows[0].id;
+          }
+        }
+      }
+    }
     
     const updated = await db.query(
       "UPDATE tasks SET status = $1, review_comment = COALESCE($2, review_comment) WHERE id = $3 RETURNING *",

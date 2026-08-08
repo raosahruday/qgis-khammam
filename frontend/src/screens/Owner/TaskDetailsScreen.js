@@ -424,6 +424,71 @@ export default function TaskDetailsScreen({ route, navigation }) {
                   <Text style={styles.jawanNameText}>{task.worker_name || t('unassigned')}</Text>
                 </View>
             </View>
+
+            {/* Sanitary Inspector Inspection & Re-do Action Panel */}
+            <View style={[styles.inspectorActionCard, Colors.shadowMedium]}>
+              <View style={styles.inspectorActionHeader}>
+                <Ionicons name="shield-checkmark-outline" size={20} color={Colors.primary} />
+                <Text style={styles.inspectorActionTitle}>Sanitary Inspector Actions</Text>
+              </View>
+
+              <Text style={styles.commentInputLabel}>Inspector Remarks / Re-do Instructions:</Text>
+              <TextInput
+                style={styles.commentInput}
+                placeholder="e.g. Accumulated dust on curb. Re-sweep road."
+                placeholderTextColor={Colors.textSecondary}
+                value={reviewComment}
+                onChangeText={setReviewComment}
+                multiline
+              />
+
+              <View style={styles.actionButtonsContainer}>
+                {/* RE-DO TASK BUTTON (Vibrant Orange) */}
+                <TouchableOpacity
+                  style={[styles.redoBtn, Colors.shadowLow]}
+                  onPress={() => {
+                    Alert.alert(
+                      '🔄 Request Re-do / Re-clean Road',
+                      'Are you sure you want to mark this task for a Re-do? The status will reset to Pending (Red) so the assigned Jawan can re-clean the road and upload fresh photo proof. Previous photos will be preserved in audit history.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Yes, Request Re-do',
+                          style: 'destructive',
+                          onPress: () => handleUpdateStatus('pending')
+                        }
+                      ]
+                    );
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="refresh-circle-outline" size={22} color={Colors.white} />
+                  <Text style={styles.redoBtnText}>RE-DO TASK (RE-CLEAN ROAD)</Text>
+                </TouchableOpacity>
+
+                <View style={styles.subActionRow}>
+                  {/* APPROVE BUTTON */}
+                  <TouchableOpacity
+                    style={[styles.approveBtn, Colors.shadowLow]}
+                    onPress={() => handleUpdateStatus('approved')}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="checkmark-circle-outline" size={18} color={Colors.white} />
+                    <Text style={styles.subBtnText}>APPROVE</Text>
+                  </TouchableOpacity>
+
+                  {/* REJECT BUTTON */}
+                  <TouchableOpacity
+                    style={[styles.rejectBtn, Colors.shadowLow]}
+                    onPress={() => handleUpdateStatus('rejected')}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="close-circle-outline" size={18} color={Colors.white} />
+                    <Text style={styles.subBtnText}>REJECT PHOTO</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
         </View>
       </ScrollView>
 
@@ -714,5 +779,92 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  inspectorActionCard: {
+    backgroundColor: Colors.card,
+    borderRadius: Colors.radiusMedium,
+    padding: 16,
+    marginBottom: 25,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  inspectorActionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  inspectorActionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.text,
+    marginLeft: 8,
+  },
+  commentInputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginBottom: 6,
+  },
+  commentInput: {
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 13,
+    color: Colors.text,
+    minHeight: 60,
+    textAlignVertical: 'top',
+    marginBottom: 14,
+  },
+  actionButtonsContainer: {
+    flexDirection: 'column',
+  },
+  redoBtn: {
+    backgroundColor: '#F97316',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  redoBtnText: {
+    color: Colors.white,
+    fontWeight: '800',
+    fontSize: 13,
+    marginLeft: 6,
+    letterSpacing: 0.5,
+  },
+  subActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  approveBtn: {
+    flex: 1,
+    backgroundColor: Colors.success || '#10B981',
+    paddingVertical: 12,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  rejectBtn: {
+    flex: 1,
+    backgroundColor: Colors.accent || '#EF4444',
+    paddingVertical: 12,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+  subBtnText: {
+    color: Colors.white,
+    fontWeight: '800',
+    fontSize: 12,
+    marginLeft: 4,
   },
 });
