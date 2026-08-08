@@ -116,14 +116,13 @@ Output strictly JSON:
             const result = JSON.parse(textResponse);
             if (result.aiScore !== undefined) {
               aiScore = parseInt(result.aiScore);
-              if (result.status === 'rejected' || aiScore <= 25) {
-                status = 'rejected';
-              } else if (aiScore < 70 || result.status === 'uncleaned') {
-                status = 'uncleaned';
+              if (result.status === 'rejected' || aiScore < 75) {
+                status = 'rejected'; // ORANGE: AI Flagged (Dust accumulated or invalid non-road photo)
+                aiReason = result.aiReason || `AI Rejection: Score ${aiScore}% - Accumulated dust layer, silt patches, or uncleaned surface.`;
               } else {
-                status = 'approved';
+                status = 'approved'; // GREEN: Approved Clean Road
+                aiReason = result.aiReason || `AI Score: ${aiScore}% - Road surface verified clean and free of dust.`;
               }
-              aiReason = result.aiReason || (status === 'approved' ? `AI Score: ${aiScore}% - Road surface verified clean.` : status === 'uncleaned' ? `AI Score: ${aiScore}% - Uncleaned road with accumulated dust/litter.` : `AI Rejection: Non-road or laptop photo detected.`);
               return { aiScore, status, aiReason };
             }
           }
@@ -146,7 +145,7 @@ Output strictly JSON:
                 content: [
                   {
                     type: 'text',
-                    text: 'STRICT MUNICIPAL SANITATION & DUST AUDIT FOR KHAMMAM ROADS: Inspect the photo thoroughly using DUAL METRICS (Road Surface Authenticity & Surface Cleanliness). 1. METRIC 1 (ROAD SURFACE): If photo shows a non-road object (laptop, keyboard, monitor, screen, indoor room, wall, floor tile, furniture), IMMEDIATELY REJECT (status="rejected", aiScore=15). 2. METRIC 2 (CLEANLINESS & DUST): If photo is an authentic road surface but has accumulated dust, silt patches, un-swept sand, or soil layers, set aiScore to 55-68 and status="uncleaned" (Red - Needs Sweeping!). Pristine, fully swept roads score 85-98 (status="approved", Green). Output JSON with status, aiScore, and aiReason.'
+                    text: 'STRICT MUNICIPAL SANITATION & DUST AUDIT FOR KHAMMAM ROADS: Inspect the photo thoroughly using DUAL METRICS (Road Surface Authenticity & Surface Cleanliness). 1. METRIC 1 (ROAD SURFACE): If photo shows a non-road object (laptop, keyboard, monitor, screen, indoor room, wall, floor tile, furniture), IMMEDIATELY REJECT (status="rejected", aiScore=15). 2. METRIC 2 (CLEANLINESS & DUST): If photo is an authentic road surface but has accumulated dust, silt patches, un-swept sand, or soil layers, set aiScore to 50-70 and status="rejected" (Orange - AI Flagged / Needs Sweeping!). Pristine, fully swept roads score 75-98 (status="approved", Green). Output JSON with status, aiScore, and aiReason.'
                   },
                   {
                     type: 'image_url',
@@ -169,14 +168,13 @@ Output strictly JSON:
         const result = JSON.parse(response.data.choices[0].message.content);
         if (result.aiScore !== undefined) {
           aiScore = parseInt(result.aiScore);
-          if (result.status === 'rejected' || aiScore <= 25) {
-            status = 'rejected';
-          } else if (aiScore < 70 || result.status === 'uncleaned') {
-            status = 'uncleaned';
+          if (result.status === 'rejected' || aiScore < 75) {
+            status = 'rejected'; // ORANGE
+            aiReason = result.aiReason || `AI Rejection: Score ${aiScore}% - Accumulated dust layer or uncleaned surface.`;
           } else {
-            status = 'approved';
+            status = 'approved'; // GREEN
+            aiReason = result.aiReason || `AI Score: ${aiScore}% - Road surface verified clean.`;
           }
-          aiReason = result.aiReason || (status === 'approved' ? `AI Score: ${aiScore}% - Sanitation standard met.` : status === 'uncleaned' ? `AI Score: ${aiScore}% - Uncleaned road with accumulated dust/litter.` : `AI Rejection: Non-road photo detected.`);
           return { aiScore, status, aiReason };
         }
       } catch (apiErr) {
@@ -284,11 +282,11 @@ Output strictly JSON:
       aiScore = cleanlinessScore;
 
       if (aiScore >= 75) {
-        status = 'approved';
-        aiReason = `AI Score: ${aiScore}% - Road surface verified clean and free of accumulated dust/litter.`;
+        status = 'approved'; // GREEN
+        aiReason = `AI Score: ${aiScore}% - Road surface verified clean and free of accumulated dust.`;
       } else {
-        status = 'uncleaned';
-        aiReason = `AI Score: ${aiScore}% - Uncleaned road with accumulated dust layer, silt patches, or roadside litter.`;
+        status = 'rejected'; // ORANGE (AI Flagged / Accumulated Dust / Low Score)
+        aiReason = `AI Rejection: Score ${aiScore}% - Accumulated dust layer, silt patches, or uncleaned surface.`;
       }
 
       return { aiScore, status, aiReason };
