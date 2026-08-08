@@ -202,8 +202,7 @@ exports.swipeStatus = async (req, res) => {
         }
       }
 
-      // Clear any old photo proofs so worker has to upload a new one for redo/restart
-      await db.query('DELETE FROM photos WHERE task_id = $1', [id]);
+      // Retain all uploaded photo proofs for historical inspection audit
     }
 
     if (type === 'complete' || type === 'submit') {

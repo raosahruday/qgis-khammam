@@ -212,6 +212,7 @@ export default function CommissionerDashboard({ navigation }) {
     let completed = 0;
     let active = 0;
     let pending = 0;
+    let rejected = 0;
 
     filteredRoads.forEach(road => {
       const props = road.properties || {};
@@ -221,8 +222,10 @@ export default function CommissionerDashboard({ navigation }) {
       if (matchingTask) {
         if (matchingTask.status === 'approved') {
           completed++;
-        } else if (matchingTask.status === 'submitted') {
+        } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
           active++;
+        } else if (matchingTask.status === 'rejected') {
+          rejected++;
         } else {
           pending++;
         }
@@ -231,7 +234,7 @@ export default function CommissionerDashboard({ navigation }) {
       }
     });
 
-    return { completed, active, pending };
+    return { completed, active, pending, rejected };
   };
 
   const getStatsForWard = (wardObj) => {
@@ -242,7 +245,7 @@ export default function CommissionerDashboard({ navigation }) {
       const match = wardObj.name?.match(/\d+/);
       wardNo = match ? match[0] : wardObj.name;
     }
-    if (!wardNo) return { completed: 0, active: 0, pending: 0 };
+    if (!wardNo) return { completed: 0, active: 0, pending: 0, rejected: 0 };
 
     const filteredRoads = roadsOnly.filter(road => {
       const props = road.properties || {};
@@ -260,11 +263,13 @@ export default function CommissionerDashboard({ navigation }) {
     switch (status?.toLowerCase()) {
       case 'approved': return '#10B981'; // Green
       case 'submitted': 
-        return '#F59E0B'; // Yellow/Amber
       case 'in_progress':
+        return '#F59E0B'; // Yellow/Amber
       case 'rejected': 
+        return Colors.rejected || '#F97316'; // Orange for Rejected Photos
+      case 'uncleaned':
       default: 
-        return '#EF4444'; // Red
+        return '#EF4444'; // Red for Uncleaned / Pending
     }
   };
 

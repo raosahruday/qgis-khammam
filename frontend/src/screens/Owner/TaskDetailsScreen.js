@@ -343,6 +343,77 @@ export default function TaskDetailsScreen({ route, navigation }) {
           </View>
         ) : null}
 
+        {/* Photos & AI Review Card (Prominently visible at top for Sanitary Inspector) */}
+        <View style={styles.reviewSection}>
+          <Text style={styles.galleryLabel}>📸 {t('uploaded_proofs')} ({photos.length})</Text>
+          {photos.length > 0 ? (
+            <View style={styles.photoGallerySection}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+                {photos.map((item) => (
+                  <TouchableOpacity 
+                    key={item.id} 
+                    style={[styles.photoWrapper, Colors.shadowLow]}
+                    onPress={() => setSelectedPhoto(getImageUrl(item.image_url))}
+                    activeOpacity={0.9}
+                  >
+                    <Image source={{ uri: getImageUrl(item.image_url) }} style={styles.galleryImage} />
+                    <View style={styles.photoMeta}>
+                      <Ionicons name="calendar-outline" size={10} color={Colors.textSecondary} />
+                      <Text style={styles.photoDate}>
+                        {new Date(item.uploaded_at).toLocaleDateString()} {new Date(item.uploaded_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          ) : (
+            <View style={styles.noPhotosBox}>
+              <Ionicons name="images-outline" size={24} color={Colors.textSecondary} />
+              <Text style={styles.noPhotosText}>{t('no_photos')}</Text>
+            </View>
+          )}
+
+          {/* AI Automated Inspection Card for Sanitary Inspector */}
+          <View style={styles.aiCardContainer}>
+            <View style={styles.aiCardHeader}>
+              <Ionicons name="hardware-chip-outline" size={20} color={Colors.primary} />
+              <Text style={styles.aiCardTitle}>AI Automated Inspection</Text>
+            </View>
+
+            <View style={styles.aiScoreRow}>
+              <View style={[
+                styles.aiStatusBadge, 
+                task.status === 'approved' 
+                  ? styles.aiApprovedBadge 
+                  : task.status === 'uncleaned' 
+                    ? styles.aiUncleanedBadge 
+                    : styles.aiRejectedBadge
+              ]}>
+                <Ionicons 
+                  name={task.status === 'approved' ? 'checkmark-circle' : task.status === 'uncleaned' ? 'alert-circle' : 'close-circle'} 
+                  size={16} 
+                  color={Colors.white} 
+                />
+                <Text style={styles.aiStatusText}>
+                  {task.status === 'approved' ? 'APPROVED' : task.status === 'uncleaned' ? 'UNCLEANED ROAD' : 'REJECTED PHOTO'}
+                </Text>
+              </View>
+              <View style={styles.aiScoreChip}>
+                <Text style={styles.aiScoreText}>
+                  AI Score: {task.ai_score !== undefined && task.ai_score !== null ? task.ai_score : (task.status === 'approved' ? 85 : 45)}%
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.aiReasonBox}>
+              <Text style={styles.aiReasonText}>
+                {task.ai_reason || task.review_comment || (task.status === 'approved' ? 'AI Score: 85% - Road surface verified clear of debris and litter.' : 'AI Score: 45% - Uncollected waste detected on roadside.')}
+              </Text>
+            </View>
+          </View>
+        </View>
+
         <View style={styles.actionSection}>
             <View style={[styles.jawanInfoSection, Colors.shadowLow]}>
                 <Text style={styles.jawanLabel}>{t('assignee')}</Text>
@@ -352,77 +423,6 @@ export default function TaskDetailsScreen({ route, navigation }) {
                   </View>
                   <Text style={styles.jawanNameText}>{task.worker_name || t('unassigned')}</Text>
                 </View>
-            </View>
-
-            {/* Photos & AI Review Card (Always visible to SI after photo upload / AI review) */}
-            <View style={styles.reviewSection}>
-              {photos.length > 0 ? (
-                <View style={styles.photoGallerySection}>
-                  <Text style={styles.galleryLabel}>📸 {t('uploaded_proofs')} ({photos.length})</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
-                    {photos.map((item) => (
-                      <TouchableOpacity 
-                        key={item.id} 
-                        style={[styles.photoWrapper, Colors.shadowLow]}
-                        onPress={() => setSelectedPhoto(getImageUrl(item.image_url))}
-                        activeOpacity={0.9}
-                      >
-                        <Image source={{ uri: getImageUrl(item.image_url) }} style={styles.galleryImage} />
-                        <View style={styles.photoMeta}>
-                          <Ionicons name="calendar-outline" size={10} color={Colors.textSecondary} />
-                          <Text style={styles.photoDate}>
-                            {new Date(item.uploaded_at).toLocaleDateString()} {new Date(item.uploaded_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              ) : (
-                <View style={styles.noPhotosBox}>
-                  <Ionicons name="images-outline" size={24} color={Colors.textSecondary} />
-                  <Text style={styles.noPhotosText}>{t('no_photos')}</Text>
-                </View>
-              )}
-
-              {/* AI Automated Inspection Card for Sanitary Inspector */}
-              <View style={styles.aiCardContainer}>
-                <View style={styles.aiCardHeader}>
-                  <Ionicons name="hardware-chip-outline" size={20} color={Colors.primary} />
-                  <Text style={styles.aiCardTitle}>AI Automated Inspection</Text>
-                </View>
-
-                <View style={styles.aiScoreRow}>
-                  <View style={[
-                    styles.aiStatusBadge, 
-                    task.status === 'approved' 
-                      ? styles.aiApprovedBadge 
-                      : task.status === 'uncleaned' 
-                        ? styles.aiUncleanedBadge 
-                        : styles.aiRejectedBadge
-                  ]}>
-                    <Ionicons 
-                      name={task.status === 'approved' ? 'checkmark-circle' : task.status === 'uncleaned' ? 'alert-circle' : 'close-circle'} 
-                      size={16} 
-                      color={Colors.white} 
-                    />
-                    <Text style={styles.aiStatusText}>
-                      {task.status === 'approved' ? 'APPROVED' : task.status === 'uncleaned' ? 'UNCLEANED ROAD' : 'REJECTED PHOTO'}
-                    </Text>
-                  </View>
-                  <View style={styles.aiScoreChip}>
-                    <Text style={styles.aiScoreText}>
-                      AI Score: {task.ai_score !== undefined && task.ai_score !== null ? task.ai_score : (task.status === 'approved' ? 85 : 45)}%
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.aiReasonBox}>
-                  <Text style={styles.aiReasonText}>
-                    {task.ai_reason || task.review_comment || (task.status === 'approved' ? 'AI Score: 85% - Road surface verified clear of debris and litter.' : 'AI Score: 45% - Uncollected waste detected on roadside.')}
-                  </Text>
-                </View>
-              </View>
             </View>
         </View>
       </ScrollView>
