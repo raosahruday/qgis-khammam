@@ -306,6 +306,9 @@ export default function OwnerDashboard({ navigation }) {
       case 'approved': return { bg: Colors.successBg, text: Colors.successText };
       case 'submitted': return { bg: Colors.warningBg, text: Colors.warningText };
       case 'in_progress': return { bg: Colors.infoBg, text: Colors.infoText };
+      case 'rejected':
+      case 'redo':
+        return { bg: Colors.rejectedBg || 'rgba(249, 115, 22, 0.15)', text: Colors.rejectedText || '#F97316' };
       default: return { bg: Colors.errorBg, text: Colors.errorText };
     }
   };
@@ -527,8 +530,10 @@ export default function OwnerDashboard({ navigation }) {
                   if (matchingTask) {
                     if (matchingTask.status === 'approved') {
                       roadColor = Colors.success; // Completed (Green)
-                    } else if (matchingTask.status === 'submitted') {
+                    } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
                       roadColor = Colors.warning; // Active/Submitted (Yellow)
+                    } else if (matchingTask.status === 'rejected' || matchingTask.status === 'redo') {
+                      roadColor = Colors.rejected || '#F97316'; // Redo / Rejected (Orange)
                     }
                   }
 

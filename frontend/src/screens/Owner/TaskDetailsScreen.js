@@ -162,7 +162,9 @@ export default function TaskDetailsScreen({ route, navigation }) {
     switch (status) {
       case 'approved': return { bg: Colors.successBg, text: Colors.successText, label: 'APPROVED ROAD' };
       case 'uncleaned': return { bg: Colors.uncleanedBg, text: Colors.uncleanedText, label: 'UNCLEANED ROAD' };
-      case 'rejected': return { bg: Colors.rejectedBg, text: Colors.rejectedText, label: 'REJECTED PHOTO' };
+      case 'rejected':
+      case 'redo':
+        return { bg: Colors.rejectedBg || 'rgba(249, 115, 22, 0.15)', text: Colors.rejectedText || '#F97316', label: 'RE-DO TASK (ORANGE)' };
       case 'submitted': return { bg: Colors.warningBg, text: Colors.warningText, label: 'SUBMITTED' };
       case 'in_progress': return { bg: Colors.infoBg, text: Colors.infoText, label: 'IN PROGRESS' };
       default: return { bg: Colors.uncleanedBg, text: Colors.uncleanedText, label: (status || 'PENDING').toUpperCase() };
@@ -449,13 +451,13 @@ export default function TaskDetailsScreen({ route, navigation }) {
                   onPress={() => {
                     Alert.alert(
                       '🔄 Request Re-do / Re-clean Road',
-                      'Are you sure you want to mark this task for a Re-do? The status will reset to Pending (Red) so the assigned Jawan can re-clean the road and upload fresh photo proof. Previous photos will be preserved in audit history.',
+                      'Are you sure you want to mark this task for a Re-do? The status will update to Re-do / Rejected (Orange) so the assigned Jawan can re-clean the road and upload fresh photo proof. Previous photos will be preserved in audit history.',
                       [
                         { text: 'Cancel', style: 'cancel' },
                         {
                           text: 'Yes, Request Re-do',
                           style: 'destructive',
-                          onPress: () => handleUpdateStatus('pending')
+                          onPress: () => handleUpdateStatus('rejected')
                         }
                       ]
                     );

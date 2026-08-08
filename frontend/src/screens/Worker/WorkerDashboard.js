@@ -202,7 +202,8 @@ export default function WorkerDashboard({ navigation }) {
 
     if (task) {
       if (task.status === 'approved') return Colors.success;
-      if (task.status === 'submitted') return Colors.warning;
+      if (task.status === 'submitted' || task.status === 'in_progress') return Colors.warning;
+      if (task.status === 'rejected' || task.status === 'redo') return Colors.rejected || '#F97316';
     }
     return Colors.accent; // Default pending (Red)
   };
@@ -248,8 +249,10 @@ export default function WorkerDashboard({ navigation }) {
       let roadColor = Colors.accent; // Red (Pending)
       if (status === 'approved') {
         roadColor = Colors.success; // Emerald Green (Completed)
-      } else if (status === 'submitted') {
+      } else if (status === 'submitted' || status === 'in_progress') {
         roadColor = Colors.warning; // Amber (Active)
+      } else if (status === 'rejected' || status === 'redo') {
+        roadColor = Colors.rejected || '#F97316'; // Orange (Redo / Rejected)
       }
       
       roads.push({
