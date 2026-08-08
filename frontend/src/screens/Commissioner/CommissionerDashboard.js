@@ -747,31 +747,50 @@ export default function CommissionerDashboard({ navigation }) {
     return (
       <View style={styles.sidebarStatsContainer}>
           <View style={[styles.sidebarStatBox, { backgroundColor: Colors.successBg }, Colors.shadowLow]}>
-            <Ionicons name="checkbox-outline" size={20} color={Colors.success} />
+            <View style={styles.statIconBadge}>
+              <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
+              <Text style={styles.emojiFallback}>✅</Text>
+            </View>
             <Text style={[styles.statVal, { color: Colors.success }]}>{statsValues.completed}</Text>
             <Text style={styles.statLabel}>{t('cleaned')}</Text>
           </View>
+
           <View style={[styles.sidebarStatBox, { backgroundColor: Colors.warningBg }, Colors.shadowLow]}>
-            <Ionicons name="hourglass-outline" size={20} color={Colors.warning} />
+            <View style={styles.statIconBadge}>
+              <Ionicons name="time" size={18} color={Colors.warning} />
+              <Text style={styles.emojiFallback}>⚡</Text>
+            </View>
             <Text style={[styles.statVal, { color: Colors.warning }]}>{statsValues.active}</Text>
             <Text style={styles.statLabel}>{t('active')}</Text>
           </View>
+
           <View style={[styles.sidebarStatBox, { backgroundColor: Colors.errorBg }, Colors.shadowLow]}>
-            <Ionicons name="alert-circle-outline" size={20} color={Colors.accent} />
+            <View style={styles.statIconBadge}>
+              <Ionicons name="alert-circle" size={18} color={Colors.accent} />
+              <Text style={styles.emojiFallback}>🔴</Text>
+            </View>
             <Text style={[styles.statVal, { color: Colors.accent }]}>{statsValues.pending}</Text>
             <Text style={styles.statLabel}>{t('pending')}</Text>
           </View>
+
           <View style={[styles.sidebarStatBox, { backgroundColor: Colors.rejectedBg }, Colors.shadowLow]}>
-            <Ionicons name="close-circle-outline" size={20} color={Colors.rejected} />
+            <View style={styles.statIconBadge}>
+              <Ionicons name="close-circle" size={18} color={Colors.rejected} />
+              <Text style={styles.emojiFallback}>🚫</Text>
+            </View>
             <Text style={[styles.statVal, { color: Colors.rejected }]}>{statsValues.rejected || 0}</Text>
             <Text style={styles.statLabel}>REJECTED</Text>
           </View>
+
           <View style={[styles.sidebarStatBox, { backgroundColor: `${Colors.blue}10`, width: '100%' }, Colors.shadowLow]}>
-            <Ionicons 
-              name={selectedWardFilter === 'parks' ? "leaf-outline" : "bus-outline"} 
-              size={20} 
-              color={Colors.blue} 
-            />
+            <View style={styles.statIconBadge}>
+              <Ionicons 
+                name={selectedWardFilter === 'parks' ? "leaf" : "bus"} 
+                size={18} 
+                color={Colors.blue} 
+              />
+              <Text style={styles.emojiFallback}>{selectedWardFilter === 'parks' ? '🍃' : '🚛'}</Text>
+            </View>
             <Text style={[styles.statVal, { color: Colors.blue }]}>
               {selectedWardFilter === 'parks'
                 ? tasks.filter(t => t.task_type === 'park').length
@@ -1824,14 +1843,24 @@ const styles = StyleSheet.create({
   },
   sidebarStatBox: {
     width: '47%',
-    paddingVertical: 15,
+    paddingVertical: 12,
     paddingHorizontal: 10,
     borderRadius: 12,
-    marginBottom: 15,
+    marginBottom: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  statIconBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emojiFallback: {
+    fontSize: 14,
+    marginLeft: 3,
   },
   largeMapWrapper: {
     flex: 1,
