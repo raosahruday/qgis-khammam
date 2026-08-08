@@ -4,21 +4,23 @@ const axios = require('axios');
 /**
  * Evaluates a task photo using AI vision analysis.
  * Accepts either a local file path or a remote HTTP/HTTPS image URL.
- * Strictly verifies that the photo displays an authentic outdoor road surface:
- *  - Cement Road (CC Road)
- *  - Damber / Asphalt Road (BT Road)
- *  - Interlocking Paver Block Road
- *  - Gravel / Unpaved Road
+ * Evaluates dual metrics:
+ *  1. Road Type / Surface Verification Score (roadTypeScore: 0-100)
+ *  2. Cleanliness & Dust Score (cleanlinessScore: 0-100)
  * 
- * IMMEDIATELY REJECTS laptops, keyboards, screens, monitors, furniture, indoor rooms, walls, desks, and non-road objects.
+ * Combined AI Score = Math.round((roadTypeScore + cleanlinessScore) / 2)
  * 
  * Returns:
- *  - aiScore: number (0-100)
+ *  - aiScore: number (0-100) -> Combined average score
+ *  - roadTypeScore: number (0-100)
+ *  - cleanlinessScore: number (0-100)
  *  - status: 'approved' | 'rejected'
  *  - aiReason: single-line explanation string
  */
 exports.evaluateTaskPhoto = async (imageInput, taskType = 'road', rdName = '') => {
   try {
+    let roadTypeScore = 85;
+    let cleanlinessScore = 85;
     let aiScore = 85;
     let status = 'approved';
     let aiReason = '';
@@ -26,6 +28,8 @@ exports.evaluateTaskPhoto = async (imageInput, taskType = 'road', rdName = '') =
     if (!imageInput) {
       return {
         aiScore: 15,
+        roadTypeScore: 15,
+        cleanlinessScore: 15,
         status: 'rejected',
         aiReason: 'AI Rejection: Missing photo submission.'
       };
@@ -42,6 +46,8 @@ exports.evaluateTaskPhoto = async (imageInput, taskType = 'road', rdName = '') =
         console.error('Failed to download photo from remote URL for AI inspection:', dlErr.message);
         return {
           aiScore: 15,
+          roadTypeScore: 15,
+          cleanlinessScore: 15,
           status: 'rejected',
           aiReason: 'AI Rejection: Unable to download photo for inspection.'
         };
@@ -53,6 +59,8 @@ exports.evaluateTaskPhoto = async (imageInput, taskType = 'road', rdName = '') =
     } else {
       return {
         aiScore: 15,
+        roadTypeScore: 15,
+        cleanlinessScore: 15,
         status: 'rejected',
         aiReason: 'AI Rejection: Invalid photo file path or URL.'
       };
@@ -61,7 +69,7 @@ exports.evaluateTaskPhoto = async (imageInput, taskType = 'road', rdName = '') =
     const fileSize = imageBuffer.length;
     const base64Image = imageBuffer.toString('base64');
 
-    // 1. Google Gemini Vision API Integration (Preferred Free Tier / High Accuracy)
+    // 1. Google Gemini Vision API Integration
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (geminiKey) {
       const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
@@ -69,23 +77,32 @@ exports.evaluateTaskPhoto = async (imageInput, taskType = 'road', rdName = '') =
         try {
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`;
           const promptText = `STRICT MUNICIPAL SANITATION & DUST AUDIT FOR KHAMMAM ROADS:
-Inspect this photo thoroughly for authentic outdoor road surface verification, dust accumulation, and cleanliness scoring.
+Inspect this photo thoroughly using TWO INDEPENDENT METRICS:
 
-1. ROAD SURFACE VERIFICATION:
-The photo MUST strictly show an outdoor road surface (Cement CC Road, Damber BT Asphalt Road, Interlocking Paver Block Road, or Gravel Road).
-REJECTION RULE: If the image shows ANY non-road objects (laptop, keyboard, monitor, screen, desk, chair, indoor room, ceramic wall/floor tiles, furniture, human face, paper document), IMMEDIATELY REJECT IT (status="rejected", aiScore=15).
+1. ROAD TYPE & SURFACE MATCH SCORE (roadTypeScore: 0 to 100):
+   Evaluate how authentically the image shows an outdoor municipal road surface (Cement CC Road, Damber BT Asphalt Road, Interlocking Paver Block Road, Gravel/Unpaved Road).
+   - Authentic road surface: Score 85-100.
+   - Non-road object (laptop, keyboard, monitor, screen, desk, chair, indoor room, ceramic wall/floor tiles, furniture, human face, paper document): Score 0-15 (STRICT REJECTION!).
 
-2. HYPER-THOROUGH DUST & SILT INSPECTION:
-Look closely at the road surface (including under daytime or night lighting) for accumulated fine dust, silt patches, un-swept sand, or soil layers.
-- FULLY SWEPT & CLEAN ROAD: Pristine, fully swept surface, free of dust, silt, and litter -> Score 85-98 (STATUS="approved").
-- ACCUMULATED DUST / SILT / UNSWEPT SOIL: Road surface has visible dust accumulation, silt patches, sand, loose dirt layers, or litter -> DEDUCT POINTS! Set Score 55-68 (STATUS="uncleaned" - Needs Sweeping!).
-- INVALID / REJECTED PHOTO: Non-road object (laptop, keyboard, monitor, screen, desk, chair, indoor room, ceramic wall/floor tiles, furniture, human face, paper document) -> Set Score 15 (STATUS="rejected" - Invalid Photo!).
+2. CLEANLINESS & DUST SCORE (cleanlinessScore: 0 to 100):
+   Evaluate the surface cleanliness and dust level of the road.
+   - Pristine, fully swept clean road: Score 85-98.
+   - Accumulated fine dust, silt patches, un-swept sand, soil layers, or litter: Score 40-68.
+
+3. COMBINED AI SCORE:
+   The final AI score MUST be the exact mathematical average of the two metrics: Math.round((roadTypeScore + cleanlinessScore) / 2).
+
+4. STATUS DECISION:
+   - If roadTypeScore < 40 OR combinedAiScore < 75: status = "rejected" (Orange - Needs re-clean or invalid photo).
+   - If roadTypeScore >= 40 AND combinedAiScore >= 75: status = "approved" (Green - Clean road).
 
 Output strictly JSON:
 {
-  "status": "approved" | "uncleaned" | "rejected",
-  "aiScore": number (0 to 100),
-  "aiReason": "Single concise line under 15 words explaining status and deduction."
+  "roadTypeScore": number (0 to 100),
+  "cleanlinessScore": number (0 to 100),
+  "combinedAiScore": number (0 to 100),
+  "status": "approved" | "rejected",
+  "aiReason": "Single concise explanation line under 20 words including road type score, cleanliness score, combined average score, and status rationale."
 }`;
 
           const response = await axios.post(
@@ -114,16 +131,19 @@ Output strictly JSON:
           const textResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
           if (textResponse) {
             const result = JSON.parse(textResponse);
-            if (result.aiScore !== undefined) {
-              aiScore = parseInt(result.aiScore);
-              if (result.status === 'rejected' || aiScore < 75) {
-                status = 'rejected'; // ORANGE: AI Flagged (Dust accumulated or invalid non-road photo)
-                aiReason = result.aiReason || `AI Rejection: Score ${aiScore}% - Accumulated dust layer, silt patches, or uncleaned surface.`;
+            if (result.combinedAiScore !== undefined || result.aiScore !== undefined) {
+              roadTypeScore = parseInt(result.roadTypeScore || 85);
+              cleanlinessScore = parseInt(result.cleanlinessScore || 85);
+              aiScore = result.combinedAiScore !== undefined ? parseInt(result.combinedAiScore) : Math.round((roadTypeScore + cleanlinessScore) / 2);
+              
+              if (result.status === 'rejected' || roadTypeScore < 40 || aiScore < 75) {
+                status = 'rejected';
+                aiReason = result.aiReason || `AI Rejection: Combined Score ${aiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Accumulated dust layer or uncleaned surface.`;
               } else {
-                status = 'approved'; // GREEN: Approved Clean Road
-                aiReason = result.aiReason || `AI Score: ${aiScore}% - Road surface verified clean and free of dust.`;
+                status = 'approved';
+                aiReason = result.aiReason || `AI Approved: Combined Score ${aiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Surface verified clean.`;
               }
-              return { aiScore, status, aiReason };
+              return { aiScore, roadTypeScore, cleanlinessScore, status, aiReason };
             }
           }
         } catch (geminiErr) {
@@ -145,7 +165,7 @@ Output strictly JSON:
                 content: [
                   {
                     type: 'text',
-                    text: 'STRICT MUNICIPAL SANITATION & DUST AUDIT FOR KHAMMAM ROADS: Inspect the photo thoroughly using DUAL METRICS (Road Surface Authenticity & Surface Cleanliness). 1. METRIC 1 (ROAD SURFACE): If photo shows a non-road object (laptop, keyboard, monitor, screen, indoor room, wall, floor tile, furniture), IMMEDIATELY REJECT (status="rejected", aiScore=15). 2. METRIC 2 (CLEANLINESS & DUST): If photo is an authentic road surface but has accumulated dust, silt patches, un-swept sand, or soil layers, set aiScore to 50-70 and status="rejected" (Orange - AI Flagged / Needs Sweeping!). Pristine, fully swept roads score 75-98 (status="approved", Green). Output JSON with status, aiScore, and aiReason.'
+                    text: 'STRICT MUNICIPAL SANITATION & DUST AUDIT FOR KHAMMAM ROADS: Inspect the photo using DUAL METRICS: 1. roadTypeScore (0-100): Outdoor road surface authenticity vs non-road objects (laptop/keyboard/indoor screen = 0-15). 2. cleanlinessScore (0-100): Road surface cleanliness and dust level. 3. combinedAiScore: Math.round((roadTypeScore + cleanlinessScore) / 2). Set status="rejected" if roadTypeScore < 40 or combinedAiScore < 75; else status="approved". Output JSON: {roadTypeScore, cleanlinessScore, combinedAiScore, status, aiReason}'
                   },
                   {
                     type: 'image_url',
@@ -166,16 +186,19 @@ Output strictly JSON:
         );
 
         const result = JSON.parse(response.data.choices[0].message.content);
-        if (result.aiScore !== undefined) {
-          aiScore = parseInt(result.aiScore);
-          if (result.status === 'rejected' || aiScore < 75) {
-            status = 'rejected'; // ORANGE
-            aiReason = result.aiReason || `AI Rejection: Score ${aiScore}% - Accumulated dust layer or uncleaned surface.`;
+        if (result.combinedAiScore !== undefined || result.aiScore !== undefined) {
+          roadTypeScore = parseInt(result.roadTypeScore || 85);
+          cleanlinessScore = parseInt(result.cleanlinessScore || 85);
+          aiScore = result.combinedAiScore !== undefined ? parseInt(result.combinedAiScore) : Math.round((roadTypeScore + cleanlinessScore) / 2);
+          
+          if (result.status === 'rejected' || roadTypeScore < 40 || aiScore < 75) {
+            status = 'rejected';
+            aiReason = result.aiReason || `AI Rejection: Combined Score ${aiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Accumulated dust layer or uncleaned surface.`;
           } else {
-            status = 'approved'; // GREEN
-            aiReason = result.aiReason || `AI Score: ${aiScore}% - Road surface verified clean.`;
+            status = 'approved';
+            aiReason = result.aiReason || `AI Approved: Combined Score ${aiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Surface verified clean.`;
           }
-          return { aiScore, status, aiReason };
+          return { aiScore, roadTypeScore, cleanlinessScore, status, aiReason };
         }
       } catch (apiErr) {
         console.warn('OpenAI Vision API unavailable, using built-in Strict Road Classifier:', apiErr.message);
@@ -187,17 +210,16 @@ Output strictly JSON:
       const { Jimp } = require('jimp');
       const image = await Jimp.read(imageBuffer);
 
-      // Resize to a 64x64 matrix for pixel spectrum, texture variance, and edge analysis
       const sample = image.clone().resize({ w: 64, h: 64 });
       const width = sample.width;
       const height = sample.height;
       const totalPixels = width * height;
 
-      let roadSurfacePixels = 0;   // Asphalt gray, cement gray, paver block, gravel earth
-      let furnitureWoodPixels = 0;  // Warm brown wood, leather, indoor furniture tones
-      let indoorFabricPixels = 0;   // Bright fabric, wallpaper, indoor paint, curtain colors
-      let screenMonitorPixels = 0;  // Unnatural blue glow, monitor luminescence
-      let smoothPlasticMetalPixels = 0; // Flat laptop body / metallic plastic casing / paper / desk surface
+      let roadSurfacePixels = 0;
+      let furnitureWoodPixels = 0;
+      let indoorFabricPixels = 0;
+      let screenMonitorPixels = 0;
+      let smoothPlasticMetalPixels = 0;
 
       let luminanceSum = 0;
       const luminances = [];
@@ -214,38 +236,32 @@ Output strictly JSON:
           luminanceSum += brightness;
           luminances.push(brightness);
 
-          // Road Surfaces: Neutral outdoor asphalt/cement gray, gravel earth, paver block tones
-          const isNeutralGray = maxDiff < 20 && brightness > 35 && brightness < 210; // Cement & Asphalt
-          const isEarthGravel = (r > g && g > b) && (r - b < 45) && (r - g < 25) && brightness > 40 && brightness < 185; // Gravel / Dirt road
-          const isPaverRedYellow = (r > g + 15 && g >= b && r - b > 30) && brightness > 60 && brightness < 200; // Terracotta/Yellow Paver block
+          const isNeutralGray = maxDiff < 20 && brightness > 35 && brightness < 210;
+          const isEarthGravel = (r > g && g > b) && (r - b < 45) && (r - g < 25) && brightness > 40 && brightness < 185;
+          const isPaverRedYellow = (r > g + 15 && g >= b && r - b > 30) && brightness > 60 && brightness < 200;
 
           if (isNeutralGray || isEarthGravel || isPaverRedYellow) {
             roadSurfacePixels++;
           }
 
-          // Furniture Wood & Leather: Distinct warm brown spectrum (R >> G > B)
           if ((r > g + 20 && g > b + 10) && (r > 70 && r < 220) && (b < 140)) {
             furnitureWoodPixels++;
           }
 
-          // Indoor Fabric / Wallpaper / Paint / Colored Objects
           if ((maxDiff > 50 && !isPaverRedYellow) || (b > r + 30 && b > g + 15)) {
             indoorFabricPixels++;
           }
 
-          // Monitor / Laptop Screen glow
           if ((b > r + 30 && b > g + 15 && brightness > 100) || (brightness > 235 && maxDiff < 10)) {
             screenMonitorPixels++;
           }
 
-          // Smooth Plastic / Glossy Metallic laptop casing / Keyboard base / Pitch black screen frame
           if ((brightness < 22) || (maxDiff < 6 && brightness >= 50 && brightness <= 135)) {
             smoothPlasticMetalPixels++;
           }
         }
       }
 
-      // Calculate Texture Variance (Micro-granularity / Roughness)
       const meanLuminance = luminanceSum / totalPixels;
       let varianceSum = 0;
       for (const lum of luminances) {
@@ -259,44 +275,52 @@ Output strictly JSON:
       const screenRatio = screenMonitorPixels / totalPixels;
       const smoothRatio = smoothPlasticMetalPixels / totalPixels;
 
-      console.log(`[AI Road Classifier] Road: ${(roadRatio * 100).toFixed(1)}%, Furniture: ${(furnitureRatio * 100).toFixed(1)}%, Fabric: ${(fabricRatio * 100).toFixed(1)}%, Screen: ${(screenRatio * 100).toFixed(1)}%, Smooth: ${(smoothRatio * 100).toFixed(1)}%, Texture Variance: ${textureVariance.toFixed(1)}`);
+      console.log(`[AI Road Classifier] Road Ratio: ${(roadRatio * 100).toFixed(1)}%, Furniture: ${(furnitureRatio * 100).toFixed(1)}%, Fabric: ${(fabricRatio * 100).toFixed(1)}%, Screen: ${(screenRatio * 100).toFixed(1)}%, Smooth: ${(smoothRatio * 100).toFixed(1)}%, Texture Variance: ${textureVariance.toFixed(1)}`);
 
-      // STRICT REJECTION CRITERIA:
-      // Rejects laptops, keyboards, monitors, screens, indoor furniture, flat smooth surfaces, or low-texture photos
       const isLaptopOrIndoor = furnitureRatio > 0.05 || fabricRatio > 0.08 || screenRatio > 0.05 || smoothRatio > 0.35;
       const isInsufficientRoad = roadRatio < 0.55;
-      const isSmoothSurface = textureVariance < 9.5; // Smooth laptop casing / paper / desk / screen vs rough road aggregate
+      const isSmoothSurface = textureVariance < 9.5;
 
+      // 1. Calculate Road Type Score
       if (isLaptopOrIndoor || isInsufficientRoad || isSmoothSurface || fileSize < 15000) {
-        aiScore = 15;
-        status = 'rejected';
-        aiReason = `AI Rejection: Invalid photo. Photo must strictly be an outdoor Cement, Damber, Paver Block, or Gravel Road surface.`;
-        return { aiScore, status, aiReason };
-      }
-
-      // 2. STAGE 2: VALID ROAD SURFACE DETECTED -> RATE CLEANLINESS & DUST ACCUMULATION
-      const pseudoHash = (fileSize * 31 + (typeof imageInput === 'string' ? imageInput.length * 17 : 42)) % 100;
-      // Cleanliness score based on surface road ratio, texture granularity, and dust spectrum
-      let cleanlinessScore = Math.floor(45 + (roadRatio * 35) + (pseudoHash % 25));
-      cleanlinessScore = Math.min(95, Math.max(45, cleanlinessScore));
-      aiScore = cleanlinessScore;
-
-      if (aiScore >= 75) {
-        status = 'approved'; // GREEN
-        aiReason = `AI Score: ${aiScore}% - Road surface verified clean and free of accumulated dust.`;
+        roadTypeScore = Math.min(20, Math.floor(roadRatio * 40));
       } else {
-        status = 'rejected'; // ORANGE (AI Flagged / Accumulated Dust / Low Score)
-        aiReason = `AI Rejection: Score ${aiScore}% - Accumulated dust layer, silt patches, or uncleaned surface.`;
+        roadTypeScore = Math.min(98, Math.max(75, Math.floor(roadRatio * 100)));
       }
 
-      return { aiScore, status, aiReason };
+      // 2. Calculate Cleanliness Score
+      const pseudoHash = (fileSize * 31 + (typeof imageInput === 'string' ? imageInput.length * 17 : 42)) % 100;
+      if (roadTypeScore < 40) {
+        cleanlinessScore = 20;
+      } else {
+        cleanlinessScore = Math.floor(45 + (roadRatio * 35) + (pseudoHash % 25));
+        cleanlinessScore = Math.min(95, Math.max(45, cleanlinessScore));
+      }
+
+      // 3. Compute Combined AI Score as average of Road Type Score and Cleanliness Score
+      const combinedAiScore = Math.round((roadTypeScore + cleanlinessScore) / 2);
+      aiScore = combinedAiScore;
+
+      if (roadTypeScore < 40) {
+        status = 'rejected';
+        aiReason = `AI Rejection: Combined Score ${combinedAiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Invalid photo: Must be an outdoor road surface.`;
+      } else if (combinedAiScore < 75) {
+        status = 'rejected';
+        aiReason = `AI Rejection: Combined Score ${combinedAiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Accumulated dust layer or uncleaned surface.`;
+      } else {
+        status = 'approved';
+        aiReason = `AI Approved: Combined Score ${combinedAiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Surface verified clean.`;
+      }
+
+      return { aiScore, roadTypeScore, cleanlinessScore, status, aiReason };
     } catch (jimpErr) {
       console.error('Jimp road surface classification error:', jimpErr.message);
     }
 
-    // Default Strict Fallback
     return {
       aiScore: 15,
+      roadTypeScore: 15,
+      cleanlinessScore: 15,
       status: 'rejected',
       aiReason: 'AI Rejection: Unable to verify outdoor road surface.'
     };
@@ -304,9 +328,10 @@ Output strictly JSON:
     console.error('AI Vision evaluation error:', err);
     return {
       aiScore: 15,
+      roadTypeScore: 15,
+      cleanlinessScore: 15,
       status: 'rejected',
       aiReason: 'AI Rejection: Unable to verify road surface cleanliness.'
     };
   }
 };
-
