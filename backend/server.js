@@ -28,6 +28,17 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Cloudflare & Render Request Tracing Middleware (CF-Ray)
+app.use((req, res, next) => {
+  const cfRay = req.headers['cf-ray'] || 'local';
+  req.cfRay = cfRay;
+  res.setHeader('X-CF-Ray', cfRay);
+  if (req.path.startsWith('/api')) {
+    console.log(`[${new Date().toISOString()}] [CF-Ray: ${cfRay}] ${req.method} ${req.path}`);
+  }
+  next();
+});
  
 // Serve static files for uploaded photos
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -42,9 +53,12 @@ if (fs.existsSync(publicDir)) {
 // API Routes
 app.use('/api', apiRoutes);
 
-// Health check endpoint
+// Health check endpoints for Render zero-downtime monitoring
 app.get('/health', (req, res) => {
-  res.send('Cleaning Task API is running');
+  res.status(200).json({ status: 'ok', uptime: process.uptime(), cfRay: req.cfRay });
+});
+app.get('/healthz', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime(), cfRay: req.cfRay });
 });
 
 // Fallback to index.html for Web Dashboard single page application routing
