@@ -231,18 +231,24 @@ exports.getInfrastructure = async (req, res) => {
             params.push(tolerance, parseInt(limit));
         }
 
-        const result = await db.query(query, params);
+        const queryFn = db.queryWithRetry || db.query;
+        const result = await queryFn(query, params);
 
         // Fetch duplicate Line_IDs globally in the database (cached in-memory)
         if (!duplicateLineIdsCache) {
-            const dupRes = await db.query(
-              `SELECT properties->>'Line_ID' as line_id 
-               FROM infrastructure 
-               WHERE properties->>'Line_ID' IS NOT NULL 
-               GROUP BY properties->>'Line_ID' 
-               HAVING COUNT(*) > 1`
-            );
-            duplicateLineIdsCache = new Set(dupRes.rows.map(row => row.line_id));
+            try {
+                const dupRes = await queryFn(
+                  `SELECT properties->>'Line_ID' as line_id 
+                   FROM infrastructure 
+                   WHERE properties->>'Line_ID' IS NOT NULL 
+                   GROUP BY properties->>'Line_ID' 
+                   HAVING COUNT(*) > 1`
+                );
+                duplicateLineIdsCache = new Set(dupRes.rows.map(row => row.line_id));
+            } catch (dupErr) {
+                console.warn('Unable to cache duplicate line IDs:', dupErr.message);
+                duplicateLineIdsCache = new Set();
+            }
         }
         const duplicateLineIds = duplicateLineIdsCache;
 
@@ -266,27 +272,8 @@ exports.getInfrastructure = async (req, res) => {
 
         res.json(processedRows.filter(r => r.geom_json !== null));
     } catch (error) {
-        console.error('Get infrastructure error, running safe fallback:', error.message);
-        try {
-            const fallbackRes = await db.query(
-                `SELECT id, name, type, properties, ST_AsGeoJSON(geom) as geom_json
-                 FROM infrastructure 
-                 LIMIT $1`,
-                [parseInt(req.query.limit || 500)]
-            );
-            const fallbackRows = fallbackRes.rows.map(r => {
-                try {
-                    r.parsedGeom = r.geom_json ? JSON.parse(r.geom_json) : null;
-                } catch (e) {
-                    r.parsedGeom = null;
-                }
-                return r;
-            });
-            return res.json(fallbackRows);
-        } catch (fallbackErr) {
-            console.error('Infrastructure safe fallback error:', fallbackErr.message);
-            return res.json([]);
-        }
+        console.warn('Get infrastructure error (handled safely without secondary DB call):', error.message);
+        return res.json([]);
     }
 };
 
