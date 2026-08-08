@@ -761,7 +761,12 @@ export default function CommissionerDashboard({ navigation }) {
             <Text style={[styles.statVal, { color: Colors.accent }]}>{statsValues.pending}</Text>
             <Text style={styles.statLabel}>{t('pending')}</Text>
           </View>
-          <View style={[styles.sidebarStatBox, { backgroundColor: `${Colors.blue}10` }, Colors.shadowLow]}>
+          <View style={[styles.sidebarStatBox, { backgroundColor: Colors.rejectedBg }, Colors.shadowLow]}>
+            <Ionicons name="close-circle-outline" size={20} color={Colors.rejected} />
+            <Text style={[styles.statVal, { color: Colors.rejected }]}>{statsValues.rejected || 0}</Text>
+            <Text style={styles.statLabel}>REJECTED</Text>
+          </View>
+          <View style={[styles.sidebarStatBox, { backgroundColor: `${Colors.blue}10`, width: '100%' }, Colors.shadowLow]}>
             <Ionicons 
               name={selectedWardFilter === 'parks' ? "leaf-outline" : "bus-outline"} 
               size={20} 
@@ -1353,7 +1358,8 @@ export default function CommissionerDashboard({ navigation }) {
                     <Text style={styles.progressText}>
                       {t('cleaned')}: <Text style={{color: Colors.success, fontWeight: '800'}}>{getStatsForWard(selectedWard).completed}</Text> | 
                       {t('active')}: <Text style={{color: Colors.warning, fontWeight: '800'}}>{getStatsForWard(selectedWard).active}</Text> | 
-                      {t('pending')}: <Text style={{color: Colors.accent, fontWeight: '800'}}>{getStatsForWard(selectedWard).pending}</Text>
+                      {t('pending')}: <Text style={{color: Colors.accent, fontWeight: '800'}}>{getStatsForWard(selectedWard).pending}</Text> | 
+                      Rejected: <Text style={{color: Colors.rejected, fontWeight: '800'}}>{getStatsForWard(selectedWard).rejected || 0}</Text>
                     </Text>
                   </View>
                 </View>
