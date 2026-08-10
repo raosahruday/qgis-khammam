@@ -1046,9 +1046,9 @@ export default function CommissionerDashboard({ navigation }) {
              <View style={[styles.hoverBox, Colors.shadowMedium]}>
                <View style={styles.hoverHeader}>
                  <Text style={styles.hoverTitle}>{selectedWard.name}</Text>
-                 <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn} activeOpacity={0.8}>
-                   <Ionicons name="close" size={14} color={Colors.textSecondary} />
-                 </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn} activeOpacity={0.7} accessibilityLabel="Close Ward Info">
+                    <Ionicons name="close-circle" size={22} color="#0F172A" />
+                  </TouchableOpacity>
                </View>
                <View style={styles.hoverContent}>
                  <Text style={styles.hoverSubtitle}>👷 Assigned Jawans:</Text>
@@ -1352,8 +1352,8 @@ export default function CommissionerDashboard({ navigation }) {
               <View style={[styles.hoverBox, Colors.shadowMedium]}>
                 <View style={styles.hoverHeader}>
                   <Text style={styles.hoverTitle}>{selectedWard.name}</Text>
-                  <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn} activeOpacity={0.8}>
-                    <Ionicons name="close" size={14} color={Colors.textSecondary} />
+                  <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn} activeOpacity={0.7} accessibilityLabel="Close Ward Info">
+                    <Ionicons name="close-circle" size={22} color="#0F172A" />
                   </TouchableOpacity>
                 </View>
                 <View style={styles.hoverContent}>
@@ -1521,14 +1521,15 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   closeBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.background,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#CBD5E1',
+    zIndex: 10,
   },
   hoverContent: {
     marginTop: 4,
