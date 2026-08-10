@@ -21,9 +21,9 @@ const MemoizedWards = React.memo(({ wardStats, selectedWardId, onWardPress }) =>
            <Polygon
              key={`ward-${ward.id}`}
              coordinates={geom.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }))}
-             fillColor={isSelected ? "rgba(255, 214, 0, 0.08)" : "rgba(255, 255, 255, 0.03)"}
-             strokeColor={isSelected ? Colors.warning : "rgba(255, 255, 255, 0.55)"}
-             strokeWidth={isSelected ? 2 : 0.75}
+             fillColor={isSelected ? "rgba(0, 0, 0, 0.06)" : "rgba(255, 255, 255, 0.03)"}
+             strokeColor={isSelected ? "#000000" : "rgba(255, 255, 255, 0.55)"}
+             strokeWidth={isSelected ? 3.5 : 0.75}
              lineDashPattern={isSelected ? null : [10, 10]}
              tappable={true}
              onPress={() => onWardPress(ward)}
