@@ -1047,7 +1047,7 @@ export default function CommissionerDashboard({ navigation }) {
                <View style={styles.hoverHeader}>
                  <Text style={styles.hoverTitle}>{selectedWard.name}</Text>
                   <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn} activeOpacity={0.7} accessibilityLabel="Close Ward Info">
-                    <Ionicons name="close-circle" size={22} color="#0F172A" />
+                    <Text style={styles.closeBtnText}>✕</Text>
                   </TouchableOpacity>
                </View>
                <View style={styles.hoverContent}>
@@ -1353,7 +1353,7 @@ export default function CommissionerDashboard({ navigation }) {
                 <View style={styles.hoverHeader}>
                   <Text style={styles.hoverTitle}>{selectedWard.name}</Text>
                   <TouchableOpacity onPress={() => setSelectedWard(null)} style={styles.closeBtn} activeOpacity={0.7} accessibilityLabel="Close Ward Info">
-                    <Ionicons name="close-circle" size={22} color="#0F172A" />
+                    <Text style={styles.closeBtnText}>✕</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.hoverContent}>
@@ -1527,9 +1527,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderWidth: 1.5,
+    borderColor: '#94A3B8',
     zIndex: 10,
+  },
+  closeBtnText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+    lineHeight: 18,
+    textAlign: 'center',
   },
   hoverContent: {
     marginTop: 4,
