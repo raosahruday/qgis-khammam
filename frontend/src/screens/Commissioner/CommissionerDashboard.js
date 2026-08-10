@@ -818,6 +818,7 @@ export default function CommissionerDashboard({ navigation }) {
             </View>
             <TouchableOpacity style={styles.logout} onPress={logout} activeOpacity={0.8}>
               <Ionicons name="log-out-outline" size={16} color={Colors.accent} />
+              <Text style={{ fontSize: 13, marginRight: 4 }}>🚪</Text>
               <Text style={styles.logoutText}>{t('logout')}</Text>
             </TouchableOpacity>
           </View>
@@ -829,6 +830,7 @@ export default function CommissionerDashboard({ navigation }) {
               activeOpacity={0.8}
             >
               <Ionicons name="map-outline" size={18} color={activeTab === 'map' ? Colors.primary : Colors.textSecondary} />
+              <Text style={{ fontSize: 15, marginRight: 4 }}>🗺️</Text>
               <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>{t('overview_map')}</Text>
             </TouchableOpacity>
             
@@ -838,6 +840,7 @@ export default function CommissionerDashboard({ navigation }) {
               activeOpacity={0.8}
             >
               <Ionicons name="people-outline" size={18} color={activeTab === 'registrations' ? Colors.primary : Colors.textSecondary} />
+              <Text style={{ fontSize: 15, marginRight: 4 }}>👥</Text>
               <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>{t('pending')}</Text>
               {pendingCount > 0 && (
                 <View style={styles.badge}>
@@ -852,6 +855,7 @@ export default function CommissionerDashboard({ navigation }) {
               activeOpacity={0.8}
             >
               <Ionicons name="swap-horizontal-outline" size={18} color={activeTab === 'workers' ? Colors.primary : Colors.textSecondary} />
+              <Text style={{ fontSize: 15, marginRight: 4 }}>👷</Text>
               <Text style={[styles.tabText, activeTab === 'workers' && styles.activeTabText]}>{t('manage_jawans')}</Text>
             </TouchableOpacity>
           </View>
@@ -867,6 +871,7 @@ export default function CommissionerDashboard({ navigation }) {
                 >
                   <View style={styles.dropdownButtonContent}>
                     <Ionicons name="filter-outline" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
+                    <Text style={{ fontSize: 14, marginRight: 6 }}>🔍</Text>
                     <Text style={styles.dropdownButtonText}>
                       {selectedWardFilter === 'parks'
                         ? t('parks')
@@ -877,11 +882,14 @@ export default function CommissionerDashboard({ navigation }) {
                           : t('all_divisions')}
                     </Text>
                   </View>
-                  <Ionicons 
-                    name={showDropdown ? "chevron-up" : "chevron-down"} 
-                    size={18} 
-                    color={Colors.textSecondary} 
-                  />
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons 
+                      name={showDropdown ? "chevron-up" : "chevron-down"} 
+                      size={18} 
+                      color={Colors.textSecondary} 
+                    />
+                    <Text style={{ fontSize: 11, color: Colors.textSecondary, fontWeight: '900', marginLeft: 4 }}>{showDropdown ? '▲' : '▼'}</Text>
+                  </View>
                 </TouchableOpacity>
 
                 {showDropdown && (
@@ -1100,6 +1108,7 @@ export default function CommissionerDashboard({ navigation }) {
         </View>
         <TouchableOpacity style={styles.logout} onPress={logout} activeOpacity={0.8}>
           <Ionicons name="log-out-outline" size={16} color={Colors.accent} />
+          <Text style={{ fontSize: 13, marginRight: 4 }}>🚪</Text>
           <Text style={styles.logoutText}>{t('logout')}</Text>
         </TouchableOpacity>
       </View>
@@ -1111,6 +1120,7 @@ export default function CommissionerDashboard({ navigation }) {
           activeOpacity={0.8}
         >
           <Ionicons name="map-outline" size={18} color={activeTab === 'map' ? Colors.primary : Colors.textSecondary} />
+          <Text style={{ fontSize: 15, marginRight: 4 }}>🗺️</Text>
           <Text style={[styles.tabText, activeTab === 'map' && styles.activeTabText]}>{t('overview_map')}</Text>
         </TouchableOpacity>
         
@@ -1120,6 +1130,7 @@ export default function CommissionerDashboard({ navigation }) {
           activeOpacity={0.8}
         >
           <Ionicons name="people-outline" size={18} color={activeTab === 'registrations' ? Colors.primary : Colors.textSecondary} />
+          <Text style={{ fontSize: 15, marginRight: 4 }}>👥</Text>
           <Text style={[styles.tabText, activeTab === 'registrations' && styles.activeTabText]}>{t('pending')}</Text>
           {pendingCount > 0 && (
             <View style={styles.badge}>
@@ -1134,6 +1145,7 @@ export default function CommissionerDashboard({ navigation }) {
           activeOpacity={0.8}
         >
           <Ionicons name="swap-horizontal-outline" size={18} color={activeTab === 'workers' ? Colors.primary : Colors.textSecondary} />
+          <Text style={{ fontSize: 15, marginRight: 4 }}>👷</Text>
           <Text style={[styles.tabText, activeTab === 'workers' && styles.activeTabText]}>{t('manage_jawans')}</Text>
         </TouchableOpacity>
       </View>
@@ -1149,21 +1161,25 @@ export default function CommissionerDashboard({ navigation }) {
             >
               <View style={styles.dropdownButtonContent}>
                 <Ionicons name="filter-outline" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
+                <Text style={{ fontSize: 14, marginRight: 6 }}>🔍</Text>
                 <Text style={styles.dropdownButtonText}>
                   {selectedWardFilter === 'parks'
                     ? t('parks')
                     : selectedWardFilter 
                       ? (wardStats.find(w => w.id === selectedWardFilter)?.name === 'Ward 61'
                          ? t('highways')
-                         : `${t('division_text')}: ${wardStats.find(w => w.id === selectedWardFilter)?.name || (typeof selectedWardFilter === 'string' ? selectedWardFilter : t('all_divisions'))}`) 
+                         : `${t('division_text')}: ${wardStats.find(w => w.id === selectedWardFilter)?.name || (typeof selectedWardFilter === 'string' ? selectedWardFilter : t('select_division'))}`) 
                       : t('select_division')}
                 </Text>
               </View>
-              <Ionicons 
-                name={showDropdown ? "chevron-up" : "chevron-down"} 
-                size={18} 
-                color={Colors.textSecondary} 
-              />
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons 
+                  name={showDropdown ? "chevron-up" : "chevron-down"} 
+                  size={18} 
+                  color={Colors.textSecondary} 
+                />
+                <Text style={{ fontSize: 11, color: Colors.textSecondary, fontWeight: '900', marginLeft: 4 }}>{showDropdown ? '▲' : '▼'}</Text>
+              </View>
             </TouchableOpacity>
 
             {showDropdown && (
