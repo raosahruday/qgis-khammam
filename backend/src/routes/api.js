@@ -126,6 +126,15 @@ router.put('/registrations/:id/reject', authorizeRole(['commissioner']), userCon
 // --- Tasks (Bulk & Management) ---
 router.delete('/tasks/all', authorizeRole(['owner', 'supervisor']), taskController.deleteAllTasks);
 router.post('/tasks/bulk-reset', authorizeRole(['owner', 'supervisor']), taskController.bulkResetTasks);
+router.post('/admin/trigger-2pm-assessment', authorizeRole(['owner', 'supervisor', 'commissioner']), async (req, res) => {
+  try {
+    const { assessActiveRoads } = require('../jobs/assessActiveRoads');
+    const result = await assessActiveRoads();
+    res.json({ success: true, message: '2:00 PM IST active road re-assessment executed successfully.', result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 router.get('/tasks', taskController.getTasks);
 router.post('/tasks', authorizeRole(['owner', 'supervisor']), taskController.createTask);
 router.get('/workers', authorizeRole(['owner', 'supervisor', 'commissioner', 'park_inspector']), userController.getWorkers);
