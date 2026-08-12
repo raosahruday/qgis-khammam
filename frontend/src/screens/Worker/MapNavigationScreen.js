@@ -596,7 +596,7 @@ export default function MapNavigationScreen({ route, navigation }) {
             fillColor={
               liveTask.status === 'approved' ? 'rgba(16, 185, 129, 0.25)' :
               liveTask.status === 'submitted' ? 'rgba(245, 158, 11, 0.25)' :
-              (liveTask.status === 'rejected' || liveTask.status === 'redo') ? 'rgba(249, 115, 22, 0.25)' :
+              (liveTask.status === 'rejected' || liveTask.status === 'redo') ? 'rgba(0, 0, 0, 0.25)' :
               'rgba(239, 68, 68, 0.25)'
             } 
             strokeColor={

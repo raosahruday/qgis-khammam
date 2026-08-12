@@ -1079,7 +1079,7 @@ export default function CommissionerDashboard({ navigation }) {
                    <Text style={styles.progressText}>
                      Cleaned: <Text style={{color: Colors.success, fontWeight: '800'}}>{getStatsForWard(selectedWard).completed}</Text> | 
                      Active: <Text style={{color: Colors.warning, fontWeight: '800'}}>{getStatsForWard(selectedWard).active}</Text> | 
-                     Pending: <Text style={{color: Colors.accent, fontWeight: '800'}}>{getStatsForWard(selectedWard).pending}</Text> | Rejected: <Text style={{color: Colors.rejected || '#F97316', fontWeight: '800'}}>{getStatsForWard(selectedWard).rejected || 0}</Text>
+                     Pending: <Text style={{color: Colors.accent, fontWeight: '800'}}>{getStatsForWard(selectedWard).pending}</Text> | Rejected: <Text style={{color: Colors.rejected || '#000000', fontWeight: '800'}}>{getStatsForWard(selectedWard).rejected || 0}</Text>
                    </Text>
                  </View>
                </View>
