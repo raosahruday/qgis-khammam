@@ -529,6 +529,10 @@ export default function WorkerDashboard({ navigation }) {
                <View style={[styles.legendDot, { backgroundColor: Colors.accent }]} />
                <Text style={styles.legendText}>{t('pending')}</Text>
              </View>
+             <View style={styles.legendItem}>
+               <View style={[styles.legendDot, { backgroundColor: Colors.rejected || '#000000' }]} />
+               <Text style={styles.legendText}>Rejected (Black)</Text>
+             </View>
           </View>
         </View>
       </View>

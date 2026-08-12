@@ -287,18 +287,21 @@ export default function OwnerDashboard({ navigation }) {
     let completed = 0;
     let active = 0;
     let pending = 0;
+    let rejected = 0;
 
     combined.forEach(t => {
       if (t.status === 'approved') {
         completed++;
-      } else if (t.status === 'submitted') {
+      } else if (t.status === 'submitted' || t.status === 'in_progress') {
         active++;
+      } else if (t.status === 'rejected' || t.status === 'redo') {
+        rejected++;
       } else {
         pending++;
       }
     });
 
-    return { completed, active, pending };
+    return { completed, active, pending, rejected };
   };
 
   const getBadgeStyle = (status) => {
@@ -431,6 +434,11 @@ export default function OwnerDashboard({ navigation }) {
               <Text style={[styles.statVal, { color: Colors.accent }]}>{getRoadStats().pending}</Text>
               <Text style={styles.statLabel}>{t('pending')}</Text>
             </View>
+            <View style={[styles.statBox, { backgroundColor: Colors.rejectedBg || '#E2E8F0' }, Colors.shadowLow]}>
+              <Ionicons name="close-circle-outline" size={18} color={Colors.rejected || '#000000'} />
+              <Text style={[styles.statVal, { color: Colors.rejected || '#000000' }]}>{getRoadStats().rejected}</Text>
+              <Text style={styles.statLabel}>{t('rejected') || 'Rejected'}</Text>
+            </View>
           </View>
 
           {/* Horizontal Ward Selector Pill Row */}
@@ -554,6 +562,24 @@ export default function OwnerDashboard({ navigation }) {
                   );
                 })}
               </MapView>
+              <View style={styles.legend}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
+                  <Text style={styles.legendText}>{t('cleaned')}</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: Colors.warning }]} />
+                  <Text style={styles.legendText}>{t('active')}</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: Colors.accent }]} />
+                  <Text style={styles.legendText}>{t('pending')}</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: Colors.rejected || '#000000' }]} />
+                  <Text style={styles.legendText}>Rejected (Black)</Text>
+                </View>
+              </View>
             </View>
           </View>
 
@@ -703,10 +729,28 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.border,
+    position: 'relative',
   },
   map: {
     ...StyleSheet.absoluteFillObject,
   },
+  legend: { 
+    position: 'absolute', 
+    bottom: 12, 
+    right: 12, 
+    backgroundColor: 'rgba(255,255,255,0.92)', 
+    padding: 10, 
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.8)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginVertical: 3 },
+  legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  legendText: { fontSize: 11, fontWeight: '800', color: Colors.text },
   
   filterContainer: {
     marginBottom: 10,
