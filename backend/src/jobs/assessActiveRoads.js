@@ -5,8 +5,8 @@ const { evaluateTaskPhoto } = require('../services/aiVisionService');
 /**
  * Re-assesses all currently active road tasks at 2:00 PM IST daily.
  * Evaluates uploaded photos via AI vision service.
- * - AI Score >= 75%: Task status set to 'completed' (Approved).
- * - AI Score < 75% or No Photo: Task status set to 'rejected' (Orange - Re-do required).
+ * - AI Score >= 70%: Task status set to 'completed' (Approved).
+ * - AI Score < 70% or No Photo: Task status set to 'rejected' (Orange - Re-do required).
  */
 const assessActiveRoads = async () => {
   try {
@@ -59,7 +59,7 @@ const assessActiveRoads = async () => {
       // Run AI Vision Evaluation
       const aiRes = await evaluateTaskPhoto(imageInput, task.task_type || 'road', roadName);
 
-      if (aiRes.aiScore >= 75 && aiRes.status === 'approved') {
+      if (aiRes.aiScore >= 70 && aiRes.status === 'approved') {
         // Passed AI Inspection
         await db.query(
           `UPDATE tasks 
@@ -74,8 +74,8 @@ const assessActiveRoads = async () => {
         passedCount++;
         console.log(`[2:00 PM IST Audit] Task #${task.id} (${roadName}) -> PASSED (AI Score: ${aiRes.aiScore}%). Marked as COMPLETED.`);
       } else {
-        // Failed AI Inspection (<75% or Non-Road / Dust / Litter detected)
-        const rejectComment = `2:00 PM IST Re-Assessment Rejection: ${aiRes.aiReason || 'Cleanliness score below 75%'}`;
+        // Failed AI Inspection (<70% or Non-Road / Dust / Litter detected)
+        const rejectComment = `2:00 PM IST Re-Assessment Rejection: ${aiRes.aiReason || 'Cleanliness score below 70%'}`;
         await db.query(
           `UPDATE tasks 
            SET status = 'rejected', ai_score = $1, ai_reason = $2, review_comment = $3 
