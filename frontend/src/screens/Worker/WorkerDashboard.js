@@ -182,6 +182,9 @@ export default function WorkerDashboard({ navigation }) {
         return { bg: Colors.warningBg, text: Colors.warningText };
       case 'in_progress':
         return { bg: Colors.infoBg, text: Colors.infoText };
+      case 'rejected':
+      case 'redo':
+        return { bg: Colors.rejectedBg || '#E2E8F0', text: Colors.rejectedText || '#000000' };
       default:
         return { bg: Colors.errorBg, text: Colors.errorText };
     }

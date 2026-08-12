@@ -526,7 +526,7 @@ export default function CommissionerDashboard({ navigation }) {
       } else if (task.status === 'approved') {
         completed.push(entry);
       } else if (task.status === 'rejected') {
-        rejected.push(entry); // Invalid photo / Laptop (Orange)
+        rejected.push(entry); // Invalid photo / Laptop (Black)
       } else if (task.status === 'submitted' || task.status === 'in_progress') {
         active.push(entry); // Active (Yellow)
       } else {

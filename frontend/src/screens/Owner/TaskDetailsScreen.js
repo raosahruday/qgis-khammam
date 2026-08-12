@@ -154,8 +154,8 @@ export default function TaskDetailsScreen({ route, navigation }) {
       strokeColor = Colors.success; // Green
   } else if (task.status === 'uncleaned') {
       strokeColor = Colors.uncleaned; // Red
-  } else if (task.status === 'rejected') {
-      strokeColor = Colors.rejected; // Orange
+  } else if (task.status === 'rejected' || task.status === 'redo') {
+      strokeColor = Colors.rejected; // Black
   }
 
   const getStatusBadgeColors = (status) => {
@@ -205,8 +205,8 @@ export default function TaskDetailsScreen({ route, navigation }) {
                      roadColor = Colors.success; // Approved (Green)
                    } else if (matchingTask.status === 'uncleaned') {
                      roadColor = Colors.uncleaned; // Uncleaned Road (Red)
-                   } else if (matchingTask.status === 'rejected') {
-                     roadColor = Colors.rejected; // Invalid Photo / Laptop (Orange)
+                   } else if (matchingTask.status === 'rejected' || matchingTask.status === 'redo') {
+                     roadColor = Colors.rejected; // Rejected (Black)
                    } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
                      roadColor = Colors.warning; // Active/Submitted (Yellow)
                    }
@@ -445,7 +445,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
               />
 
               <View style={styles.actionButtonsContainer}>
-                {/* RE-DO TASK BUTTON (Vibrant Orange) */}
+                {/* RE-DO TASK BUTTON (Standardized Black) */}
                 <TouchableOpacity
                   style={[styles.redoBtn, Colors.shadowLow]}
                   onPress={() => {
