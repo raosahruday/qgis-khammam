@@ -18,14 +18,14 @@ export default {
   // Status Badge Colors (Soft backgrounds with solid text)
   approved: '#10B981',      // Approved Road (Green)
   uncleaned: '#EF4444',     // Uncleaned / Dirty Road (Red)
-  rejected: '#F97316',      // Invalid Photo / Laptop (Orange)
+  rejected: '#000000',      // Invalid Photo / Laptop (Black)
 
   successBg: '#E6F4EA',
   successText: '#137333',
   uncleanedBg: '#FCE8E6',
   uncleanedText: '#C5221F',
-  rejectedBg: '#FFF7ED',
-  rejectedText: '#C2410C',
+  rejectedBg: '#E2E8F0',
+  rejectedText: '#000000',
   warningBg: '#FEF7E0',
   warningText: '#B06000',
   errorBg: '#FCE8E6',

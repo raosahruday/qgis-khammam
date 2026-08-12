@@ -328,7 +328,7 @@ export default function MapNavigationScreen({ route, navigation }) {
     if (matchingTask) {
       if (matchingTask.status === 'approved') return Colors.success;
       if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') return Colors.warning;
-      if (matchingTask.status === 'rejected' || matchingTask.status === 'redo') return Colors.rejected || '#F97316';
+      if (matchingTask.status === 'rejected' || matchingTask.status === 'redo') return Colors.rejected || '#000000';
     }
 
     const matchesLive = liveTask && (
@@ -342,7 +342,7 @@ export default function MapNavigationScreen({ route, navigation }) {
     if (matchesLive) {
       if (liveTask.status === 'approved') return Colors.success;
       if (liveTask.status === 'submitted' || liveTask.status === 'in_progress') return Colors.warning;
-      if (liveTask.status === 'rejected' || liveTask.status === 'redo') return Colors.rejected || '#F97316';
+      if (liveTask.status === 'rejected' || liveTask.status === 'redo') return Colors.rejected || '#000000';
     }
     return Colors.accent;
   };
@@ -602,7 +602,7 @@ export default function MapNavigationScreen({ route, navigation }) {
             strokeColor={
               liveTask.status === 'approved' ? Colors.success :
               liveTask.status === 'submitted' ? Colors.warning :
-              (liveTask.status === 'rejected' || liveTask.status === 'redo') ? (Colors.rejected || '#F97316') :
+              (liveTask.status === 'rejected' || liveTask.status === 'redo') ? (Colors.rejected || '#000000') :
               Colors.accent
             }
             strokeWidth={2.5}
@@ -617,7 +617,7 @@ export default function MapNavigationScreen({ route, navigation }) {
             strokeColor={
               liveTask.status === 'approved' ? Colors.success :
               liveTask.status === 'submitted' ? Colors.warning :
-              (liveTask.status === 'rejected' || liveTask.status === 'redo') ? (Colors.rejected || '#F97316') :
+              (liveTask.status === 'rejected' || liveTask.status === 'redo') ? (Colors.rejected || '#000000') :
               Colors.accent
             } 
             strokeWidth={4.5} 

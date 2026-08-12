@@ -164,7 +164,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
       case 'uncleaned': return { bg: Colors.uncleanedBg, text: Colors.uncleanedText, label: 'UNCLEANED ROAD' };
       case 'rejected':
       case 'redo':
-        return { bg: Colors.rejectedBg || 'rgba(249, 115, 22, 0.15)', text: Colors.rejectedText || '#F97316', label: 'RE-DO TASK (ORANGE)' };
+        return { bg: Colors.rejectedBg || '#E2E8F0', text: Colors.rejectedText || '#000000', label: 'RE-DO TASK (BLACK)' };
       case 'submitted': return { bg: Colors.warningBg, text: Colors.warningText, label: 'SUBMITTED' };
       case 'in_progress': return { bg: Colors.infoBg, text: Colors.infoText, label: 'IN PROGRESS' };
       default: return { bg: Colors.uncleanedBg, text: Colors.uncleanedText, label: (status || 'PENDING').toUpperCase() };
@@ -451,7 +451,7 @@ export default function TaskDetailsScreen({ route, navigation }) {
                   onPress={() => {
                     Alert.alert(
                       '🔄 Request Re-do / Re-clean Road',
-                      'Are you sure you want to mark this task for a Re-do? The status will update to Re-do / Rejected (Orange) so the assigned Jawan can re-clean the road and upload fresh photo proof. Previous photos will be preserved in audit history.',
+                      'Are you sure you want to mark this task for a Re-do? The status will update to Re-do / Rejected (Black) so the assigned Jawan can re-clean the road and upload fresh photo proof. Previous photos will be preserved in audit history.',
                       [
                         { text: 'Cancel', style: 'cancel' },
                         {
@@ -717,7 +717,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.uncleaned || '#EF4444', // Red
   },
   aiRejectedBadge: {
-    backgroundColor: Colors.rejected || '#F97316', // Orange
+    backgroundColor: Colors.rejected || '#000000', // Black
   },
   aiStatusText: {
     color: Colors.white,
@@ -823,7 +823,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   redoBtn: {
-    backgroundColor: '#F97316',
+    backgroundColor: Colors.rejected || '#000000',
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 12,

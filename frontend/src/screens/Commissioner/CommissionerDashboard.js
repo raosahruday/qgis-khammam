@@ -21,8 +21,8 @@ const MemoizedWards = React.memo(({ wardStats, selectedWardId, onWardPress }) =>
            <Polygon
              key={`ward-${ward.id}`}
              coordinates={geom.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }))}
-             fillColor={isSelected ? "rgba(0, 0, 0, 0.06)" : "rgba(255, 255, 255, 0.03)"}
-             strokeColor={isSelected ? "#000000" : "rgba(255, 255, 255, 0.55)"}
+             fillColor={isSelected ? "rgba(255, 255, 255, 0.06)" : "rgba(255, 255, 255, 0.03)"}
+             strokeColor={isSelected ? "#FFFFFF" : "rgba(255, 255, 255, 0.55)"}
              strokeWidth={isSelected ? 3.5 : 0.75}
              lineDashPattern={isSelected ? null : [10, 10]}
              tappable={true}
@@ -49,10 +49,10 @@ const MemoizedRoadLayers = React.memo(({ pendingRoads, activeRoads, completedRoa
         weight={w}
         onFeaturePress={onRoadPress}
       />
-      {/* Rejected (Invalid Photo / Laptop) roads — Orange */}
+      {/* Rejected (Invalid Photo / Laptop) roads — Black */}
       <RoadsLayer
         features={rejectedRoads}
-        color={Colors.orange || '#F97316'}
+        color={Colors.rejected || '#000000'}
         weight={w + 0.25}
         onFeaturePress={onRoadPress}
       />
@@ -266,7 +266,7 @@ export default function CommissionerDashboard({ navigation }) {
       case 'in_progress':
         return '#F59E0B'; // Yellow/Amber
       case 'rejected': 
-        return Colors.rejected || '#F97316'; // Orange for Rejected Photos
+        return Colors.rejected || '#000000'; // Black for Rejected Photos
       case 'uncleaned':
       default: 
         return '#EF4444'; // Red for Uncleaned / Pending
@@ -1046,7 +1046,7 @@ export default function CommissionerDashboard({ navigation }) {
               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.success || '#10B981' }]} /><Text style={styles.legendText}>Cleaned (Green)</Text></View>
               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.warning || '#F59E0B' }]} /><Text style={styles.legendText}>Active (Yellow)</Text></View>
               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.uncleaned || '#EF4444' }]} /><Text style={styles.legendText}>Uncleaned (Red)</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.rejected || '#F97316' }]} /><Text style={styles.legendText}>Rejected Photo (Orange)</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.rejected || '#000000' }]} /><Text style={styles.legendText}>Rejected Photo (Black)</Text></View>
            </View>
 
            {/* Selected Ward Info Hover Overlay */}
@@ -1360,7 +1360,7 @@ export default function CommissionerDashboard({ navigation }) {
                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.success || '#10B981' }]} /><Text style={styles.legendText}>{t('cleaned')} (Green)</Text></View>
                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.warning || '#F59E0B' }]} /><Text style={styles.legendText}>{t('active')} (Yellow)</Text></View>
                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.uncleaned || '#EF4444' }]} /><Text style={styles.legendText}>Uncleaned (Red)</Text></View>
-               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.rejected || '#F97316' }]} /><Text style={styles.legendText}>Rejected (Orange)</Text></View>
+               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.rejected || '#000000' }]} /><Text style={styles.legendText}>Rejected (Black)</Text></View>
             </View>
 
             {/* Selected Ward Info Hover Overlay */}

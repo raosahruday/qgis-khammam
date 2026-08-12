@@ -308,7 +308,7 @@ export default function OwnerDashboard({ navigation }) {
       case 'in_progress': return { bg: Colors.infoBg, text: Colors.infoText };
       case 'rejected':
       case 'redo':
-        return { bg: Colors.rejectedBg || 'rgba(249, 115, 22, 0.15)', text: Colors.rejectedText || '#F97316' };
+        return { bg: Colors.rejectedBg || '#E2E8F0', text: Colors.rejectedText || '#000000' };
       default: return { bg: Colors.errorBg, text: Colors.errorText };
     }
   };
@@ -533,7 +533,7 @@ export default function OwnerDashboard({ navigation }) {
                     } else if (matchingTask.status === 'submitted' || matchingTask.status === 'in_progress') {
                       roadColor = Colors.warning; // Active/Submitted (Yellow)
                     } else if (matchingTask.status === 'rejected' || matchingTask.status === 'redo') {
-                      roadColor = Colors.rejected || '#F97316'; // Redo / Rejected (Orange)
+                      roadColor = Colors.rejected || '#000000'; // Redo / Rejected (Black)
                     }
                   }
 
