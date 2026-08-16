@@ -44,7 +44,11 @@ exports.sendOTP = async (req, res) => {
           return res.status(500).json({ error: 'Failed to send OTP SMS' });
         }
       } catch (smsError) {
-        console.error('[Fast2SMS] Request failed:', smsError.message);
+        if (smsError.response) {
+          console.error('[Fast2SMS] Request failed with status:', smsError.response.status, 'Response:', JSON.stringify(smsError.response.data));
+        } else {
+          console.error('[Fast2SMS] Request failed:', smsError.message);
+        }
         return res.status(500).json({ error: 'SMS Gateway communication error' });
       }
     }
