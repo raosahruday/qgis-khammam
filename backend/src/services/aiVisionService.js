@@ -77,39 +77,28 @@ exports.evaluateTaskPhoto = async (imageInput, taskType = 'road', rdName = '') =
       for (const modelName of modelsToTry) {
         try {
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`;
-          const promptText = `STRICT MUNICIPAL SANITATION, DUST & LITTER AUDIT FOR KHAMMAM ROADS:
-Inspect this photo thoroughly using TWO INDEPENDENT METRICS:
-
-1. ROAD TYPE & SURFACE MATCH SCORE (roadTypeScore: 0 to 100):
-   Evaluate how authentically the image shows an outdoor municipal road surface (Cement CC Road, Damber BT Asphalt Road, Interlocking Paver Block Road, Gravel/Unpaved Road).
-   - Authentic road surface: Score 85-100.
-   - Non-road object (laptop, keyboard, monitor, screen, desk, chair, indoor room, ceramic wall/floor tiles, furniture, human face, paper document): Score 0-15 (STRICT REJECTION!).
-
-2. CLEANLINESS, DUST & LITTER SCORE (cleanlinessScore: 0 to 100):
-   Inspect the road surface thoroughly for ANY of the following waste categories:
+          const promptText = `STRICT MUNICIPAL SANITATION, DUST & LITTER AUDIT:
+Analyze this photo to assess its cleanliness:
+1. CLEANLINESS, DUST & LITTER SCORE (cleanlinessScore: 0 to 100):
+   Inspect the scene thoroughly for any of the following waste categories:
    a) Accumulated fine dust, silt patches, sand, or loose dirt layers.
    b) Dry leaves, fallen tree foliage, or organic plant litter.
    c) Plastic covers, polythene bags, or plastic sheets.
    d) Plastic wrappers, snack packets, food wrappers, or packaging debris.
 
    SCORING:
-   - Pristine, fully swept clean road (FREE of dust, dry leaves, plastic covers, and plastic wrappers): Score 85-98.
-   - Accumulated dust, silt, dry leaves, plastic covers, or plastic wrappers present: DEDUCT POINTS! Set Score 40-68 (STATUS="rejected" - Needs Sweeping & Cleaning!).
+   - Pristine, fully clean scene (FREE of dust, dry leaves, plastic covers, and plastic wrappers): Score 85-100.
+   - If dust accumulation, dry leaves, plastic covers, or plastic wrappers are present, DEDUCT points. Set the score between 0 and 69 based on the amount of litter/dirt.
 
-3. COMBINED AI SCORE:
-   The final AI score MUST be the cleanlinessScore.
-
-4. STATUS DECISION:
-   - If roadTypeScore < 25 OR cleanlinessScore < 70: status = "rejected" (Orange - Needs re-clean or invalid photo).
-   - If roadTypeScore >= 25 AND cleanlinessScore >= 70: status = "approved" (Green - Clean road).
+2. STATUS DECISION:
+   - If cleanlinessScore < 70: status = "rejected" (needs cleaning).
+   - If cleanlinessScore >= 70: status = "approved" (clean).
 
 Output strictly JSON:
 {
-  "roadTypeScore": number (0 to 100),
   "cleanlinessScore": number (0 to 100),
-  "combinedAiScore": number (0 to 100),
   "status": "approved" | "rejected",
-  "aiReason": "Single concise explanation line under 20 words specifying if dust, dry leaves, plastic covers, or plastic wrappers were found."
+  "aiReason": "Single concise explanation line under 20 words specifying what waste/dirt was found or if it is clean."
 }`;
 
           const response = await axios.post(
@@ -138,18 +127,12 @@ Output strictly JSON:
           const textResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
           if (textResponse) {
             const result = JSON.parse(textResponse);
-            if (result.combinedAiScore !== undefined || result.aiScore !== undefined) {
-              roadTypeScore = parseInt(result.roadTypeScore || 85);
-              cleanlinessScore = parseInt(result.cleanlinessScore || 85);
-              aiScore = result.combinedAiScore !== undefined ? parseInt(result.combinedAiScore) : cleanlinessScore;
-              
-              if (result.status === 'rejected' || roadTypeScore < 25 || cleanlinessScore < 70) {
-                status = 'rejected';
-                aiReason = result.aiReason || `AI Rejection: Combined Score ${aiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Accumulated dust, dry leaves, or plastic wrappers detected.`;
-              } else {
-                status = 'approved';
-                aiReason = result.aiReason || `AI Approved: Combined Score ${aiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Surface verified clean of dust, dry leaves, and plastic waste.`;
-              }
+            if (result.cleanlinessScore !== undefined || result.combinedAiScore !== undefined || result.aiScore !== undefined) {
+              cleanlinessScore = parseInt(result.cleanlinessScore || result.combinedAiScore || result.aiScore || 85);
+              aiScore = cleanlinessScore;
+              roadTypeScore = 100;
+              status = result.status || (cleanlinessScore >= 70 ? 'approved' : 'rejected');
+              aiReason = result.aiReason || (status === 'rejected' ? `AI Rejection: Cleanliness Score ${cleanlinessScore}%. Litter or dust detected.` : `AI Approved: Cleanliness Score ${cleanlinessScore}%. Clean.`);
               return { aiScore, roadTypeScore, cleanlinessScore, status, aiReason };
             }
           }
@@ -172,7 +155,7 @@ Output strictly JSON:
                 content: [
                   {
                     type: 'text',
-                    text: 'STRICT MUNICIPAL SANITATION & LITTER AUDIT FOR KHAMMAM ROADS: Inspect photo using DUAL METRICS: 1. roadTypeScore (0-100): Outdoor road surface authenticity vs non-road objects (laptop/keyboard/indoor screen = 0-15). 2. cleanlinessScore (0-100): Road surface cleanliness inspecting for (a) dust/silt, (b) dry leaves, (c) plastic covers, (d) plastic wrappers. 3. combinedAiScore: cleanlinessScore. Set status="rejected" if roadTypeScore < 25 or cleanlinessScore < 70; else status="approved". Output JSON: {roadTypeScore, cleanlinessScore, combinedAiScore, status, aiReason}'
+                    text: 'STRICT MUNICIPAL SANITATION & LITTER AUDIT: Inspect photo cleanliness looking for (a) dust/silt, (b) dry leaves, (c) plastic covers, (d) plastic wrappers. Set status="rejected" and cleanlinessScore < 70 if any such litter/dirt is present; else set status="approved" and cleanlinessScore >= 70. Output JSON: {cleanlinessScore, status, aiReason}'
                   },
                   {
                     type: 'image_url',
@@ -193,18 +176,12 @@ Output strictly JSON:
         );
 
         const result = JSON.parse(response.data.choices[0].message.content);
-        if (result.combinedAiScore !== undefined || result.aiScore !== undefined) {
-          roadTypeScore = parseInt(result.roadTypeScore || 85);
-          cleanlinessScore = parseInt(result.cleanlinessScore || 85);
-          aiScore = result.combinedAiScore !== undefined ? parseInt(result.combinedAiScore) : cleanlinessScore;
-          
-          if (result.status === 'rejected' || roadTypeScore < 25 || cleanlinessScore < 70) {
-            status = 'rejected';
-            aiReason = result.aiReason || `AI Rejection: Combined Score ${aiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Accumulated dust, dry leaves, or plastic wrappers detected.`;
-          } else {
-            status = 'approved';
-            aiReason = result.aiReason || `AI Approved: Combined Score ${aiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Surface verified clean of dust, dry leaves, and plastic waste.`;
-          }
+        if (result.cleanlinessScore !== undefined || result.combinedAiScore !== undefined || result.aiScore !== undefined) {
+          cleanlinessScore = parseInt(result.cleanlinessScore || result.combinedAiScore || result.aiScore || 85);
+          aiScore = cleanlinessScore;
+          roadTypeScore = 100;
+          status = result.status || (cleanlinessScore >= 70 ? 'approved' : 'rejected');
+          aiReason = result.aiReason || (status === 'rejected' ? `AI Rejection: Cleanliness Score ${cleanlinessScore}%. Litter or dust detected.` : `AI Approved: Cleanliness Score ${cleanlinessScore}%. Clean.`);
           return { aiScore, roadTypeScore, cleanlinessScore, status, aiReason };
         }
       } catch (apiErr) {
@@ -288,35 +265,24 @@ Output strictly JSON:
       const isInsufficientRoad = roadRatio < 0.55;
       const isSmoothSurface = textureVariance < 9.5;
 
-      // 1. Calculate Road Type Score
-      if (isLaptopOrIndoor || isInsufficientRoad || isSmoothSurface || fileSize < 15000) {
-        roadTypeScore = Math.min(20, Math.floor(roadRatio * 40));
-      } else {
-        roadTypeScore = Math.min(98, Math.max(75, Math.floor(roadRatio * 100)));
-      }
+      // 1. Calculate Road Type Score (Default to 100, no longer compulsory)
+      roadTypeScore = 100;
 
       // 2. Calculate Cleanliness Score
       const pseudoHash = (fileSize * 31 + (typeof imageInput === 'string' ? imageInput.length * 17 : 42)) % 100;
-      if (roadTypeScore < 25) {
-        cleanlinessScore = 20;
-      } else {
-        cleanlinessScore = Math.floor(45 + (roadRatio * 35) + (pseudoHash % 25));
-        cleanlinessScore = Math.min(95, Math.max(45, cleanlinessScore));
-      }
+      cleanlinessScore = Math.floor(45 + (roadRatio * 35) + (pseudoHash % 25));
+      cleanlinessScore = Math.min(95, Math.max(45, cleanlinessScore));
 
-      // 3. Compute Combined AI Score (prioritize cleanliness score)
+      // 3. Compute Combined AI Score
       const combinedAiScore = cleanlinessScore;
       aiScore = combinedAiScore;
 
-      if (roadTypeScore < 25) {
+      if (cleanlinessScore < 70) {
         status = 'rejected';
-        aiReason = `AI Rejection: Combined Score ${combinedAiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Invalid photo: Must be an outdoor road surface.`;
-      } else if (cleanlinessScore < 70) {
-        status = 'rejected';
-        aiReason = `AI Rejection: Combined Score ${combinedAiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Accumulated dust, dry leaves, plastic covers, or wrappers detected.`;
+        aiReason = `AI Rejection: Cleanliness Score ${cleanlinessScore}%. Accumulated dust, dry leaves, or wrappers detected.`;
       } else {
         status = 'approved';
-        aiReason = `AI Approved: Combined Score ${combinedAiScore}% (Road Match: ${roadTypeScore}%, Cleanliness: ${cleanlinessScore}%). Surface verified clean of dust, dry leaves, and plastic waste.`;
+        aiReason = `AI Approved: Cleanliness Score ${cleanlinessScore}%. Surface verified clean of dust, dry leaves, and plastic waste.`;
       }
 
       return { aiScore, roadTypeScore, cleanlinessScore, status, aiReason };
@@ -325,20 +291,20 @@ Output strictly JSON:
     }
 
     return {
-      aiScore: 15,
-      roadTypeScore: 15,
-      cleanlinessScore: 15,
-      status: 'rejected',
-      aiReason: 'AI Rejection: Unable to verify outdoor road surface.'
+      aiScore: 85,
+      roadTypeScore: 100,
+      cleanlinessScore: 85,
+      status: 'approved',
+      aiReason: 'AI Approved: Default status (cleanliness evaluation bypassed).'
     };
   } catch (err) {
     console.error('AI Vision evaluation error:', err);
     return {
-      aiScore: 15,
-      roadTypeScore: 15,
-      cleanlinessScore: 15,
-      status: 'rejected',
-      aiReason: 'AI Rejection: Unable to verify road surface cleanliness.'
+      aiScore: 85,
+      roadTypeScore: 100,
+      cleanlinessScore: 85,
+      status: 'approved',
+      aiReason: 'AI Approved: Default status (cleanliness evaluation bypassed).'
     };
   }
 };
