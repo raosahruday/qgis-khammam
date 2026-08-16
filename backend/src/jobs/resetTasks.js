@@ -4,12 +4,12 @@ const { deletePhysicalPhoto } = require('./cleanupPhotos');
 
 const resetCompletedTasks = async () => {
   try {
-    console.log('[Cron Job] Starting daily task reset at 04:30 AM...');
+    console.log('[Cron Job] Starting task reset at 04:00 AM...');
     
     // 1. Find ALL photos to reset
     const photosToReset = await db.query('SELECT * FROM photos');
     
-    console.log(`[Cron Job] Found ${photosToReset.rows.length} total photos to delete for the daily reset.`);
+    console.log(`[Cron Job] Found ${photosToReset.rows.length} total photos to delete for the reset.`);
     
     // 2. Physically delete each photo from Cloudinary/Disk
     for (const photo of photosToReset.rows) {
@@ -31,21 +31,21 @@ const resetCompletedTasks = async () => {
     `);
     console.log(`[Cron Job] Reset ${resetTasksRes.rowCount} active/completed tasks to pending.`);
     
-    console.log('[Cron Job] Daily task and photo reset completed successfully.');
+    console.log('[Cron Job] Task and photo reset completed successfully.');
   } catch (error) {
     console.error('[Cron Job] Error resetting completed tasks:', error);
   }
 };
 
-// Schedule to run every day at 04:30 AM Asia/Kolkata
+// Schedule to run every Monday and Thursday at 04:00 AM Asia/Kolkata
 const startResetJob = () => {
-  cron.schedule('30 4 * * *', () => {
+  cron.schedule('0 4 * * 1,4', () => {
     resetCompletedTasks();
   }, {
     scheduled: true,
     timezone: "Asia/Kolkata"
   });
-  console.log('[Cron Job] Daily task reset scheduled for 04:30 AM (Asia/Kolkata).');
+  console.log('[Cron Job] Task reset scheduled for 04:00 AM on Mondays and Thursdays (Asia/Kolkata).');
 };
 
 module.exports = {
