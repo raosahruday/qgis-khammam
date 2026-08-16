@@ -749,7 +749,6 @@ export default function CommissionerDashboard({ navigation }) {
           <View style={[styles.sidebarStatBox, { backgroundColor: Colors.successBg }, Colors.shadowLow]}>
             <View style={styles.statIconBadge}>
               <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
-              <Text style={styles.emojiFallback}>✅</Text>
             </View>
             <Text style={[styles.statVal, { color: Colors.success }]}>{statsValues.completed}</Text>
             <Text style={styles.statLabel}>{t('cleaned')}</Text>
@@ -758,7 +757,6 @@ export default function CommissionerDashboard({ navigation }) {
           <View style={[styles.sidebarStatBox, { backgroundColor: Colors.warningBg }, Colors.shadowLow]}>
             <View style={styles.statIconBadge}>
               <Ionicons name="time" size={18} color={Colors.warning} />
-              <Text style={styles.emojiFallback}>⚡</Text>
             </View>
             <Text style={[styles.statVal, { color: Colors.warning }]}>{statsValues.active}</Text>
             <Text style={styles.statLabel}>{t('active')}</Text>
@@ -767,7 +765,6 @@ export default function CommissionerDashboard({ navigation }) {
           <View style={[styles.sidebarStatBox, { backgroundColor: Colors.errorBg }, Colors.shadowLow]}>
             <View style={styles.statIconBadge}>
               <Ionicons name="alert-circle" size={18} color={Colors.accent} />
-              <Text style={styles.emojiFallback}>🔴</Text>
             </View>
             <Text style={[styles.statVal, { color: Colors.accent }]}>{statsValues.pending}</Text>
             <Text style={styles.statLabel}>{t('pending')}</Text>
@@ -776,7 +773,6 @@ export default function CommissionerDashboard({ navigation }) {
           <View style={[styles.sidebarStatBox, { backgroundColor: Colors.rejectedBg }, Colors.shadowLow]}>
             <View style={styles.statIconBadge}>
               <Ionicons name="close-circle" size={18} color={Colors.rejected} />
-              <Text style={styles.emojiFallback}>🚫</Text>
             </View>
             <Text style={[styles.statVal, { color: Colors.rejected }]}>{statsValues.rejected || 0}</Text>
             <Text style={styles.statLabel}>REJECTED</Text>
@@ -789,7 +785,6 @@ export default function CommissionerDashboard({ navigation }) {
                 size={18} 
                 color={Colors.blue} 
               />
-              <Text style={styles.emojiFallback}>{selectedWardFilter === 'parks' ? '🍃' : '🚛'}</Text>
             </View>
             <Text style={[styles.statVal, { color: Colors.blue }]}>
               {selectedWardFilter === 'parks'

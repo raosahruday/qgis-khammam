@@ -541,6 +541,19 @@ const initDb = async () => {
       console.warn('Could not create spatial indices (PostGIS required):', e.message);
     }
 
+    // One-time fix: reset tasks auto-rejected by the 2:00 PM cron due to missing photos back to pending status
+    try {
+      const resetRes = await db.query(`
+        UPDATE tasks 
+        SET status = 'pending', review_comment = NULL, ai_score = NULL, ai_reason = NULL
+        WHERE status = 'rejected' 
+          AND review_comment = '2:00 PM IST Re-Assessment Rejection: No photo proofs uploaded by Jawan.'
+      `);
+      console.log(`[Startup Fix] Reset ${resetRes.rowCount} auto-rejected tasks with no photos back to pending.`);
+    } catch (e) {
+      console.warn('[Startup Fix] Could not reset auto-rejected tasks:', e.message);
+    }
+
     // 9. Seed default admin accounts
     const adminPasswordHash = '$2b$10$4MBC37ck8zyFaOFdZs2eBOyNQlxg8PVFZKK88Bfe83rRG8cUdWXx6'; // bcrypt hash for password123
     const commissionerPasswordHash = '$2b$10$q7mQJ8Db4Drx0yfa3lHwxuFwGWsfLX0f/p3WAG4K2t0Pm6Tff0Yxe'; // bcrypt hash for commissioner123

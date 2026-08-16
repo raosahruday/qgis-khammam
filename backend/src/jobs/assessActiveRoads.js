@@ -12,12 +12,31 @@ const assessActiveRoads = async () => {
   try {
     console.log('[Cron Job] Starting 2:00 PM IST automated active road re-assessment...');
 
-    // 1. Fetch all active/submitted/in-progress tasks
+    // Calculate today's 2:00 PM IST (08:30 UTC) dynamically to avoid selecting new active tasks started after 2:00 PM
+    const kParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).formatToParts(new Date());
+
+    const year = kParts.find(p => p.type === 'year').value;
+    const month = kParts.find(p => p.type === 'month').value;
+    const day = kParts.find(p => p.type === 'day').value;
+
+    const today2PMKolkata = new Date(`${year}-${month}-${day}T08:30:00Z`);
+
+    // 1. Fetch all active/submitted/in-progress tasks created/assigned BEFORE today's 2:00 PM IST
     const activeTasksRes = await db.query(`
       SELECT * 
       FROM tasks 
       WHERE status IN ('active', 'submitted', 'in_progress')
-    `);
+        AND created_at < $1
+    `, [today2PMKolkata.toISOString()]);
 
     const activeTasks = activeTasksRes.rows;
     console.log(`[2:00 PM IST Audit] Found ${activeTasks.length} active road tasks for re-assessment.`);
