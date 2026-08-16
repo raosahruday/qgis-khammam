@@ -74,7 +74,6 @@ app.use((req, res, next) => {
 });
 
 const { startResetJob } = require('./src/jobs/resetTasks');
-const { start2PMAssessmentJob } = require('./src/jobs/assessActiveRoads');
 const initDb = require('./src/config/initDb');
 
 // Initialize database and start server
@@ -83,7 +82,6 @@ const startServer = async () => {
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
     startResetJob();
-    start2PMAssessmentJob();
   });
 };
 
