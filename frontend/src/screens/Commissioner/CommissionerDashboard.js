@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Alert, useWindowDimensions, Platform } from 'react-native';
 import MapView, { Polygon, Polyline, Marker, RoadsLayer, Callout } from '../../components/MapViewWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
@@ -448,6 +448,23 @@ export default function CommissionerDashboard({ navigation }) {
   };
 
   const handleReject = async (id) => {
+    if (Platform.OS === 'web') {
+      const confirmReject = window.confirm('Are you sure you want to reject and delete this registration?');
+      if (confirmReject) {
+        try {
+          setLoading(true);
+          await api.put(`/registrations/${id}/reject`);
+          alert('User registration rejected.');
+          fetchData();
+        } catch (err) {
+          alert(err.response?.data?.error || 'Failed to reject registration');
+        } finally {
+          setLoading(false);
+        }
+      }
+      return;
+    }
+
     Alert.alert(
       'Confirm Rejection',
       'Are you sure you want to reject and delete this registration?',
