@@ -134,6 +134,7 @@ export default function CommissionerDashboard({ navigation }) {
   const [wardsList, setWardsList] = useState([]);
   const [transferringJawan, setTransferringJawan] = useState(null);
   const [selectedTargetWard, setSelectedTargetWard] = useState(null);
+  const [rejectingUser, setRejectingUser] = useState(null);
 
   const [selectedWardFilter, setSelectedWardFilter] = useState(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -447,47 +448,11 @@ export default function CommissionerDashboard({ navigation }) {
     }
   };
 
-  const handleReject = async (id) => {
-    if (Platform.OS === 'web') {
-      const confirmReject = window.confirm('Are you sure you want to reject and delete this registration?');
-      if (confirmReject) {
-        try {
-          setLoading(true);
-          await api.put(`/registrations/${id}/reject`);
-          alert('User registration rejected.');
-          fetchData();
-        } catch (err) {
-          alert(err.response?.data?.error || 'Failed to reject registration');
-        } finally {
-          setLoading(false);
-        }
-      }
-      return;
+  const handleReject = (id) => {
+    const userToReject = pendingUsers.find(u => u.id === id);
+    if (userToReject) {
+      setRejectingUser(userToReject);
     }
-
-    Alert.alert(
-      'Confirm Rejection',
-      'Are you sure you want to reject and delete this registration?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Reject', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setLoading(true);
-              await api.put(`/registrations/${id}/reject`);
-              Alert.alert('Rejected', 'User registration rejected.');
-              fetchData();
-            } catch (err) {
-              Alert.alert('Error', err.response?.data?.error || 'Failed to reject registration');
-            } finally {
-              setLoading(false);
-            }
-          }
-        }
-      ]
-    );
   };
 
   const handleTransferJawan = async (workerId, targetWardId) => {
@@ -1104,6 +1069,48 @@ export default function CommissionerDashboard({ navigation }) {
              </View>
            )}
         </View>
+
+        {rejectingUser && (
+           <View style={styles.modalOverlay}>
+             <View style={[styles.transferModal, Colors.shadowHigh]}>
+               <Text style={[styles.modalTitle, { color: Colors.accent }]}>
+                 Confirm Rejection
+               </Text>
+               <Text style={[styles.modalSub, { textTransform: 'none', fontSize: 14, fontWeight: '500', marginBottom: 20 }]}>
+                 Are you sure you want to reject and delete the registration for {rejectingUser.name}?
+               </Text>
+               
+               <View style={styles.modalActions}>
+                 <TouchableOpacity 
+                   style={[styles.modalBtn, styles.modalCancelBtn]} 
+                   onPress={() => setRejectingUser(null)}
+                 >
+                   <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                 </TouchableOpacity>
+                 
+                 <TouchableOpacity 
+                   style={[styles.modalBtn, styles.modalConfirmBtn, { backgroundColor: Colors.accent }]} 
+                   onPress={async () => {
+                     const userId = rejectingUser.id;
+                     setRejectingUser(null);
+                     try {
+                       setLoading(true);
+                       await api.put(`/registrations/${userId}/reject`);
+                       Alert.alert('Rejected', 'User registration rejected.');
+                       fetchData();
+                     } catch (err) {
+                       Alert.alert('Error', err.response?.data?.error || 'Failed to reject registration');
+                     } finally {
+                       setLoading(false);
+                     }
+                   }}
+                 >
+                   <Text style={styles.modalConfirmBtnText}>Reject</Text>
+                 </TouchableOpacity>
+               </View>
+             </View>
+           </View>
+         )}
       </View>
     );
   }
@@ -1424,6 +1431,48 @@ export default function CommissionerDashboard({ navigation }) {
         renderRegistrationRequests()
       ) : (
         renderWorkerManagement()
+      )}
+
+      {rejectingUser && (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.transferModal, Colors.shadowHigh]}>
+            <Text style={[styles.modalTitle, { color: Colors.accent }]}>
+              Confirm Rejection
+            </Text>
+            <Text style={[styles.modalSub, { textTransform: 'none', fontSize: 14, fontWeight: '500', marginBottom: 20 }]}>
+              Are you sure you want to reject and delete the registration for {rejectingUser.name}?
+            </Text>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.modalCancelBtn]} 
+                onPress={() => setRejectingUser(null)}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.modalConfirmBtn, { backgroundColor: Colors.accent }]} 
+                onPress={async () => {
+                  const userId = rejectingUser.id;
+                  setRejectingUser(null);
+                  try {
+                    setLoading(true);
+                    await api.put(`/registrations/${userId}/reject`);
+                    Alert.alert('Rejected', 'User registration rejected.');
+                    fetchData();
+                  } catch (err) {
+                    Alert.alert('Error', err.response?.data?.error || 'Failed to reject registration');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                <Text style={styles.modalConfirmBtnText}>Reject</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       )}
     </View>
   );
