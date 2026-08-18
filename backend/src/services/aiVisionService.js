@@ -117,8 +117,8 @@ Output strictly JSON:
                   parts: [
                     { text: promptText },
                     {
-                      inline_data: {
-                        mime_type: 'image/jpeg',
+                      inlineData: {
+                        mimeType: 'image/jpeg',
                         data: base64Image
                       }
                     }
