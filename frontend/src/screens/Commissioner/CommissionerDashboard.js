@@ -17,17 +17,41 @@ const MemoizedWards = React.memo(({ wardStats, selectedWardId, onWardPress }) =>
          if (!geom || !geom.coordinates) return null;
          
          const isSelected = selectedWardId === ward.id;
+         
+         // Calculate centroid of the ward polygon coordinates
+         const coords = geom.coordinates[0];
+         let sumLat = 0;
+         let sumLng = 0;
+         coords.forEach(c => {
+           sumLng += c[0];
+           sumLat += c[1];
+         });
+         const centroid = {
+           latitude: sumLat / coords.length,
+           longitude: sumLng / coords.length
+         };
+
+         const wardNoMatch = ward.name?.match(/\d+/);
+         const wardNo = wardNoMatch ? wardNoMatch[0] : ward.name;
+
          return (
-           <Polygon
-             key={`ward-${ward.id}`}
-             coordinates={geom.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }))}
-             fillColor={isSelected ? "rgba(255, 255, 255, 0.06)" : "rgba(255, 255, 255, 0.03)"}
-             strokeColor={isSelected ? "#FFFFFF" : "rgba(255, 255, 255, 0.55)"}
-             strokeWidth={isSelected ? 3.5 : 0.75}
-             lineDashPattern={isSelected ? null : [10, 10]}
-             tappable={true}
-             onPress={() => onWardPress(ward)}
-           />
+           <React.Fragment key={`ward-group-${ward.id}`}>
+             <Polygon
+               coordinates={geom.coordinates[0].map(c => ({ longitude: c[0], latitude: c[1] }))}
+               fillColor={isSelected ? "rgba(255, 255, 255, 0.06)" : "rgba(255, 255, 255, 0.03)"}
+               strokeColor={isSelected ? "#FF5722" : "rgba(255, 152, 0, 0.85)"}
+               strokeWidth={isSelected ? 4.0 : 2.25}
+               lineDashPattern={null}
+               tappable={true}
+               onPress={() => onWardPress(ward)}
+             />
+             <Marker
+               coordinate={centroid}
+               label={wardNo}
+               labelColor="#EF4444"
+               tracksViewChanges={false}
+             />
+           </React.Fragment>
          );
       })}
     </>

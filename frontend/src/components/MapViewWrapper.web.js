@@ -55,7 +55,7 @@ export const Polyline = ({ coordinates, strokeColor, strokeWidth, onPress }) => 
 };
 Polyline.nativeName = 'Polyline';
 
-export const Marker = ({ coordinate, title, description, pinColor, children }) => {
+export const Marker = ({ coordinate, title, description, pinColor, children, label, labelColor }) => {
   const map = useContext(MapContext);
   useEffect(() => {
     if (!map) return;
@@ -92,7 +92,11 @@ export const Marker = ({ coordinate, title, description, pinColor, children }) =
     }
 
     let iconHtml = '';
-    if (hasCustomChild) {
+    if (label) {
+       iconHtml = `<div style="display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 16px; font-weight: 900; color: ${labelColor || '#EF4444'}; text-shadow: -1.5px -1.5px 0 #FFF, 1.5px -1.5px 0 #FFF, -1.5px 1.5px 0 #FFF, 1.5px 1.5px 0 #FFF, 0px 2px 4px rgba(0,0,0,0.5); pointer-events: none; white-space: nowrap;">
+                     ${label}
+                   </div>`;
+    } else if (hasCustomChild) {
        iconHtml = `<div style="display: flex; align-items: center; justify-content: center;">
                      <div style="width: 14px; height: 14px; border-radius: 50%; background-color: ${dotColor}; border: 2px solid white; box-shadow: 0px 0px 4px rgba(0,0,0,0.5);"></div>
                    </div>`;
@@ -106,9 +110,9 @@ export const Marker = ({ coordinate, title, description, pinColor, children }) =
     const marker = window.L.marker([lat, lng], {
       icon: window.L.divIcon({
         html: iconHtml,
-        className: hasCustomChild ? 'custom-leaflet-dot' : 'custom-leaflet-truck',
-        iconSize: hasCustomChild ? [20, 20] : [60, 60],
-        iconAnchor: hasCustomChild ? [10, 10] : [30, 45]
+        className: label ? 'custom-leaflet-label' : (hasCustomChild ? 'custom-leaflet-dot' : 'custom-leaflet-truck'),
+        iconSize: label ? [40, 20] : (hasCustomChild ? [20, 20] : [60, 60]),
+        iconAnchor: label ? [20, 10] : (hasCustomChild ? [10, 10] : [30, 45])
       })
     }).addTo(map);
 
@@ -119,7 +123,7 @@ export const Marker = ({ coordinate, title, description, pinColor, children }) =
     return () => {
       map.removeLayer(marker);
     };
-  }, [map, coordinate, title, description, pinColor, children]);
+  }, [map, coordinate, title, description, pinColor, children, label, labelColor]);
 
   return null;
 };
