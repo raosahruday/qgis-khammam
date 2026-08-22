@@ -498,6 +498,36 @@ export default function CommissionerDashboard({ navigation }) {
     }
   };
 
+  const handleToggleJawanStatus = async (workerId, currentActive) => {
+    const actionText = currentActive ? 'deactivate' : 'activate';
+    Alert.alert(
+      t('confirm') || 'Confirm',
+      `Are you sure you want to ${actionText} this Jawan?`,
+      [
+        {
+          text: t('cancel') || 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: currentActive ? 'Deactivate' : 'Activate',
+          style: currentActive ? 'destructive' : 'default',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await api.put(`/workers/${workerId}/toggle-status`);
+              Alert.alert(t('success') || 'Success', `Jawan ${currentActive ? 'deactivated' : 'activated'} successfully`);
+              fetchData();
+            } catch (err) {
+              Alert.alert(t('error') || 'Error', err.response?.data?.error || 'Failed to toggle Jawan status');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const onRegionChangeComplete = (newRegion) => {
     regionRef.current = newRegion;
     const newZoomedOut = newRegion.latitudeDelta >= 0.05;
@@ -629,10 +659,18 @@ export default function CommissionerDashboard({ navigation }) {
   const renderWorkerManagement = () => {
     const roadWorkers = workers.filter(w => w.role !== 'park_jawan');
     
+    // Sort workers by ward numbers in ascending order from 1 to 60 (Ward 61/Unassigned at the bottom)
+    const getWardNum = (w) => {
+      if (!w.ward_name) return 999;
+      const match = w.ward_name.match(/\d+/);
+      return match ? parseInt(match[0], 10) : 999;
+    };
+    const sortedWorkers = [...roadWorkers].sort((a, b) => getWardNum(a) - getWardNum(b));
+    
     return (
       <View style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.registrationsList} showsVerticalScrollIndicator={false}>
-          {roadWorkers.map(w => {
+          {sortedWorkers.map(w => {
             const isCustomWard61 = w.ward_name === 'Ward 61';
             const displayedWardName = isCustomWard61 ? t('highways') : (w.ward_name || 'Unassigned');
 
@@ -643,10 +681,17 @@ export default function CommissionerDashboard({ navigation }) {
                     <Text style={styles.regName}>{w.name}</Text>
                     <Text style={styles.regPhone}>{w.email}</Text>
                   </View>
-                  <View style={[styles.regRoleTag, { backgroundColor: `${Colors.primary}12` }]}>
-                    <Text style={[styles.regRoleText, { color: Colors.primary }]}>
-                      {t('jawan_label')}
-                    </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={[styles.regRoleTag, { backgroundColor: `${Colors.primary}12`, marginRight: 6 }]}>
+                      <Text style={[styles.regRoleText, { color: Colors.primary }]}>
+                        {t('jawan_label')}
+                      </Text>
+                    </View>
+                    <View style={[styles.regRoleTag, { backgroundColor: w.is_active ? '#E8F5E9' : '#FFEBEE' }]}>
+                      <Text style={[styles.regRoleText, { color: w.is_active ? '#2E7D32' : '#C62828', fontWeight: 'bold' }]}>
+                        {w.is_active ? 'ACTIVE' : 'INACTIVE'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
                 
@@ -675,6 +720,22 @@ export default function CommissionerDashboard({ navigation }) {
                   >
                     <Ionicons name="swap-horizontal-outline" size={16} color={Colors.white} />
                     <Text style={styles.regBtnText}>{t('transfer')}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[
+                      styles.regBtn, 
+                      styles.rejectBtn, 
+                      { backgroundColor: w.is_active ? '#EF5350' : '#4CAF50' }, 
+                      Colors.shadowLow
+                    ]} 
+                    onPress={() => handleToggleJawanStatus(w.id, w.is_active)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name={w.is_active ? "ban-outline" : "checkmark-circle-outline"} size={16} color={Colors.white} />
+                    <Text style={styles.regBtnText}>
+                      {w.is_active ? 'Deactivate' : 'Activate'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>

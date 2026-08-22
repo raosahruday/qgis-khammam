@@ -142,6 +142,11 @@ exports.login = async (req, res) => {
       return res.status(403).json({ error: 'Your registration is pending approval by the Commissioner.' });
     }
 
+    // Check if user is active
+    if (user.is_active === false) {
+      return res.status(403).json({ error: 'Your account has been deactivated. Please contact the administrator.' });
+    }
+
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {

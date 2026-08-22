@@ -139,6 +139,7 @@ router.get('/tasks', taskController.getTasks);
 router.post('/tasks', authorizeRole(['owner', 'supervisor']), taskController.createTask);
 router.get('/workers', authorizeRole(['owner', 'supervisor', 'commissioner', 'park_inspector']), userController.getWorkers);
 router.put('/workers/:id/transfer', authorizeRole(['commissioner']), userController.transferWorker);
+router.put('/workers/:id/toggle-status', authorizeRole(['commissioner']), userController.toggleWorkerStatus);
 router.get('/wards', authorizeRole(['owner', 'supervisor', 'commissioner']), userController.getWards);
 
 

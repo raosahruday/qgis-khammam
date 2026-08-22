@@ -6,12 +6,13 @@ exports.getWorkers = async (req, res) => {
     const targetRole = (user && user.role === 'park_inspector') ? 'park_jawan' : 'worker';
     const query = `
       SELECT u.id, u.name, u.email, u.ward_id, w.name as ward_name,
+             COALESCE(u.is_active, TRUE) as is_active,
              COUNT(t.id) as active_task_count
       FROM users u
       LEFT JOIN wards w ON u.ward_id = w.id
       LEFT JOIN tasks t ON u.id = t.assigned_worker_id AND t.status IN ('pending', 'submitted')
       WHERE u.role = $1
-      GROUP BY u.id, u.name, u.email, u.ward_id, w.name
+      GROUP BY u.id, u.name, u.email, u.ward_id, w.name, u.is_active
       ORDER BY u.name ASC;
     `;
     const result = await db.query(query, [targetRole]);
@@ -165,4 +166,27 @@ exports.transferWorker = async (req, res) => {
     res.status(500).json({ error: 'Server error transferring jawan' });
   }
 };
+
+exports.toggleWorkerStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Verify if user exists and is a worker/jawan
+    const userRes = await db.query("SELECT id, is_active FROM users WHERE id = $1 AND role IN ('worker', 'park_jawan')", [id]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Jawan not found' });
+    }
+    
+    const currentActive = userRes.rows[0].is_active === false ? false : true;
+    const newActive = !currentActive;
+    
+    await db.query("UPDATE users SET is_active = $1 WHERE id = $2", [newActive, id]);
+    
+    res.json({ message: `Jawan ${newActive ? 'activated' : 'deactivated'} successfully`, is_active: newActive });
+  } catch (error) {
+    console.error('Toggle worker status error:', error);
+    res.status(500).json({ error: 'Server error toggling worker status' });
+  }
+};
+
 
