@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import api from '../../api/axios';
@@ -72,7 +72,11 @@ export default function CapturePhotoScreen({ route, navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView 
+      style={{ flex: 1, backgroundColor: Colors.background }} 
+      contentContainerStyle={styles.container}
+      bounces={false}
+    >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('upload_photo_proof')}</Text>
         <Text style={styles.headerSubtitle}>{t('capture_evidence')}</Text>
@@ -122,12 +126,12 @@ export default function CapturePhotoScreen({ route, navigation }) {
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.background },
+  container: { flexGrow: 1, padding: 24, alignItems: 'center', justifyContent: 'space-between' },
   header: { alignItems: 'center', marginTop: 20 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
   headerSubtitle: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18, paddingHorizontal: 10 },

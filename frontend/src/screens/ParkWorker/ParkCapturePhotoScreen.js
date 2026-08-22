@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import api from '../../api/axios';
@@ -105,7 +105,11 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView 
+      style={{ flex: 1, backgroundColor: '#F8FAFC' }} 
+      contentContainerStyle={styles.container}
+      bounces={false}
+    >
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back-outline" size={24} color={Colors.text} />
@@ -176,17 +180,16 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { 
-    flex: 1, 
+    flexGrow: 1, 
     padding: 24, 
     alignItems: 'center', 
-    justifyContent: 'space-between', 
-    backgroundColor: '#F8FAFC' 
+    justifyContent: 'space-between' 
   },
   header: { 
     alignItems: 'center', 
