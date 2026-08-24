@@ -411,6 +411,14 @@ const initDb = async () => {
     } catch (e) {
       console.warn('Could not update users table check constraint:', e.message);
     }
+    
+    try {
+      await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;`);
+      console.log('✅ Users table is_active column verified.');
+    } catch (e) {
+      console.warn('Could not add is_active column to users:', e.message);
+    }
+    
     console.log('✅ Users table checked.');
 
     // 4. Create Machines table
