@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -12,6 +12,16 @@ export default function CapturePhotoScreen({ route, navigation }) {
   const [photo, setPhoto] = useState(null);
   const [uploading, setUploading] = useState(false);
   const { t } = useLocalization();
+  const scrollViewRef = useRef(null);
+
+  useEffect(() => {
+    if (photo) {
+      const timer = setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [photo]);
 
   const takePhoto = async () => {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
@@ -73,19 +83,17 @@ export default function CapturePhotoScreen({ route, navigation }) {
 
   return (
     <ScrollView 
+      ref={scrollViewRef}
       style={{ flex: 1, backgroundColor: Colors.background }} 
       contentContainerStyle={styles.container}
-      bounces={false}
+      showsVerticalScrollIndicator={true}
+      keyboardShouldPersistTaps="handled"
+      alwaysBounceVertical={true}
+      overScrollMode="always"
     >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('upload_photo_proof')}</Text>
         <Text style={styles.headerSubtitle}>{t('capture_evidence')}</Text>
-        <View style={styles.roadHintBadge}>
-          <Ionicons name="information-circle-outline" size={16} color={Colors.warning} />
-          <Text style={styles.roadHintText}>
-            AI Audit Enforced: Capture outdoor road surface only (Cement, Asphalt, Pavers, Gravel). Laptops/indoor photos will be rejected.
-          </Text>
-        </View>
       </View>
  
       <View style={[styles.previewContainer, Colors.shadowMedium]}>
@@ -105,7 +113,7 @@ export default function CapturePhotoScreen({ route, navigation }) {
       <View style={styles.buttonRow}>
         <TouchableOpacity style={[styles.cameraBtn, Colors.shadowLow]} onPress={takePhoto} activeOpacity={0.8}>
           <Ionicons name="camera" size={20} color={Colors.white} />
-          <Text style={styles.btnText}>{t('take_photo')}</Text>
+          <Text style={styles.btnText}>{photo ? (t('retake_photo') || 'Retake Photo') : t('take_photo')}</Text>
         </TouchableOpacity>
 
         {photo && (
@@ -131,33 +139,25 @@ export default function CapturePhotoScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 24, alignItems: 'center', justifyContent: 'space-between' },
-  header: { alignItems: 'center', marginTop: 20 },
+  container: { 
+    flexGrow: 1, 
+    paddingHorizontal: 20, 
+    paddingTop: 16, 
+    paddingBottom: 60, 
+    alignItems: 'center' 
+  },
+  header: { 
+    alignItems: 'center', 
+    marginTop: 10,
+    marginBottom: 4
+  },
   headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
   headerSubtitle: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18, paddingHorizontal: 10 },
-  roadHintBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FCD34D',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginTop: 10,
-    maxWidth: '100%',
-  },
-  roadHintText: {
-    fontSize: 11.5,
-    color: '#92400E',
-    fontWeight: '600',
-    marginLeft: 6,
-    flexShrink: 1,
-  },
   
   previewContainer: {
     width: '100%',
-    aspectRatio: 0.85,
+    aspectRatio: 1,
+    maxHeight: 380,
     backgroundColor: Colors.card,
     borderRadius: Colors.radiusLarge,
     borderWidth: 1,
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: 18,
   },
   preview: { width: '100%', height: '100%', resizeMode: 'cover' },
   placeholder: { justifyContent: 'center', alignItems: 'center', padding: 20 },
@@ -183,14 +183,18 @@ const styles = StyleSheet.create({
   placeholderText: { fontSize: 16, fontWeight: '800', color: Colors.text },
   placeholderSubtext: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 6 },
 
-  buttonRow: { width: '100%', marginBottom: 15 },
+  buttonRow: { 
+    width: '100%', 
+    marginTop: 8,
+    marginBottom: 20 
+  },
   cameraBtn: { 
     backgroundColor: Colors.blue, 
     padding: 16, 
     borderRadius: 14, 
     width: '100%', 
     alignItems: 'center', 
-    justifyContent: 'center',
+    justifyContent: 'center', 
     flexDirection: 'row',
     marginBottom: 12 
   },
@@ -200,7 +204,7 @@ const styles = StyleSheet.create({
     borderRadius: 14, 
     width: '100%', 
     alignItems: 'center', 
-    justifyContent: 'center',
+    justifyContent: 'center', 
     flexDirection: 'row',
   },
   btnText: { color: Colors.white, fontSize: 15, fontWeight: '700', marginLeft: 8 }

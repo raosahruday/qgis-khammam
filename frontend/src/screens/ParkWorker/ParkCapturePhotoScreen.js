@@ -13,6 +13,16 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
   const [uploading, setUploading] = useState(false);
   const [photosCount, setPhotosCount] = useState(0);
   const { t } = useLocalization();
+  const scrollViewRef = React.useRef(null);
+
+  useEffect(() => {
+    if (photo) {
+      const timer = setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [photo]);
 
   const fetchCurrentPhotosCount = async () => {
     try {
@@ -106,9 +116,13 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
 
   return (
     <ScrollView 
+      ref={scrollViewRef}
       style={{ flex: 1, backgroundColor: '#F8FAFC' }} 
       contentContainerStyle={styles.container}
-      bounces={false}
+      showsVerticalScrollIndicator={true}
+      keyboardShouldPersistTaps="handled"
+      alwaysBounceVertical={true}
+      overScrollMode="always"
     >
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
@@ -187,9 +201,10 @@ export default function ParkCapturePhotoScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { 
     flexGrow: 1, 
-    padding: 24, 
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 60, 
     alignItems: 'center', 
-    justifyContent: 'space-between' 
   },
   header: { 
     alignItems: 'center', 

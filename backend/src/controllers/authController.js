@@ -129,9 +129,17 @@ exports.login = async (req, res) => {
     }
 
     const cleanIdentifier = email.trim();
+    const withDomain = cleanIdentifier.includes('@') ? cleanIdentifier : `${cleanIdentifier}@test.com`;
+    const withoutDomain = cleanIdentifier.replace(/@.*$/, '');
 
-    // Find user by email or phone
-    const userResult = await db.query('SELECT * FROM users WHERE email = $1 OR phone = $1', [cleanIdentifier]);
+    // Find user by email, phone, or username without domain (e.g., jawan_53)
+    const userResult = await db.query(
+      `SELECT u.*, w.name as ward_name 
+       FROM users u 
+       LEFT JOIN wards w ON u.ward_id = w.id 
+       WHERE u.email = $1 OR u.email = $2 OR u.email = $3 OR u.phone = $1`,
+      [cleanIdentifier, withDomain, withoutDomain]
+    );
     if (userResult.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -163,7 +171,16 @@ exports.login = async (req, res) => {
     res.json({
       message: 'Logged in successfully',
       token,
-      user: { id: user.id, name: user.name, email: user.email || user.phone, phone: user.phone, role: user.role, current_machine_id: user.current_machine_id, ward_id: user.ward_id }
+      user: { 
+        id: user.id, 
+        name: user.name, 
+        email: user.email || user.phone, 
+        phone: user.phone, 
+        role: user.role, 
+        current_machine_id: user.current_machine_id, 
+        ward_id: user.ward_id,
+        ward_name: user.ward_name
+      }
     });
   } catch (error) {
     console.error('Login error:', error);

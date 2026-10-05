@@ -688,20 +688,21 @@ const initDb = async () => {
       console.log(`✅ Users already seeded (${usersCount} SIs/Jawans present).`);
     }
 
-    // Ensure Highway Jawan is updated/created
-    const highwayPasswordHash = bcrypt.hashSync('highway@123', 10);
-    // Delete any old jawan_61 if present to avoid conflicts
-    await db.query("DELETE FROM users WHERE email = 'jawan_61@test.com'");
+    // Password hash for all Road Jawans
+    const staffPasswordHash = bcrypt.hashSync('staff@123', 10);
+
+    // Ensure Highway Jawan (Ward 61) is updated/created
     await db.query(`
       INSERT INTO users (name, email, password, role, approved, ward_id)
-      VALUES ('Sahruday', 'jawan_highway@test.com', $1, 'worker', TRUE, NULL)
+      VALUES ('Sahruday', 'jawan_61@test.com', $1, 'worker', TRUE, NULL)
       ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, name = EXCLUDED.name, approved = TRUE, ward_id = NULL
-    `, [highwayPasswordHash]);
+    `, [staffPasswordHash]);
+    await db.query(`
+      UPDATE users SET password = $1 WHERE email = 'jawan_highway@test.com'
+    `, [staffPasswordHash]);
     console.log('✅ Highway Jawan checked/inserted.');
 
     // Ensure Jawan 8 (Ward 8_1 & 8_2 merge) is updated/created
-    const jawan8PasswordHash = bcrypt.hashSync('jawan8@123', 10);
-    // Delete any old jawan_8_1 and jawan_8_2 if present to avoid conflicts
     await db.query("DELETE FROM users WHERE email IN ('jawan_8_1@test.com', 'jawan_8_2@test.com')");
     // Find Ward 8 ID
     const ward8Res = await db.query("SELECT id FROM wards WHERE name = 'Ward 8' OR name = 'Ward 08' LIMIT 1");
@@ -710,12 +711,10 @@ const initDb = async () => {
       INSERT INTO users (name, email, password, role, approved, ward_id)
       VALUES ('Sk Navab / B  Venkateshwarlu', 'jawan_8@test.com', $1, 'worker', TRUE, $2)
       ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, name = EXCLUDED.name, approved = TRUE, ward_id = EXCLUDED.ward_id
-    `, [jawan8PasswordHash, ward8Id]);
+    `, [staffPasswordHash, ward8Id]);
     console.log('✅ Jawan 8 checked/inserted.');
 
     // Ensure Jawan 15 (Ward 15_1 & 15_2 merge) is updated/created
-    const jawan15PasswordHash = bcrypt.hashSync('jawan15@123', 10);
-    // Delete any old jawan_15_1 and jawan_15_2 if present to avoid conflicts
     await db.query("DELETE FROM users WHERE email IN ('jawan_15_1@test.com', 'jawan_15_2@test.com')");
     // Find Ward 15 ID
     const ward15Res = await db.query("SELECT id FROM wards WHERE name = 'Ward 15' OR name = 'Ward 15' LIMIT 1");
@@ -724,8 +723,16 @@ const initDb = async () => {
       INSERT INTO users (name, email, password, role, approved, ward_id)
       VALUES ('K Srikanth / P Naresh', 'jawan_15@test.com', $1, 'worker', TRUE, $2)
       ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, name = EXCLUDED.name, approved = TRUE, ward_id = EXCLUDED.ward_id
-    `, [jawan15PasswordHash, ward15Id]);
+    `, [staffPasswordHash, ward15Id]);
     console.log('✅ Jawan 15 checked/inserted.');
+
+    // Update passwords for all Road Jawans (role = 'worker') only
+    await db.query(`
+      UPDATE users 
+      SET password = $1 
+      WHERE role = 'worker'
+    `, [staffPasswordHash]);
+    console.log('✅ All Road Jawan passwords updated to staff@123.');
 
     // Seed Park Inspector/Jawans and tasks if not present in infrastructure
     const parksCountCheck = await db.query("SELECT COUNT(*) FROM infrastructure WHERE type = 'park'");

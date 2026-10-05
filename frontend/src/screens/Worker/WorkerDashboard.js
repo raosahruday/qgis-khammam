@@ -45,6 +45,29 @@ export default function WorkerDashboard({ navigation }) {
   const { t } = useLocalization();
   const mapRef = useRef(null);
 
+  const getJawanTitle = () => {
+    // 1. Try extracting numeric ward from username/email (e.g. jawan_5, jawan_5@test.com)
+    if (user?.email) {
+      const match = user.email.match(/jawan_(\d+)/i);
+      if (match) return `${t('welcome')} Jawan ${match[1]}`;
+      if (user.email.includes('highway') || user.email.includes('61')) {
+        return `${t('welcome')} Jawan 61`;
+      }
+    }
+    // 2. Try extracting from wardBoundary?.wardName or user?.ward_name (e.g. "Ward 5", "Ward 05")
+    const wardName = wardBoundary?.wardName || user?.ward_name;
+    if (wardName) {
+      const numMatch = wardName.match(/\d+/);
+      if (numMatch) return `${t('welcome')} Jawan ${parseInt(numMatch[0], 10)}`;
+    }
+    // 3. Try user?.ward_id
+    if (user?.ward_id) {
+      return `${t('welcome')} Jawan ${user.ward_id}`;
+    }
+    // Fallback if ward number cannot be identified
+    return `${t('welcome')}, ${user?.name || 'Jawan'}`;
+  };
+
   const fetchData = async () => {
     if (tasks.length === 0) {
       setLoading(true);
@@ -428,7 +451,7 @@ export default function WorkerDashboard({ navigation }) {
       <View style={[styles.titleSection, Colors.shadowLow]}>
         <View style={styles.profileRow}>
           <View style={styles.profileText}>
-            <Text style={styles.headerTitle}>{t('welcome')}, {user?.name}</Text>
+            <Text style={styles.headerTitle}>{getJawanTitle()}</Text>
             <Text style={styles.subText}>
               👷 {t('jawan')} • {wardBoundary?.wardName ? wardBoundary.wardName : (user?.ward_id ? `${t('ward_text')} ${user.ward_id}` : 'Ward Area')}
             </Text>
